@@ -18,7 +18,7 @@
 - Money: integer paise end to end (`shared/money.ts`, `rupeesToPaise`). No floats for totals.
 - Datasheet preview must render the real PDF (pdf.js). Never substitute images.
 - Product images: real manufacturer or business photos only. Otherwise use the labelled illustration (`ProductVisual`).
-- Customer accounts (`Customers`, `CustomerSessions`) are separate from admin auth. Store only PBKDF2 hashes (`worker/crypto.ts`) and token digests; never log or return them. `RewardTransactions` is append-only (corrections are new negative/positive rows).
+- Customer accounts (`Customers`, `CustomerSessions`) are separate from admin auth. Store only peppered PBKDF2 hashes (`worker/crypto.ts`, secret `PASSWORD_PEPPER`, see PASSWORDS.md) and token digests; never log or return them. `RewardTransactions` is append-only (corrections are new negative/positive rows).
 - Site content that changes (field photos, contact details, social links, announcement) lives in D1 and is edited in the admin; do not hard-code it again. `src/site.ts` holds only fallbacks.
 - Uploads: only via `/api/admin/uploads` (type-sniffed, size-limited, R2). Never trust the browser-supplied content type.
 - Tailwind v4: reusable classes are `@utility` blocks in `src/styles.css` (`@apply` cannot reference `@layer components` classes).

@@ -67,7 +67,7 @@ async function checkCredentials(env: Env, login: string, password: string): Prom
   )
     .bind(mobile ?? login.toLowerCase())
     .first<AdminLoginRow>();
-  const ok = await verifyPassword(password, row?.PasswordHash ?? DUMMY_HASH); // always hash: no timing hint
+  const ok = await verifyPassword(password, row?.PasswordHash ?? DUMMY_HASH, env); // always hash: no timing hint
   const generic = new HttpError(401, "bad_credentials", "Mobile number or password is incorrect.");
   if (!row || !row.PasswordHash) throw generic;
   if (row.LockedUntil && row.LockedUntil > nowIso()) throw new HttpError(429, "locked", `Too many failed attempts. Try again in ${LOCK_MINUTES} minutes.`);
@@ -111,12 +111,12 @@ export async function adminChangePassword(request: Request, env: Env, body: unkn
   const p = AdminPasswordChangeSchema.safeParse(body);
   if (!p.success) throw new HttpError(422, "validation", p.error.issues[0]?.message ?? "Please check the form.", issues(p.error));
   const row = await checkCredentials(env, p.data.login, p.data.currentPassword);
-  if (await verifyPassword(p.data.newPassword, row.PasswordHash!)) {
+  if (await verifyPassword(p.data.newPassword, row.PasswordHash!, env)) {
     throw new HttpError(422, "validation", "Choose a password different from the current one.", [{ path: "newPassword", message: "Must differ from the current password" }]);
   }
   const now = nowIso();
   return startAdminSession(request, env, row, [
-    env.DB.prepare("UPDATE AdminUsers SET PasswordHash = ?1, MustChangePassword = 0, PasswordChangedAt = ?2, UpdatedAt = ?2 WHERE AdminId = ?3").bind(await hashPassword(p.data.newPassword), now, row.AdminId),
+    env.DB.prepare("UPDATE AdminUsers SET PasswordHash = ?1, MustChangePassword = 0, PasswordChangedAt = ?2, UpdatedAt = ?2 WHERE AdminId = ?3").bind(await hashPassword(p.data.newPassword, env), now, row.AdminId),
     env.DB.prepare("DELETE FROM AdminSessions WHERE AdminId = ?1").bind(row.AdminId), // sign out everywhere else
     env.DB.prepare("INSERT INTO AuditLogs (AdminIdentity, Action, EntityType, EntityId, CreatedAt) VALUES (?1, 'admin.password_change', 'AdminUser', ?2, ?3)").bind(row.Email.toLowerCase(), String(row.AdminId), now),
   ]);

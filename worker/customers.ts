@@ -160,7 +160,7 @@ export async function register(request: Request, env: Env, body: unknown): Promi
     const which = dup.Mobile === v.mobile ? "mobile number" : "email";
     throw new HttpError(409, "exists", `An account with this ${which} already exists. Please sign in instead.`);
   }
-  const hash = await hashPassword(v.password);
+  const hash = await hashPassword(v.password, env);
   const now = nowIso();
   const r = await env.DB.prepare(
     `INSERT INTO Customers (FullName, Mobile, Email, BusinessName, City, PasswordHash, CreatedAt, UpdatedAt) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)`,
@@ -184,7 +184,7 @@ export async function login(request: Request, env: Env, body: unknown): Promise<
     .bind(mobile ?? id.toLowerCase())
     .first<{ CustomerId: number; PasswordHash: string; IsActive: number; FailedLogins: number; LockedUntil: string | null }>();
 
-  const ok = await verifyPassword(password, row?.PasswordHash ?? DUMMY_HASH); // always hash: no timing hint
+  const ok = await verifyPassword(password, row?.PasswordHash ?? DUMMY_HASH, env); // always hash: no timing hint
   const generic = new HttpError(401, "bad_credentials", "Mobile number / email or password is incorrect.");
   if (!row) throw generic;
   if (row.LockedUntil && row.LockedUntil > nowIso()) {
@@ -235,11 +235,11 @@ export async function changePassword(request: Request, env: Env, body: unknown):
   const p = PasswordChangeSchema.safeParse(body);
   if (!p.success) invalid(p.error);
   const row = await env.DB.prepare("SELECT PasswordHash FROM Customers WHERE CustomerId = ?1").bind(c.CustomerId).first<{ PasswordHash: string }>();
-  if (!row || !(await verifyPassword(p.data.currentPassword, row.PasswordHash))) {
+  if (!row || !(await verifyPassword(p.data.currentPassword, row.PasswordHash, env))) {
     throw new HttpError(422, "validation", "Your current password is incorrect.", [{ path: "currentPassword", message: "Incorrect password" }]);
   }
   await env.DB.batch([
-    env.DB.prepare("UPDATE Customers SET PasswordHash = ?1, UpdatedAt = ?2 WHERE CustomerId = ?3").bind(await hashPassword(p.data.newPassword), nowIso(), c.CustomerId),
+    env.DB.prepare("UPDATE Customers SET PasswordHash = ?1, UpdatedAt = ?2 WHERE CustomerId = ?3").bind(await hashPassword(p.data.newPassword, env), nowIso(), c.CustomerId),
     env.DB.prepare("DELETE FROM CustomerSessions WHERE CustomerId = ?1").bind(c.CustomerId), // sign out other devices
   ]);
   const cookies = await startSession(request, env, c.CustomerId);
@@ -256,7 +256,7 @@ export async function resetPassword(request: Request, env: Env, body: unknown): 
   const res = await env.DB.batch([
     env.DB.prepare("UPDATE PasswordResetTokens SET UsedAt = ?1 WHERE TokenHash = ?2 AND UsedAt IS NULL").bind(now, th),
     env.DB.prepare("UPDATE Customers SET PasswordHash = ?1, FailedLogins = 0, LockedUntil = NULL, UpdatedAt = ?2 WHERE CustomerId = ?3 AND changes() = 1").bind(
-      await hashPassword(p.data.newPassword),
+      await hashPassword(p.data.newPassword, env),
       now,
       t.CustomerId,
     ),

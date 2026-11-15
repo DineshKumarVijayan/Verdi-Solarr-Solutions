@@ -60,7 +60,7 @@ A Workers **custom domain** needs the domain’s DNS zone on Cloudflare. On the 
 7. **Attach the Worker:** Workers & Pages → `verdi-solarr` → **Settings → Domains & Routes → Add → Custom domain** → `www.<domain>`, and again for `<domain>` (root). Cloudflare creates the DNS records and the certificate. **If an old website’s A/CNAME record exists for those names, remove it only now**, and only once you are ready to switch.
 8. **HTTPS:** SSL/TLS → Overview → **Full (strict)**. Edge Certificates → **Always Use HTTPS** on. Wait for the certificates to show *Active*.
 9. **Root vs www:** pick one canonical host (recommended: `www`). Add a Redirect Rule (Rules → Redirect Rules → template “Redirect from root to WWW”) so `https://<domain>/*` → `https://www.<domain>/${1}` with a 301. Use the same host in `SITE_URL` and Access.
-10. Set `ADMIN_ALLOWED_HOSTS` to the final hostnames and deploy. Give the owner a password once: `npm run admin:set -- --email=... --mobile=... --password=... --remote` (CLOUDFLARE_SETUP.md §4).
+10. Set `ADMIN_ALLOWED_HOSTS` to the final hostnames and deploy. Set the `PASSWORD_PEPPER` secret first (PASSWORDS.md §3), then give the owner a password once: `npm run admin:set -- --mobile=... --password=... --remote` with `PASSWORD_PEPPER` set in the shell (CLOUDFLARE_SETUP.md §4).
 11. **Verify on the live domain:** home and product pages, a datasheet modal, search, an enquiry through to the WhatsApp preview, `/robots.txt`, `/sitemap.xml`, admin login and a price save (then check it on the public page within about a minute), and email delivery.
 
 Do not modify any other domains or zones in the account.

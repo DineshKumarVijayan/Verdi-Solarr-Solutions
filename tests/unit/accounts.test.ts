@@ -1,23 +1,39 @@
 import { describe, expect, it } from "vitest";
 import { BrandInputSchema, normaliseMobile, ProductInputSchema, RegisterSchema, slugify, specKeyFrom } from "../../shared/admin-schemas";
 import { sniff } from "../../worker/content";
-import { hashPassword, randomToken, sha256Hex, timingSafeEqual, verifyPassword } from "../../worker/crypto";
+import { hashPassword, ITERATIONS, randomToken, sha256Hex, timingSafeEqual, verifyPassword } from "../../worker/crypto";
+// @ts-expect-error plain JS setup-script helper
+import { hashPassword as scriptHash } from "../../scripts/lib/passwords.mjs";
 
-describe("customer password hashing", () => {
+const PROD = { ENVIRONMENT: "production", PASSWORD_PEPPER: "test-secret-key-1" };
+
+describe("password hashing", () => {
   it("hashes with a random salt and verifies only the right password", async () => {
-    const a = await hashPassword("correct horse battery");
-    const b = await hashPassword("correct horse battery");
-    expect(a).toMatch(/^pbkdf2_sha256\$100000\$[\w-]+\$[\w-]+$/);
+    const a = await hashPassword("correct horse battery", PROD);
+    const b = await hashPassword("correct horse battery", PROD);
+    expect(a.startsWith(`pbkdf2p_sha256$${ITERATIONS}$`)).toBe(true);
+    expect(a.split("$")).toHaveLength(4);
     expect(a).not.toBe(b); // salted
     expect(a).not.toContain("correct");
-    expect(await verifyPassword("correct horse battery", a)).toBe(true);
-    expect(await verifyPassword("correct horse batterY", a)).toBe(false);
-    expect(await verifyPassword("", a)).toBe(false);
+    expect(await verifyPassword("correct horse battery", a, PROD)).toBe(true);
+    expect(await verifyPassword("correct horse batterY", a, PROD)).toBe(false);
+    expect(await verifyPassword("", a, PROD)).toBe(false);
+  });
+  it("needs the same secret key: a stolen hash is useless without it", async () => {
+    const a = await hashPassword("correct horse battery", PROD);
+    expect(await verifyPassword("correct horse battery", a, { ...PROD, PASSWORD_PEPPER: "other-key" })).toBe(false);
+  });
+  it("production refuses to work without the secret key", async () => {
+    await expect(hashPassword("x", { ENVIRONMENT: "production" })).rejects.toThrow();
+  });
+  it("setup script (npm run admin:set) produces hashes the Worker accepts", async () => {
+    const h = await scriptHash("Owner@12345", PROD.PASSWORD_PEPPER);
+    expect(await verifyPassword("Owner@12345", h, PROD)).toBe(true);
   });
   it("rejects malformed or weakened stored hashes", async () => {
-    expect(await verifyPassword("x", "plaintext")).toBe(false);
-    expect(await verifyPassword("x", "pbkdf2_sha256$1$AAAA$AAAA")).toBe(false);
-    expect(await verifyPassword("x", "md5$100000$AAAA$AAAA")).toBe(false);
+    expect(await verifyPassword("x", "plaintext", PROD)).toBe(false);
+    expect(await verifyPassword("x", "pbkdf2p_sha256$1$AAAA$AAAA", PROD)).toBe(false);
+    expect(await verifyPassword("x", "md5$100000$AAAA$AAAA", PROD)).toBe(false);
   });
   it("tokens are random and only their digest is stored", async () => {
     const t = randomToken();

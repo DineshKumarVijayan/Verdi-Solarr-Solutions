@@ -13,4 +13,6 @@ export interface Env {
   /** Comma-separated hostnames allowed to perform admin writes (CSRF/origin check). */
   ADMIN_ALLOWED_HOSTS: string;
   PUBLIC_CACHE_SECONDS: string;
+  /** SECRET (wrangler secret put PASSWORD_PEPPER). Secret key mixed into every password hash. See PASSWORDS.md. */
+  PASSWORD_PEPPER?: string;
 }

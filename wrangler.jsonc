@@ -40,4 +40,5 @@
     "ADMIN_ALLOWED_HOSTS": "",
     "PUBLIC_CACHE_SECONDS": "60"
   }
+  // Secrets (NOT here, never in GitHub): PASSWORD_PEPPER — set with `npx wrangler secret put PASSWORD_PEPPER`. See PASSWORDS.md.
 }

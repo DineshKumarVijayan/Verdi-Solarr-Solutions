@@ -37,9 +37,17 @@ Open the printed `https://verdi-solarr.<your-subdomain>.workers.dev`, then check
 If the deploy is rejected because of the `ratelimits` block (rate-limit bindings might not be available on your plan), remove that block from `wrangler.jsonc`. The code works without it.
 
 ## 4. Admin sign-in (first owner password)
-Admins sign in at `/admin` with mobile number + password (no Cloudflare Access needed). After the first deploy and `npm run db:migrate:remote`, give the owner a password **once**:
+Admins sign in at `/admin` with mobile number + password (no Cloudflare Access needed).
+
+**First set the password secret key** (once, before anyone signs in; full guide in PASSWORDS.md):
 ```bash
-npm run admin:set -- --email=Verdisolarrsolution@gmail.com --mobile=8939277997 --name=Owner --role=owner --password="<a strong password>" --remote
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"   # copy the output; save it in a password manager
+npx wrangler secret put PASSWORD_PEPPER                                          # paste it when asked
+```
+Then, after the first deploy, give the owner a password **once** (the same secret key must be in `PASSWORD_PEPPER` for this command):
+```bash
+# PowerShell:  $env:PASSWORD_PEPPER="<the secret key>"     Git Bash:  export PASSWORD_PEPPER="<the secret key>"
+npm run admin:set -- --mobile=<owner mobile> --name=Owner --role=owner --password="<a strong password>" --remote
 ```
 The script hashes the password locally; only the hash is sent to D1. Clear the command from your shell history afterwards. Everyone else is then added by the owner in **Admin → Admin users**.
 

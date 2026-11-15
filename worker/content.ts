@@ -718,7 +718,7 @@ export async function saveAdminUser(env: Env, admin: AdminIdentity, id: number |
   const before = id ? await env.DB.prepare("SELECT AdminId, Email, Mobile, DisplayName, Role, IsActive FROM AdminUsers WHERE AdminId = ?1").bind(id).first<Record<string, unknown>>() : null;
   if (id && !before) throw new HttpError(404, "not_found", "Admin user not found.");
   if (!id && !v.password) throw new HttpError(422, "validation", "Set a password for the new admin.", [{ path: "password", message: "Required (at least 8 characters)" }]);
-  const hash = v.password ? await hashPassword(v.password) : null;
+  const hash = v.password ? await hashPassword(v.password, env) : null;
   const self = !!before && String(before.Email).toLowerCase() === admin.email;
   // Someone else's new/reset password is temporary: they must choose their own at next sign-in.
   const mustChange = hash && !self ? 1 : 0;

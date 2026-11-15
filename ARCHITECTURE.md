@@ -55,7 +55,7 @@ The Vite SPA is code-split per route. pdf.js (≈440 KB) loads only when a datas
 
 | Layer | Implementation |
 |---|---|
-| Admin sign-in | Mobile number + password against `AdminUsers` (PBKDF2-SHA256 hash, 100k iterations, salted). Dummy hash for unknown users; 5 failures lock for 15 min; `AUTH_LIMITER` per IP. |
+| Admin sign-in | Mobile number + password against `AdminUsers` (PBKDF2-SHA256, 10k iterations, salted, plus a secret key: PASSWORDS.md). Dummy hash for unknown users; 5 failures lock for 15 min; `AUTH_LIMITER` per IP. |
 | Admin session | 32-byte random token in `__Host-vs_admin` (HttpOnly, Secure, SameSite=Strict, 12 h). Only its SHA-256 is stored (`AdminSessions`). Every `/api/admin/*` call re-checks the session and that the admin is still active; password change or deactivation revokes sessions. |
 | Authorisation | Active row in `AdminUsers` (D1). Roles: owner, admin, price_editor (can edit), viewer (read-only). |
 | CSRF / origin | Non-GET admin calls need `Origin` = request host, host in `ADMIN_ALLOWED_HOSTS`, and `Sec-Fetch-Site: same-origin`. This blocks writes from preview and workers.dev hosts. |
@@ -89,7 +89,7 @@ Every admin write is role-checked, audited in the same D1 batch, then calls `rep
 ## Customer accounts
 
 Separate from admin auth. Mobile number (normalised to 91XXXXXXXXXX) + password.
-- Passwords: PBKDF2-HMAC-SHA256, 100,000 iterations (the Workers maximum), 16-byte salt, constant-time compare, dummy hash for unknown users (no timing leak). The format carries the iteration count, so it can be raised later.
+- Passwords: PBKDF2-HMAC-SHA256, 10,000 iterations (fits the Workers Free CPU limit), 16-byte salt, then HMAC with the secret `PASSWORD_PEPPER`; constant-time compare, dummy hash for unknown users (no timing leak). The format carries the iteration count, so it can be changed later. Details and how to change: PASSWORDS.md.
 - Sessions: 32 random bytes in an `HttpOnly; Secure; SameSite=Lax` cookie (`__Host-vs_session` on HTTPS). Only the SHA-256 is stored. 30-day expiry. Password change or reset revokes all sessions.
 - A non-secret `vs_signed_in=1` hint cookie means anonymous visitors never call `/api/account/me`.
 - Abuse controls: `AUTH_LIMITER` (20 per minute per IP); 5 failed sign-ins lock the account for 15 minutes; Origin + Sec-Fetch-Site checks on every write.
