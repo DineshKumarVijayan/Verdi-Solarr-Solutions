@@ -21,7 +21,8 @@
     "prebuild": "node scripts/copy-pdfjs-assets.mjs",
     "db:dev-users": "node scripts/dev-users.mjs",
     "admin:set": "node scripts/admin-user.mjs",
-    "deploy:production": "node scripts/deploy-production.mjs"
+    "deploy:production": "node scripts/deploy-production.mjs",
+    "test:visual": "playwright test -c playwright.visual.config.ts"
   },
   "dependencies": {
     "jspdf": "^4.2.1",

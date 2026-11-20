@@ -12,3 +12,8 @@ playwright-report
 public/pdfjs
 .vscode/
 tests/e2e/.auth/
+
+# visual lock run output (desktop baseline itself is kept locally)
+tests/visual/out/
+tests/visual/desktop-baseline/
+tests/visual/*.log
