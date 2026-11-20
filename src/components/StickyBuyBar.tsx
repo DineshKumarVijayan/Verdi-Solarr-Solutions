@@ -59,7 +59,7 @@ export function StickyBuyBar({ product, brandName }: { product: PublicProduct; b
           animate={{ y: 0 }}
           exit={{ y: 100 }}
           transition={{ type: "spring", stiffness: 400, damping: 36 }}
-          className="fixed inset-x-0 bottom-[calc(3.6rem+env(safe-area-inset-bottom))] z-40 border-t border-line bg-card shadow-[0_-8px_30px_rgba(10,24,34,0.12)] lg:hidden"
+          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-line bg-card shadow-[0_-8px_30px_rgba(10,24,34,0.12)] lg:hidden"
           data-testid="sticky-buy-bar"
         >
           <div className="container-x flex items-center gap-3 py-2.5">

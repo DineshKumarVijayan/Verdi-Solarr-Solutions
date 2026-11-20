@@ -1,4 +1,5 @@
-import { Clock, ClipboardList, GitCompareArrows, Mail, MapPin, Menu, Phone, Search, X } from "lucide-react";
+import { Clock, ClipboardList, GitCompareArrows, Mail, MapPin, Phone, Search } from "lucide-react";
+import { Accordion } from "./mobile/kit";
 import { AccountMenu } from "./AccountMenu";
 import { Announcement } from "./Announcement";
 import { ContactFabs } from "./ContactFabs";
@@ -29,11 +30,11 @@ const NAV = [
 
 export function Layout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const basket = useBasket();
   const compare = useCompare();
   const loc = useLocation();
   const isHome = loc.pathname === "/";
+  const isAdmin = loc.pathname.startsWith("/admin");
   const { customer, logout } = useAccount();
   const { staff, signOut: staffSignOut } = useStaff();
   const toast = useToast();
@@ -70,19 +71,25 @@ export function Layout() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  useEffect(() => setMenuOpen(false), [loc.pathname]);
-
   return (
-    <div className={`flex min-h-dvh flex-col ${loc.pathname.startsWith("/admin") ? "" : "max-lg:pb-[calc(3.6rem+env(safe-area-inset-bottom))]"}`}>
+    <div className="flex min-h-dvh flex-col max-lg:pb-[calc(4rem+env(safe-area-inset-bottom))]">
       <a href="#main" className="sr-only z-[70] rounded-lg bg-ink px-4 py-2 text-paper focus:not-sr-only focus:fixed focus:top-3 focus:left-3">
         Skip to content
       </a>
       <Announcement />
-      <header className={`sticky top-0 z-40 border-b lg:backdrop-blur-md ${isHome ? "border-white/10 bg-ink/95 text-paper lg:bg-ink/85" : "border-line/70 bg-paper/95 lg:bg-paper/85"}`}>
-        <div className="container-x flex h-16 items-center gap-2 sm:gap-4">
+      <header className={`sticky top-0 z-40 border-b lg:backdrop-blur-md ${isAdmin ? "max-lg:hidden " : ""}${isHome ? "border-white/10 bg-ink/95 text-paper lg:bg-ink/85" : "border-line/70 bg-paper/95 lg:bg-paper/85"}`}>
+        <div className="container-x flex h-14 items-center gap-2 sm:gap-4 lg:h-16">
           <Link to="/" aria-label="VERDI SOLARR SOLUTION — home" className="shrink-0">
-            <Logo dark={isHome} />
+            <Logo dark={isHome} mobileCompact />
           </Link>
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className={`tap flex min-w-0 flex-1 items-center gap-2 rounded-full border px-3.5 text-left text-sm lg:hidden ${isHome ? "border-white/15 bg-white/5 text-paper/70" : "border-line bg-card text-muted"}`}
+            data-testid="m-open-search"
+          >
+            <Search className="size-4 shrink-0" /> <span className="truncate">Search products</span>
+          </button>
           <nav aria-label="Primary" className="ml-2 hidden items-center gap-0.5 lg:flex xl:ml-6 xl:gap-1">
             {nav.map((n) => (
               <NavLink
@@ -108,11 +115,11 @@ export function Layout() {
               <Search className="size-4" /> Search products
               <kbd className="ml-4 rounded border border-current/20 px-1.5 font-mono text-[10px] opacity-70">Ctrl K</kbd>
             </button>
-            <button type="button" onClick={() => setPaletteOpen(true)} className={`rounded-full p-2 sm:p-2.5 xl:hidden ${isHome ? "hover:bg-white/10" : "hover:bg-paper-2"}`} aria-label="Search products">
+            <button type="button" onClick={() => setPaletteOpen(true)} className={`rounded-full p-2 max-lg:hidden sm:p-2.5 xl:hidden ${isHome ? "hover:bg-white/10" : "hover:bg-paper-2"}`} aria-label="Search products">
               <Search className="size-5" />
             </button>
             {compare.ids.length > 0 && (
-              <Link to="/compare" className={`relative rounded-full p-2.5 ${isHome ? "hover:bg-white/10" : "hover:bg-paper-2"}`} aria-label={`Compare ${compare.ids.length} products`}>
+              <Link to="/compare" className={`relative rounded-full p-2.5 max-lg:hidden ${isHome ? "hover:bg-white/10" : "hover:bg-paper-2"}`} aria-label={`Compare ${compare.ids.length} products`}>
                 <GitCompareArrows className="size-5" />
                 <span className="num absolute -top-0.5 -right-0.5 grid size-5 place-items-center rounded-full bg-verdi-500 text-[10px] font-bold text-white">{compare.ids.length}</span>
               </Link>
@@ -120,7 +127,7 @@ export function Layout() {
             <AccountMenu dark={isHome} staff={staff} onStaffSignOut={staffSignOut} />
             <Link
               to="/enquiry"
-              className={`relative inline-flex items-center gap-1 rounded-full px-1.5 py-2 min-[340px]:px-2 sm:gap-2 sm:px-3.5 text-sm font-semibold ${isHome ? "bg-sun-400 text-ink hover:bg-sun-300" : "bg-ink text-paper hover:bg-ink-3"}`}
+              className={`relative inline-flex items-center gap-1 rounded-full max-lg:hidden px-1.5 py-2 min-[340px]:px-2 sm:gap-2 sm:px-3.5 text-sm font-semibold ${isHome ? "bg-sun-400 text-ink hover:bg-sun-300" : "bg-ink text-paper hover:bg-ink-3"}`}
               aria-label={`Enquiry basket, ${basket.count} items`}
               data-testid="basket-link"
             >
@@ -130,41 +137,8 @@ export function Layout() {
                 {basket.count}
               </span>
             </Link>
-            <button type="button" className={`rounded-full p-2 sm:p-2.5 lg:hidden ${isHome ? "hover:bg-white/10" : "hover:bg-paper-2"}`} onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen} aria-controls="mobile-nav" aria-label="Menu">
-              {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-            </button>
           </div>
         </div>
-        {menuOpen && (
-          <nav id="mobile-nav" aria-label="Mobile" className={`border-t lg:hidden ${isHome ? "border-white/10" : "border-line"}`}>
-            <ul className="container-x grid gap-1 py-3">
-              {(customer || staff) && (
-                <li className="flex items-center justify-between gap-3 rounded-xl bg-paper-2/60 px-3 py-2.5 text-sm text-ink" data-testid="mobile-signed-in">
-                  <span className="min-w-0 truncate">
-                    Signed in as <b>{customer ? customer.name : staff!.displayName || staff!.email}</b>
-                    {!customer && staff ? " (staff)" : ""}
-                  </span>
-                  <button type="button" className="shrink-0 rounded-full border border-line px-3 py-1 font-medium" onClick={() => (customer ? logout() : staffSignOut())}>
-                    Sign out
-                  </button>
-                </li>
-              )}
-              {[
-                { to: "/", label: "Home" },
-                ...NAV,
-                { to: "/compare", label: "Compare" },
-                ...(customer ? [{ to: "/account", label: "My enquiries & reward points" }] : staff ? [] : [{ to: "/account", label: "Sign in / Create account" }]),
-                { to: "/admin", label: staff ? "Admin dashboard" : "Staff sign-in" },
-              ].map((n) => (
-                <li key={n.to}>
-                  <NavLink to={n.to} end reloadDocument={n.to === "/admin"} className={({ isActive }) => `block rounded-xl px-3 py-3 text-base font-medium ${isActive ? "bg-verdi-600 text-white" : ""}`}>
-                    {n.label}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        )}
       </header>
 
       <main id="main" className="flex-1">
@@ -172,6 +146,7 @@ export function Layout() {
       </main>
 
       <Footer />
+      {!isAdmin && <MobileFooter />}
       <ContactFabs />
       <MobileTabBar />
       <SearchPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
@@ -193,7 +168,7 @@ function Footer() {
     ] as const
   ).filter(([, href]) => !!href);
   return (
-    <footer className="bg-ink text-paper/75">
+    <footer className="bg-ink text-paper/75 max-lg:hidden">
       <div className="container-x grid gap-10 py-14 md:grid-cols-12">
         <div className="md:col-span-4">
           <Logo dark />
@@ -303,6 +278,77 @@ function Footer() {
           </Link>
         </div>
       </div>
+    </footer>
+  );
+}
+
+/** Phones (< lg): contact first, then link groups as collapsed accordions, so the footer is under one screen. */
+function MobileFooter() {
+  const SITE = useSite();
+  const { data } = useCatalogue();
+  const year = new Date().getFullYear();
+  const link = "block py-2 text-sm text-paper/75 active:text-paper";
+  return (
+    <footer className="bg-ink px-4 pt-6 pb-4 text-paper/75 lg:hidden" data-testid="mobile-footer">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Logo dark compact />
+        <div className="flex flex-wrap gap-2">
+          <a href={SITE.whatsappUrl} target="_blank" rel="noopener" className="btn-sun tap" aria-label="WhatsApp us">
+            <WhatsAppIcon className="size-4" /> WhatsApp
+          </a>
+          <a href={SITE.phoneHref} className="btn-ghost-dark tap" aria-label={`Call ${SITE.phoneDisplay}`}>
+            <Phone className="size-4" /> Call
+          </a>
+        </div>
+      </div>
+      <address className="mt-4 grid gap-1.5 text-sm not-italic">
+        <span className="flex gap-2">
+          <MapPin className="mt-0.5 size-4 shrink-0 text-verdi-300" />
+          <span>{SITE.address.join(", ")}</span>
+        </span>
+        <a href={`mailto:${SITE.email}`} className="flex gap-2 break-all">
+          <Mail className="mt-0.5 size-4 shrink-0 text-verdi-300" />
+          {SITE.email}
+        </a>
+        {SITE.businessHours && (
+          <span className="flex gap-2">
+            <Clock className="mt-0.5 size-4 shrink-0 text-verdi-300" />
+            {SITE.businessHours}
+          </span>
+        )}
+      </address>
+      <div className="mt-3 border-t border-white/10 [&_.m-acc]:border-white/10 [&_summary]:text-paper">
+        <Accordion title="Products">
+          {(data?.categories ?? []).map((c) => (
+            <Link key={c.id} to={`/category/${c.slug}`} className={link}>
+              {c.name}
+            </Link>
+          ))}
+        </Accordion>
+        <Accordion title="Explore">
+          <Link to="/learn" className={link}>Solar Learning Hub</Link>
+          <Link to="/learn/myths-vs-facts" className={link}>Myths vs Facts</Link>
+          <Link to="/solar-tools" className={link}>Solar Tools</Link>
+          <Link to="/solar-tools/kit-builder" className={link}>Kit Builder</Link>
+          <Link to="/in-the-field" className={link}>In the field</Link>
+          <Link to="/compare" className={link}>Compare products</Link>
+        </Accordion>
+        <Accordion title="Locations">
+          {localPages.pages.map((p) => (
+            <Link key={p.slug} to={`/${p.slug}`} className={link}>
+              {p.title}
+            </Link>
+          ))}
+        </Accordion>
+        <Accordion title="Legal">
+          <Link to="/privacy" className={link}>Privacy policy</Link>
+          <Link to="/terms" className={link}>Terms of use</Link>
+          <Link to="/admin" reloadDocument rel="nofollow" className={link}>Staff sign-in</Link>
+        </Accordion>
+      </div>
+      <p className="mt-4 text-[11px] leading-relaxed text-paper/45">
+        © {year} {SITE.name}. Brand names and trademarks belong to their respective owners. Specifications are taken from manufacturer datasheets.
+      </p>
     </footer>
   );
 }

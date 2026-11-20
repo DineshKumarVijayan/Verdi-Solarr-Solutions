@@ -376,7 +376,7 @@ export function OrientationTool() {
         <RangeField label="Facing (azimuth)" value={az} min={90} max={270} step={5} onChange={setAz} format={(x) => `${x}° ${dirs[x] ?? ""}`} />
       </div>
       <div className="grid min-w-0 grid-cols-1 content-start gap-4">
-        <div className="card flex items-center gap-6 p-5">
+        <div className="card flex items-center gap-6 p-5 max-sm:flex-wrap">
           <svg viewBox="0 0 120 80" className="w-40 shrink-0" aria-hidden="true">
             <line x1="10" y1="70" x2="110" y2="70" stroke="#848b84" />
             <g transform={`rotate(${-tilt} 30 70)`}>

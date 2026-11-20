@@ -1,11 +1,12 @@
 import { ClipboardList, FileText, Images, KeyRound, LayoutDashboard, Layers, LogOut, Package, Settings, ShieldAlert, ShieldCheck, Tags, Users } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router";
+import { NavLink, Outlet } from "react-router";
 import type { AdminIdentity } from "../../../shared/types";
 import { Modal, Spinner } from "../../components/ui";
 import { markActive } from "../../lib/idle";
 import { IDLE_MINUTES } from "../../../shared/session";
 import { AdminLogin, ChangePasswordForm } from "./AdminAuth";
+import { AdminTabBar, AdminTopBar } from "./AdminMobile";
 import { api, ApiError } from "../../lib/api";
 import { usePageMeta } from "../../lib/seo";
 
@@ -29,11 +30,6 @@ export default function AdminLayout() {
   usePageMeta("Admin", undefined, { noindex: true });
   const [state, setState] = useState<{ admin?: AdminIdentity; error?: ApiError; notice?: string; relogin?: string } | null>(null);
   const [pwOpen, setPwOpen] = useState(false);
-  const { pathname } = useLocation();
-  // Phones: the menu scrolls sideways; keep the current page visible in it.
-  useEffect(() => {
-    document.querySelector('nav[aria-label="Admin"] a[aria-current="page"]')?.scrollIntoView({ inline: "center", block: "nearest" });
-  }, [pathname, state?.admin]);
   const signedIn = (admin: AdminIdentity) => {
     markActive();
     setState({ admin });
@@ -95,7 +91,8 @@ export default function AdminLayout() {
   };
   return (
     <AdminCtx.Provider value={admin}>
-      <div className="border-b border-line bg-ink text-paper">
+      <AdminTopBar />
+      <div className="border-b border-line bg-ink text-paper max-lg:hidden">
         <div className="container-x flex flex-wrap items-center gap-3 py-3">
           <span className="rounded-full bg-sun-400 px-2.5 py-0.5 font-mono text-[10px] font-semibold tracking-widest text-ink uppercase">Admin</span>
           <nav aria-label="Admin" className="scrollbar-none -mx-1 order-last flex min-w-0 basis-full gap-1 overflow-x-auto px-1 max-lg:[mask-image:linear-gradient(90deg,black_90%,transparent)] lg:flex-wrap lg:overflow-visible">
@@ -119,6 +116,7 @@ export default function AdminLayout() {
         </div>
       </div>
       <Outlet key={admin.email} />
+      <AdminTabBar admin={admin} onPassword={() => setPwOpen(true)} onSignOut={signOut} />
       {state.relogin && (
         <div className="fixed inset-0 z-[80] overflow-auto bg-ink/75 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Sign in again" data-testid="relogin-overlay">
           <AdminLogin onDone={signedIn} notice={state.relogin} />

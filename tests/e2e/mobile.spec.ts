@@ -9,11 +9,20 @@ for (const path of ["/", "/in-the-field", "/products", "/products/anchor-ino-res
   });
 }
 
-test("mobile navigation menu and fullscreen datasheet dialog", async ({ page }) => {
+test("public bottom tab bar, More sheet and fullscreen datasheet dialog", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await page.locator("#mobile-nav").getByRole("link", { name: "Learn" }).click();
+  const tabs = page.getByTestId("tab-bar");
+  await expect(tabs).toBeVisible();
+  expect((await tabs.boundingBox())!.height).toBeGreaterThanOrEqual(64);
+  await tabs.getByRole("link", { name: "Learn" }).click();
   await expect(page).toHaveURL(/\/learn/);
+  await tabs.getByTestId("tab-more").click();
+  const sheet = page.getByTestId("more-sheet");
+  await expect(sheet.getByRole("link", { name: /WhatsApp/ })).toBeVisible();
+  await expect(sheet.getByRole("link", { name: /Call/ })).toBeVisible();
+  await sheet.getByRole("link", { name: "Compare" }).click();
+  await expect(page).toHaveURL(/\/compare/);
+  await expect(sheet).toBeHidden();
   await page.goto("/products/anchor-solar-dc-cable-4-sq-mm");
   await page.getByTestId("preview-datasheet").first().click();
   const dialog = page.getByRole("dialog");
@@ -31,7 +40,7 @@ test("product page: sticky add-to-enquiry bar appears after scrolling and adds t
   const bar = page.getByTestId("sticky-buy-bar");
   await expect(bar).toBeVisible();
   await bar.getByRole("button", { name: "Add to enquiry" }).click();
-  await expect(page.getByTestId("basket-count")).toHaveText("1");
+  await expect(page.getByTestId("tab-basket-count")).toHaveText("1");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
@@ -99,11 +108,61 @@ test.describe("280 px phone", () => {
       await page.goto(path);
       await page.waitForLoadState("networkidle");
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(280);
-      const menu = page.getByRole("button", { name: "Menu", exact: true });
-      if (await menu.count()) {
-        const box = await menu.boundingBox();
-        expect(box!.x + box!.width).toBeLessThanOrEqual(280);
-      }
+      const more = page.getByTestId(path.startsWith("/admin") ? "admin-tab-more" : "tab-more");
+      const box = await more.boundingBox();
+      expect(box!.x + box!.width).toBeLessThanOrEqual(280);
     });
   }
 });
+
+test("compact phone footer: link groups collapsed, under one screen, links still in the HTML", async ({ page }) => {
+  await page.goto("/contact");
+  const footer = page.getByTestId("mobile-footer");
+  await footer.scrollIntoViewIfNeeded();
+  expect((await footer.boundingBox())!.height).toBeLessThan(page.viewportSize()!.height);
+  const privacy = footer.getByRole("link", { name: "Privacy policy", includeHidden: true });
+  await expect(privacy).toBeHidden();
+  expect(await privacy.count()).toBe(1); // collapsed, not removed
+  await footer.getByText("Legal").click();
+  await expect(privacy).toBeVisible();
+});
+
+test("admin on phones: own top bar, tabs and More sheet; no public header, footer or tab bar", async ({ page }) => {
+  await page.goto("/admin");
+  await expect(page.getByTestId("admin-topbar")).toBeVisible();
+  await expect(page.getByTestId("admin-tab-bar")).toBeVisible();
+  await expect(page.getByTestId("tab-bar")).toHaveCount(0);
+  await expect(page.getByTestId("mobile-footer")).toHaveCount(0);
+  await expect(page.locator("header").first()).toBeHidden();
+  await expect(page.locator('nav[aria-label="Admin"]')).toBeHidden();
+  await page.getByTestId("admin-tab-bar").getByRole("link", { name: /Quotes/ }).click();
+  await expect(page).toHaveURL(/\/admin\/quotations/);
+  await page.getByTestId("admin-tab-more").click();
+  const sheet = page.getByTestId("admin-more-sheet");
+  await expect(sheet.getByRole("link", { name: "Staff" })).toBeVisible(); // owner only
+  await sheet.getByRole("link", { name: "Prices" }).click();
+  await expect(page).toHaveURL(/\/admin\/prices/);
+  await expect(page.getByTestId("admin-topbar")).toContainText("Prices");
+});
+
+// Every route at four phone widths: the page itself never scrolls sideways.
+const ALL_ROUTES = ["/", "/products", "/compare", "/enquiry", "/learn", "/learn/how-solar-cells-work", "/solar-tools/consumption", "/solar-tools/sizing", "/solar-tools/roof", "/solar-tools/kit-builder", "/solar-tools/battery", "/solar-tools/losses", "/solar-tools/orientation", "/solar-tools/system-explorer", "/solar-tools/datasheet-decoder", "/in-the-field", "/contact", "/account", "/privacy", "/terms", "/solar-panels-chennai", "/no-such-page", "/admin", "/admin/prices", "/admin/products", "/admin/products/new", "/admin/catalogue", "/admin/field-photos", "/admin/enquiries", "/admin/quotations", "/admin/quotations/new", "/admin/customers", "/admin/settings", "/admin/users"];
+for (const width of [280, 360, 390, 430]) {
+  test.describe(`${width} px, every route`, () => {
+    test.use({ viewport: { width, height: 800 } });
+    test(`no horizontal overflow at ${width} px`, async ({ page, request }) => {
+      test.setTimeout(5 * 60_000);
+      // read slugs/ids from the live catalogue: content changes when the admin edits it
+      const cat = await (await request.get("/api/catalogue")).json();
+      const routes = [...ALL_ROUTES, `/category/${cat.categories[0].slug}`, `/products/${cat.products[0].slug}`, `/admin/products/${cat.products[0].id}`];
+      const bad: string[] = [];
+      for (const path of routes) {
+        await page.goto(path);
+        await page.waitForLoadState("networkidle");
+        const w = await page.evaluate(() => document.documentElement.scrollWidth);
+        if (w > width) bad.push(`${path}: ${w}px`);
+      }
+      expect(bad).toEqual([]);
+    });
+  });
+}

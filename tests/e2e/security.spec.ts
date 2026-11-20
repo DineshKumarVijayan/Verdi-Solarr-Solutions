@@ -45,5 +45,5 @@ test("security.txt and legal pages are published", async ({ request, page }) => 
   await expect(page.getByRole("heading", { name: "Privacy policy" })).toBeVisible();
   await page.goto("/terms");
   await expect(page.getByRole("heading", { name: "Terms of use" })).toBeVisible();
-  await expect(page.locator('footer a[href="/privacy"]')).toBeVisible();
+  await expect(page.locator('footer:visible a[href="/privacy"]')).toBeVisible();
 });
