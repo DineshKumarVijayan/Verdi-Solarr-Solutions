@@ -1,4 +1,5 @@
-import { ClipboardList, FileText, Images, KeyRound, LayoutDashboard, Layers, LogOut, Package, Settings, ShieldAlert, ShieldCheck, Tags, Users } from "lucide-react";
+import { KeyRound, LogOut, ShieldAlert } from "lucide-react";
+import { ADMIN_NAV } from "./nav";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import type { AdminIdentity } from "../../../shared/types";
@@ -10,18 +11,7 @@ import { AdminTabBar, AdminTopBar } from "./AdminMobile";
 import { api, ApiError } from "../../lib/api";
 import { usePageMeta } from "../../lib/seo";
 
-const NAV = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/admin/products", label: "Products", icon: Package },
-  { to: "/admin/prices", label: "Prices", icon: Tags },
-  { to: "/admin/catalogue", label: "Brands", icon: Layers },
-  { to: "/admin/field-photos", label: "Photos", icon: Images },
-  { to: "/admin/enquiries", label: "Enquiries", icon: ClipboardList },
-  { to: "/admin/quotations", label: "Quotations", icon: FileText },
-  { to: "/admin/customers", label: "Customers", icon: Users },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
-  { to: "/admin/users", label: "Staff", icon: ShieldCheck, owner: true },
-];
+const NAV = ADMIN_NAV;
 
 const AdminCtx = createContext<AdminIdentity | null>(null);
 export const useAdmin = () => useContext(AdminCtx)!;

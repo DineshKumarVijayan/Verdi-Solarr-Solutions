@@ -3,8 +3,10 @@ import { WhatsAppIcon } from "../components/WhatsAppIcon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { search, type SearchFilters } from "../../shared/search";
+import { BottomSheet, ChipRow, ClampText, usePullToRefresh } from "../components/mobile/kit";
 import { ProductCard } from "../components/ProductCard";
-import { Modal } from "../components/ui";
+import { ProductRow, ProductRowSkeleton } from "../components/ProductRow";
+import { readStore, writeStore } from "../lib/storage";
 import { useCatalogue } from "../lib/catalogue";
 import { usePageMeta } from "../lib/seo";
 import { useSite } from "../lib/site";
@@ -18,6 +20,7 @@ const SORTS: { v: Sort; l: string }[] = [
   { v: "name", l: "Name A–Z" },
 ];
 
+const M_VIEW_KEY = "verdi.products.mobileView";
 const list = (v: string | null) => (v ? v.split(",").filter(Boolean) : []);
 const num = (v: string | null) => (v && !Number.isNaN(Number(v)) ? Number(v) : null);
 
@@ -31,6 +34,13 @@ export default function Products() {
   // Text input is local for instant results; URL is updated after a short pause.
   const [q, setQ] = useState(params.get("q") ?? "");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Phones: list or 2-column grid, remembered per visitor (desktop keeps its own ?view= toggle).
+  const [mView, setMView] = useState<"row" | "tile">(() => (readStore<string>(M_VIEW_KEY, "row") === "tile" ? "tile" : "row"));
+  const setMobileView = (v: "row" | "tile") => {
+    setMView(v);
+    writeStore(M_VIEW_KEY, v);
+  };
+  const pullIndicator = usePullToRefresh(reload);
   useEffect(() => setQ(params.get("q") ?? ""), [params]);
   const qTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Filter column: fit exactly into the visible space below its current top, so its last
@@ -124,21 +134,22 @@ export default function Products() {
   );
 
   return (
-    <div className="container-x py-10">
-      <nav aria-label="Breadcrumb" className="text-xs text-muted">
+    <div className="container-x py-10 max-lg:pt-3 max-lg:pb-6">
+      {pullIndicator}
+      <nav aria-label="Breadcrumb" className="text-xs text-muted max-lg:hidden">
         <ol className="flex flex-wrap gap-1.5">
           <li><Link to="/" className="hover:text-ink">Home</Link> /</li>
           <li>{routeCategory ? <Link to="/products" className="hover:text-ink">Products</Link> : "Products"}{routeCategory && " /"}</li>
           {routeCategory && <li aria-current="page">{routeCategory.name}</li>}
         </ol>
       </nav>
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-4 max-lg:mt-0">
         <div>
-          <h1 className="text-4xl font-semibold sm:text-5xl">{title}</h1>
-          {routeCategory?.description && <p className="mt-2 max-w-2xl text-muted">{routeCategory.description}</p>}
+          <h1 className="text-4xl font-semibold max-sm:text-2xl sm:text-5xl">{title}</h1>
+          {routeCategory?.description && <ClampText className="mt-2 max-w-2xl text-muted max-lg:mt-1 max-lg:text-sm">{routeCategory.description}</ClampText>}
         </div>
         {data && (
-          <p className="num text-xs text-subtle">
+          <p className="num text-xs text-subtle max-lg:hidden">
             Prices last published {new Date(data.publishedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
           </p>
         )}
@@ -158,12 +169,12 @@ export default function Products() {
           </a>
         </div>
       ) : (
-        <div className="mt-8 grid gap-8 lg:grid-cols-[260px_1fr]">
+        <div className="mt-8 grid gap-8 max-lg:mt-3 lg:grid-cols-[260px_1fr]">
           <aside className="hidden lg:block" aria-label="Filters">
             <div ref={filterBox} className="sticky top-24 -mr-2 max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain pr-2 pb-6 [scrollbar-width:thin]">{filterPanel}</div>
           </aside>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 max-lg:sticky max-lg:top-16 max-lg:z-20 max-lg:-mx-4 max-lg:border-b max-lg:border-line/70 max-lg:bg-paper max-lg:px-4 max-lg:py-2">
+            <div className="flex flex-wrap items-center gap-2 max-lg:sticky max-lg:top-14 max-lg:z-20 max-lg:-mx-4 max-lg:border-b max-lg:border-line/70 max-lg:bg-paper max-lg:px-4 max-lg:py-2">
               <div className="relative min-w-0 flex-1 basis-64">
                 <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-subtle" />
                 <label htmlFor="product-q" className="sr-only">
@@ -176,20 +187,32 @@ export default function Products() {
                   </button>
                 )}
               </div>
-              <button type="button" className="btn-ghost lg:hidden" onClick={() => setFiltersOpen(true)}>
-                <SlidersHorizontal className="size-4" /> Filters {activeCount > 0 && <span className="num rounded-full bg-verdi-600 px-1.5 text-[10px] text-white">{activeCount}</span>}
+              <button type="button" className="btn-ghost tap relative lg:hidden" onClick={() => setFiltersOpen(true)} data-testid="open-filters" aria-label={`Filters and sort${activeCount ? `, ${activeCount} active` : ""}`}>
+                <SlidersHorizontal className="size-4" />
+                <span className="max-[359px]:hidden">Filters</span>
+                {activeCount > 0 && <span className="num rounded-full bg-verdi-600 px-1.5 text-[10px] text-white">{activeCount}</span>}
               </button>
+              <button
+                type="button"
+                className="tap grid place-items-center rounded-full border border-line bg-card text-muted lg:hidden"
+                onClick={() => setMobileView(mView === "row" ? "tile" : "row")}
+                aria-label={mView === "row" ? "Show as grid" : "Show as list"}
+                data-testid="m-view-toggle"
+              >
+                {mView === "row" ? <LayoutGrid className="size-4" /> : <List className="size-4" />}
+              </button>
+              <QuickChips filters={filters} categorySlug={categorySlug} update={update} />
               <label htmlFor="sort" className="sr-only">
                 Sort
               </label>
-              <select id="sort" className="field !w-auto !rounded-full" value={filters.sort} onChange={(e) => update({ sort: e.target.value === "relevance" ? null : e.target.value })}>
+              <select id="sort" className="field !w-auto !rounded-full max-lg:hidden" value={filters.sort} onChange={(e) => update({ sort: e.target.value === "relevance" ? null : e.target.value })}>
                 {SORTS.map((s) => (
                   <option key={s.v} value={s.v}>
                     {s.l}
                   </option>
                 ))}
               </select>
-              <div className="hidden rounded-full border border-line bg-card p-1 sm:flex" role="group" aria-label="Layout">
+              <div className="hidden rounded-full border border-line bg-card p-1 lg:flex" role="group" aria-label="Layout">
                 <button type="button" className={`rounded-full p-1.5 ${view === "grid" ? "bg-ink text-paper" : "text-muted"}`} onClick={() => update({ view: null })} aria-pressed={view === "grid"} aria-label="Grid view">
                   <LayoutGrid className="size-4" />
                 </button>
@@ -220,8 +243,9 @@ export default function Products() {
                 </button>
               </div>
             )}
+            {loading && <ProductRowSkeleton />}
             {loading && (
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-hidden="true">
+              <div className="mt-6 grid gap-4 max-lg:hidden sm:grid-cols-2 xl:grid-cols-3" aria-hidden="true">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="card h-96 animate-pulse bg-paper-2" />
                 ))}
@@ -236,18 +260,86 @@ export default function Products() {
                 </button>
               </div>
             )}
-            <div className={`mt-4 grid gap-4 ${view === "list" ? "" : "sm:grid-cols-2 xl:grid-cols-3"}`}>
+            <div className={`mt-4 grid gap-4 max-lg:hidden ${view === "list" ? "" : "sm:grid-cols-2 xl:grid-cols-3"}`}>
               {hits.map((h) => (
                 <ProductCard key={h.item.p.id} product={h.item.p} query={q} layout={view} />
               ))}
             </div>
+            {/* phones: compact rows (or a 2-column grid) */}
+            {mView === "row" ? (
+              <ul className="mt-1 divide-y divide-line/70 lg:hidden" data-testid="product-rows">
+                {hits.map((h) => (
+                  <ProductRow key={h.item.p.id} product={h.item.p} query={q} />
+                ))}
+              </ul>
+            ) : (
+              <div className="mt-2 grid grid-cols-2 gap-3 lg:hidden" data-testid="product-tiles">
+                {hits.map((h) => (
+                  <ProductRow key={h.item.p.id} product={h.item.p} query={q} mode="tile" />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      <Modal open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters" fullscreenOnMobile footer={<button type="button" className="btn-primary w-full" onClick={() => setFiltersOpen(false)}>Show {hits.length} products</button>}>
-        <div className="p-5">{filterPanel}</div>
-      </Modal>
+      <BottomSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filters & sort"
+        testId="filter-sheet"
+        footer={
+          <button type="button" className="btn-primary tap w-full" onClick={() => setFiltersOpen(false)} data-testid="apply-filters">
+            Show {hits.length} {hits.length === 1 ? "product" : "products"}
+          </button>
+        }
+      >
+        <fieldset className="mb-6">
+          <legend className="eyebrow mb-3">Sort by</legend>
+          <div className="flex flex-wrap gap-2">
+            {SORTS.map((s) => (
+              <button key={s.v} type="button" className={`chip tap ${filters.sort === s.v ? "chip-on" : ""}`} aria-pressed={filters.sort === s.v} onClick={() => update({ sort: s.v === "relevance" ? null : s.v })}>
+                {s.l}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        {filterPanel}
+      </BottomSheet>
+    </div>
+  );
+}
+
+/** Phones: one-tap category and brand chips under the search box (built from the live catalogue). */
+function QuickChips({ filters, categorySlug, update }: { filters: SearchFilters; categorySlug?: string; update: (p: Record<string, string | null>) => void }) {
+  const { data, countByCategory } = useCatalogue();
+  if (!data) return null;
+  const cats = categorySlug ? [] : data.categories.filter((c) => (countByCategory.get(c.id) ?? 0) > 0);
+  const brands = data.brands;
+  if (cats.length + brands.length < 2) return null;
+  const toggle = (key: "brand" | "cat", current: string[], v: string) => {
+    const next = current.includes(v) ? current.filter((x) => x !== v) : [...current, v];
+    update({ [key]: next.length ? next.join(",") : null });
+  };
+  return (
+    <div className="min-w-0 basis-full lg:hidden">
+      <ChipRow label="Quick filters">
+        {!categorySlug && (
+          <button type="button" className={`chip shrink-0 !py-1.5 ${filters.categories.length || filters.brands.length ? "" : "chip-on"}`} onClick={() => update({ cat: null, brand: null })} aria-pressed={!filters.categories.length && !filters.brands.length}>
+            All
+          </button>
+        )}
+        {cats.map((c) => (
+          <button key={`c${c.id}`} type="button" className={`chip shrink-0 !py-1.5 whitespace-nowrap ${filters.categories.includes(c.slug) ? "chip-on" : ""}`} aria-pressed={filters.categories.includes(c.slug)} onClick={() => toggle("cat", filters.categories, c.slug)}>
+            {c.name}
+          </button>
+        ))}
+        {brands.map((b) => (
+          <button key={`b${b.id}`} type="button" className={`chip shrink-0 !py-1.5 whitespace-nowrap ${filters.brands.includes(b.slug) ? "chip-on" : ""}`} aria-pressed={filters.brands.includes(b.slug)} onClick={() => toggle("brand", filters.brands, b.slug)}>
+            {b.name}
+          </button>
+        ))}
+      </ChipRow>
     </div>
   );
 }

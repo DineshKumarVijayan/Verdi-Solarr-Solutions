@@ -166,3 +166,46 @@ for (const width of [280, 360, 390, 430]) {
     });
   });
 }
+
+test("products on phones: compact rows, filter sheet with active-count badge, add from a row", async ({ page }) => {
+  await page.goto("/products");
+  const rows = page.getByTestId("product-rows").getByTestId("product-row");
+  await expect(rows.first()).toBeVisible();
+  // about 8-10 rows on the first screen
+  const firstScreen = await rows.evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().bottom <= window.innerHeight).length);
+  expect(firstScreen).toBeGreaterThanOrEqual(5);
+  await page.getByTestId("open-filters").click();
+  const sheet = page.getByTestId("filter-sheet");
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "Price: low to high" }).click();
+  await sheet.locator('input[type="checkbox"]').first().check();
+  await sheet.getByTestId("apply-filters").click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByTestId("open-filters")).toContainText("1");
+  await expect(page).toHaveURL(/sort=price-asc/);
+  await rows.first().getByTestId("row-add").click();
+  await expect(page.getByTestId("tab-basket-count")).toHaveText("1");
+});
+
+test("products on phones: list/grid choice is remembered", async ({ page }) => {
+  await page.goto("/products");
+  await page.getByTestId("m-view-toggle").click();
+  await expect(page.getByTestId("product-tiles")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("product-tiles")).toBeVisible();
+  await page.getByTestId("m-view-toggle").click();
+  await expect(page.getByTestId("product-rows")).toBeVisible();
+});
+
+test("search on phones is full screen with recent searches", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("m-open-search").click();
+  const input = page.getByTestId("palette-input");
+  await input.fill("inverter");
+  await page.getByRole("button", { name: /See all results/ }).click();
+  await expect(page).toHaveURL(/q=inverter/);
+  await page.getByTestId("m-open-search").click();
+  await expect(page.getByTestId("recent-searches")).toContainText("inverter");
+  const box = await page.getByRole("dialog").boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 2);
+});

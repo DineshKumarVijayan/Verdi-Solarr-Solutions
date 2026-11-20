@@ -93,7 +93,7 @@ export function Hero({ stats }: { stats: { k: string; v: number }[] }) {
     <section
       ref={heroRef}
       data-pause-offscreen
-      className={`relative isolate flex min-h-[calc(100svh-4rem)] flex-col overflow-hidden bg-ink text-paper ${heroVisible ? "" : "hero-paused"}`}
+      className={`relative isolate flex min-h-[calc(100svh-4rem)] flex-col max-sm:min-h-0 overflow-hidden bg-ink text-paper ${heroVisible ? "" : "hero-paused"}`}
       onPointerMove={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
         mx.set((e.clientX - r.left) / r.width - 0.5);
@@ -134,7 +134,7 @@ export function Hero({ stats }: { stats: { k: string; v: number }[] }) {
       {/* phones: clear sky and sun on top, text on a dark base below */}
       <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(10,24,34,0.35)_0%,rgba(10,24,34,0.05)_22%,rgba(10,24,34,0.35)_45%,rgba(10,24,34,0.88)_68%,rgba(10,24,34,0.98)_100%)] sm:hidden" />
 
-      <div className="container-x relative flex flex-1 items-end pt-40 pb-8 sm:items-center sm:py-14">
+      <div className="container-x relative flex flex-1 items-end pt-40 pb-8 max-sm:pt-24 max-sm:pb-5 sm:items-center sm:py-14">
         <div className="grid w-full grid-cols-1 items-end gap-10 xl:grid-cols-[1.25fr_1fr]">
           <div>
             <m.p className="eyebrow !text-sun-300" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>

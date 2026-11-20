@@ -1,4 +1,5 @@
-import { ArrowRight, CornerDownLeft, Search } from "lucide-react";
+import { ArrowRight, CornerDownLeft, History, Search } from "lucide-react";
+import { readStore, writeStore } from "../lib/storage";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { formatPaise } from "../../shared/money";
@@ -7,11 +8,12 @@ import { useCatalogue } from "../lib/catalogue";
 import { Highlight } from "./Highlight";
 import { Modal } from "./ui";
 
+const RECENT_KEY = "verdi.recentSearches";
 const SUGGESTIONS = ["620 Wp", "TOPCon", "5 kW three phase", "single phase", "optimizer", "6 sq mm", "street light"];
 
 /** Instant command-palette search (Ctrl/⌘+K). Pure client-side over the cached catalogue. */
 export function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { index, category } = useCatalogue();
+  const { index, category, data, countByCategory } = useCatalogue();
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
   const nav = useNavigate();
@@ -29,7 +31,16 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
   }, [open]);
   useEffect(() => setActive(0), [q]);
 
+  const [recent, setRecent] = useState<string[]>(() => readStore<string[]>(RECENT_KEY, []));
+  const remember = (term: string) => {
+    const t = term.trim();
+    if (!t) return;
+    const next = [t, ...recent.filter((r) => r.toLowerCase() !== t.toLowerCase())].slice(0, 6);
+    setRecent(next);
+    writeStore(RECENT_KEY, next);
+  };
   const go = (to: string) => {
+    remember(q);
     onClose();
     nav(to);
   };
@@ -49,8 +60,8 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="Search products" hideTitle size="lg">
-      <div className="flex items-center gap-3 border-b border-line px-4 py-3">
+    <Modal open={open} onClose={onClose} title="Search products" hideTitle size="lg" fullscreenOnMobile>
+      <div className="flex items-center gap-3 border-b border-line px-4 py-3 max-sm:pt-[calc(0.75rem+env(safe-area-inset-top))]">
         <Search className="size-5 text-subtle" />
         <input
           ref={inputRef}
@@ -65,10 +76,49 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
           aria-activedescendant={hits.length ? `${listId}-${active}` : undefined}
           aria-label="Search products"
           data-testid="palette-input"
+          inputMode="search"
+          enterKeyHint="search"
         />
+        <button type="button" onClick={onClose} className="tap -mr-2 shrink-0 text-sm font-semibold text-verdi-700 sm:hidden">
+          Cancel
+        </button>
         <kbd className="hidden rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-subtle sm:block">ESC</kbd>
       </div>
-      <div className="max-h-[60dvh] overflow-y-auto p-2">
+      <div className="max-h-[60dvh] overflow-y-auto p-2 max-sm:max-h-none">
+        {!q.trim() && recent.length > 0 && (
+          <div className="p-3 sm:hidden" data-testid="recent-searches">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="eyebrow">Recent</p>
+              <button type="button" className="text-xs font-semibold text-muted" onClick={() => (setRecent([]), writeStore(RECENT_KEY, []))}>
+                Clear
+              </button>
+            </div>
+            <ul>
+              {recent.map((r) => (
+                <li key={r}>
+                  <button type="button" className="tap flex w-full items-center gap-3 rounded-xl px-1 text-left text-sm" onClick={() => setQ(r)}>
+                    <History className="size-4 shrink-0 text-subtle" /> <span className="truncate">{r}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {!q.trim() && (
+          <div className="p-3 sm:hidden">
+            <p className="eyebrow mb-3">Categories</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(data?.categories ?? [])
+                .filter((c) => (countByCategory.get(c.id) ?? 0) > 0)
+                .map((c) => (
+                  <button key={c.id} type="button" className="tap flex items-center justify-between gap-2 rounded-xl bg-paper-2/70 px-3 text-left text-sm font-medium" onClick={() => (onClose(), nav(`/category/${c.slug}`))}>
+                    <span className="truncate">{c.name}</span>
+                    <span className="num text-xs text-subtle">{countByCategory.get(c.id)}</span>
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
         {!q.trim() && (
           <div className="p-3">
             <p className="eyebrow mb-3">Try</p>

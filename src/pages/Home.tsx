@@ -1,4 +1,5 @@
-import { ArrowRight, BookOpen, Calculator, ClipboardList, FileText, Layers, ShieldCheck } from "lucide-react";
+import { ArrowRight, BookOpen, Calculator, ClipboardList, FileText, Layers, MapPin, Phone, ShieldCheck } from "lucide-react";
+import { ProductRow } from "../components/ProductRow";
 import { Link } from "react-router";
 import { CatalogueShowcase } from "../components/home/CatalogueShowcase";
 import { Hero } from "../components/home/Hero";
@@ -57,26 +58,28 @@ export default function Home() {
       </section>
 
       {/* tools / learn */}
-      <section className="container-x grid gap-4 pb-12 sm:pb-20 lg:grid-cols-2">
+      <FeaturedRow />
+
+      <section className="container-x grid gap-4 pb-12 max-sm:grid-cols-2 max-sm:gap-3 max-sm:pb-8 sm:pb-20 lg:grid-cols-2">
         <Reveal>
-          <Link to="/solar-tools" className="group relative block h-full overflow-hidden rounded-[2rem] bg-ink p-6 text-paper sm:p-10">
+          <Link to="/solar-tools" className="group relative block h-full overflow-hidden rounded-[2rem] bg-ink p-6 text-paper max-sm:rounded-3xl max-sm:p-4 sm:p-10">
             <img src="/images/site/metal-roof-rails.webp" alt="" className="absolute inset-0 size-full object-cover opacity-25 transition duration-700 group-hover:scale-105" />
             <div className="relative">
               <Calculator className="size-7 text-sun-400" />
-              <h2 className="mt-5 text-3xl font-semibold">Solar tools that do the maths.</h2>
-              <p className="mt-3 max-w-md text-paper/70">Appliance load, system size, savings, roof fit, battery backup, losses and a kit builder that uses real catalogue products.</p>
-              <span className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-sun-300">
+              <h2 className="mt-5 text-3xl font-semibold max-sm:mt-3 max-sm:text-lg max-sm:leading-snug">Solar tools that do the maths.</h2>
+              <p className="mt-3 max-w-md text-paper/70 max-sm:hidden">Appliance load, system size, savings, roof fit, battery backup, losses and a kit builder that uses real catalogue products.</p>
+              <span className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-sun-300 max-sm:mt-3">
                 Open the toolkit <ArrowRight className="size-4 transition group-hover:translate-x-1" />
               </span>
             </div>
           </Link>
         </Reveal>
         <Reveal delay={0.1}>
-          <Link to="/learn" className="group relative block h-full overflow-hidden rounded-[2rem] border border-line bg-verdi-50 p-6 sm:p-10">
+          <Link to="/learn" className="group relative block h-full overflow-hidden rounded-[2rem] border border-line bg-verdi-50 p-6 max-sm:rounded-3xl max-sm:p-4 sm:p-10">
             <BookOpen className="size-7 text-verdi-600" />
-            <h2 className="mt-5 text-3xl font-semibold">Learn solar, visually.</h2>
-            <p className="mt-3 max-w-md text-muted">24 animated lessons: solar cells, TOPCon vs PERC, MPPT, bifacial gain, cable losses, earthing, PM Surya Ghar and more.</p>
-            <span className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-verdi-700">
+            <h2 className="mt-5 text-3xl font-semibold max-sm:mt-3 max-sm:text-lg max-sm:leading-snug">Learn solar, visually.</h2>
+            <p className="mt-3 max-w-md text-muted max-sm:hidden">24 animated lessons: solar cells, TOPCon vs PERC, MPPT, bifacial gain, cable losses, earthing, PM Surya Ghar and more.</p>
+            <span className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-verdi-700 max-sm:mt-3">
               Visit the Learning Hub <ArrowRight className="size-4 transition group-hover:translate-x-1" />
             </span>
           </Link>
@@ -103,6 +106,60 @@ export default function Home() {
           ))}
         </Stagger>
       </section>
+      <ContactCard />
     </>
+  );
+}
+
+/** Phones: a swipe row of products (admin-featured ones first; any number, any photos). */
+function FeaturedRow() {
+  const { data } = useCatalogue();
+  const all = data?.products ?? [];
+  const featured = all.filter((p) => p.featured);
+  const items = (featured.length ? featured : all).slice(0, 10);
+  if (!items.length) return null;
+  return (
+    <section className="pb-8 lg:hidden" aria-labelledby="featured-h" data-testid="featured-row">
+      <div className="container-x flex items-end justify-between gap-3">
+        <h2 id="featured-h" className="text-xl font-semibold">
+          {featured.length ? "Featured products" : "From the catalogue"}
+        </h2>
+        <Link to="/products" className="tap inline-flex items-center gap-1 text-sm font-semibold text-verdi-700">
+          See all <ArrowRight className="size-4" />
+        </Link>
+      </div>
+      <div className="scrollbar-none mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
+        {items.map((p) => (
+          <div key={p.id} className="w-[44%] max-w-48 shrink-0 snap-start">
+            <ProductRow product={p} mode="tile" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Phones: big tap targets to reach a person (contact details come from Admin → Settings). */
+function ContactCard() {
+  const SITE = useSite();
+  const tile = "tap flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-white/5 p-3 text-xs font-medium";
+  return (
+    <section className="bg-ink px-4 py-6 text-paper lg:hidden" aria-labelledby="contact-h" data-testid="home-contact">
+      <h2 id="contact-h" className="text-xl font-semibold">
+        Talk to a person
+      </h2>
+      <p className="mt-1 text-sm text-paper/65">{SITE.addressOneLine}</p>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <a href={SITE.phoneHref} className={tile}>
+          <Phone className="size-5 text-sky-300" /> Call
+        </a>
+        <a href={SITE.whatsappUrl} target="_blank" rel="noopener" className={tile}>
+          <WhatsAppIcon className="size-5 text-[#25d366]" /> WhatsApp
+        </a>
+        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(SITE.addressOneLine)}`} target="_blank" rel="noopener" className={tile}>
+          <MapPin className="size-5 text-sun-300" /> Directions
+        </a>
+      </div>
+    </section>
   );
 }

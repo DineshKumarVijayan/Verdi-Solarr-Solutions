@@ -200,6 +200,58 @@ export function ActionBar({ children, testId, aboveTabs = true }: { children: Re
   );
 }
 
+/**
+ * Pull-to-refresh for data lists on touch phones: pull down at the top of the page past 70 px.
+ * Returns an indicator to render at the top of the list.
+ */
+export function usePullToRefresh(onRefresh: () => unknown) {
+  const [pull, setPull] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const cb = useRef(onRefresh);
+  cb.current = onRefresh;
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 1023.98px) and (pointer: coarse)").matches) return;
+    let start: number | null = null;
+    let dist = 0;
+    const down = (e: TouchEvent) => {
+      start = window.scrollY <= 0 && !document.querySelector("dialog[open]") ? e.touches[0].clientY : null;
+      dist = 0;
+    };
+    const move = (e: TouchEvent) => {
+      if (start === null) return;
+      dist = Math.max(0, Math.min(110, e.touches[0].clientY - start));
+      setPull(dist);
+    };
+    const up = async () => {
+      if (start !== null && dist > 70) {
+        setBusy(true);
+        try {
+          await cb.current();
+        } finally {
+          setBusy(false);
+        }
+      }
+      start = null;
+      setPull(0);
+    };
+    window.addEventListener("touchstart", down, { passive: true });
+    window.addEventListener("touchmove", move, { passive: true });
+    window.addEventListener("touchend", up);
+    return () => {
+      window.removeEventListener("touchstart", down);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend", up);
+    };
+  }, []);
+  const indicator =
+    pull > 10 || busy ? (
+      <div className="flex justify-center py-2 lg:hidden" role="status" aria-live="polite">
+        <span className="rounded-full bg-card px-3 py-1 text-xs font-medium text-muted shadow-[var(--shadow-soft)]">{busy ? "Refreshing…" : pull > 70 ? "Release to refresh" : "Pull to refresh"}</span>
+      </div>
+    ) : null;
+  return indicator;
+}
+
 /** Intro text clamped to 2 lines on phones with "Show more"; full text on desktop. */
 export function ClampText({ children, className = "" }: { children: ReactNode; className?: string }) {
   const [open, setOpen] = useState(false);

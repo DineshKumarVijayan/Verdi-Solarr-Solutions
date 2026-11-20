@@ -23,6 +23,13 @@
 - Uploads: only via `/api/admin/uploads` (type-sniffed, size-limited, R2). Never trust the browser-supplied content type.
 - Tailwind v4: reusable classes are `@utility` blocks in `src/styles.css` (`@apply` cannot reference `@layer components` classes).
 
+## Phone layout rules (below `lg`, 1024 px)
+- Desktop (≥ 1024 px) must not change when you work on phones: use `max-lg:` / `lg:hidden` variants or phone-only elements. Check with `npm run test:visual -- --project=desktop-1440 --project=desktop-1024` (pixel lock; run it **before** `npm run test:e2e`, which writes test data). Refresh the baseline only on purpose (`--update-snapshots`) after a deliberate desktop change.
+- New pages automatically get the shell (top bar, bottom tabs, More sheet, compact footer; admin: own top bar, tabs, More sheet). Admin and public menus come from one list each, so a new section is added in one place.
+- Build phone UI from the shared blocks: `src/components/mobile/kit.tsx` (BottomSheet, SheetGroup, ChipRow, MobileTabs, Accordion, ActionBar, ClampText, usePullToRefresh), `ProductRow` for product lists, and the `@utility` classes in `src/styles.css` (tap, tabbar, sheet, list-row, action-bar, m-tabs, m-acc).
+- Layouts must adapt to any admin content: no hard-coded counts, names or image sizes; fixed-ratio image frames; `ProductVisual` when a photo is missing; truncate/clamp long text; hide empty tabs/sections.
+- Content hidden behind phone tabs/accordions stays in the HTML (CSS-hidden), never removed. 44 px minimum tap targets; no sideways page scroll at 280/360/390/430 px (add new routes to the "every route" test in `tests/e2e/mobile.spec.ts`).
+
 ## Commands
 ```
 npm run dev | typecheck | test | test:e2e | build

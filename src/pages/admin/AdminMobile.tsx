@@ -1,4 +1,5 @@
-import { ClipboardList, Ellipsis, ExternalLink, FileText, Images, KeyRound, LayoutDashboard, Layers, LogOut, Package, Settings, ShieldCheck, Tags, Users } from "lucide-react";
+import { Ellipsis, ExternalLink, KeyRound, LogOut } from "lucide-react";
+import { ADMIN_NAV } from "./nav";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import type { AdminDashboard, AdminIdentity } from "../../../shared/types";
@@ -60,31 +61,27 @@ export function AdminTabBar({ admin, onPassword, onSignOut }: { admin: AdminIden
     return () => void (live = false);
   }, [pathname]);
   const cls = ({ isActive }: { isActive: boolean }) => `tabbar-item ${isActive ? "!text-verdi-700" : ""}`;
-  const moreActive = /^\/admin\/(prices|catalogue|field-photos|customers|settings|users)/.test(pathname);
+  const allowed = ADMIN_NAV.filter((n) => !n.owner || admin.role === "owner");
+  const tabs = allowed.filter((n) => n.tab);
+  const sections = allowed.filter((n) => !n.tab);
+  const moreActive = sections.some((n) => pathname.startsWith(n.to));
   return (
     <>
       <nav aria-label="Admin quick navigation" className="tabbar lg:hidden" data-testid="admin-tab-bar">
         <div className="mx-auto flex max-w-lg items-stretch">
-          <NavLink to="/admin" end className={cls}>
-            <LayoutDashboard className="size-5" /> Home
-          </NavLink>
-          <NavLink to="/admin/products" className={cls}>
-            <Package className="size-5" /> Products
-          </NavLink>
-          <NavLink to="/admin/enquiries" className={cls} aria-label={`Enquiries, ${newEnq} new`}>
-            <span className="relative">
-              <ClipboardList className="size-5" />
-              {newEnq > 0 && (
-                <span className="tab-badge" data-testid="admin-new-enquiries">
-                  {newEnq}
-                </span>
-              )}
-            </span>
-            Enquiries
-          </NavLink>
-          <NavLink to="/admin/quotations" className={cls}>
-            <FileText className="size-5" /> Quotes
-          </NavLink>
+          {tabs.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.end} className={cls} aria-label={n.to === "/admin/enquiries" ? `Enquiries, ${newEnq} new` : undefined}>
+              <span className="relative">
+                <n.icon className="size-5" />
+                {n.to === "/admin/enquiries" && newEnq > 0 && (
+                  <span className="tab-badge" data-testid="admin-new-enquiries">
+                    {newEnq}
+                  </span>
+                )}
+              </span>
+              {n.tabLabel ?? n.label}
+            </NavLink>
+          ))}
           <button type="button" className={`tabbar-item ${more || moreActive ? "!text-verdi-700" : ""}`} onClick={() => setMore(true)} aria-haspopup="dialog" aria-expanded={more} data-testid="admin-tab-more">
             <Ellipsis className="size-5" /> More
           </button>
@@ -94,15 +91,12 @@ export function AdminTabBar({ admin, onPassword, onSignOut }: { admin: AdminIden
         <p className="mb-1 truncate text-sm text-muted">
           {admin.displayName || admin.email.split("@")[0]} · <span className="font-medium text-ink">{admin.role.replace("_", " ")}</span>
         </p>
-        <SheetGroup title="Catalogue">
-          <Tile to="/admin/prices" icon={<Tags />}>Prices</Tile>
-          <Tile to="/admin/catalogue" icon={<Layers />}>Brands &amp; categories</Tile>
-          <Tile to="/admin/field-photos" icon={<Images />}>Field photos</Tile>
-        </SheetGroup>
-        <SheetGroup title="People & site">
-          <Tile to="/admin/customers" icon={<Users />}>Customers</Tile>
-          <Tile to="/admin/settings" icon={<Settings />}>Settings</Tile>
-          {admin.role === "owner" && <Tile to="/admin/users" icon={<ShieldCheck />}>Staff</Tile>}
+        <SheetGroup title="Sections">
+          {sections.map((n) => (
+            <Tile key={n.to} to={n.to} icon={<n.icon />}>
+              {n.sheetLabel ?? n.label}
+            </Tile>
+          ))}
         </SheetGroup>
         <SheetGroup title="Your account">
           <Tile onClick={() => (setMore(false), onPassword())} icon={<KeyRound />} testId="m-admin-change-password">
