@@ -14,6 +14,7 @@ import { api } from "../../lib/api";
 import { useCatalogue } from "../../lib/catalogue";
 import { useSite } from "../../lib/site";
 import { useAdmin } from "./AdminLayout";
+import { WhatsAppMenu } from "./WhatsAppMenu";
 import { canManage, dt, errorText, PageHead, send, uploadFile, useUnsavedWarning } from "./kit";
 
 const PdfViewer = lazy(() => import("../../components/PdfViewer"));
@@ -644,6 +645,25 @@ function Editor({ id }: { id: number | null }) {
             <b className="font-semibold text-ink">{STATUS_LABEL[quote.status]}:</b> {STATUS_HINT[quote.status]}
             {isExpired(quote) && ` It expired on ${validUntil(quote.createdAt, quote.validDays).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}: change "Valid for" and send it again.`}
           </p>
+          {quote.status === "sent" && quote.customerMobile && (
+            <div className="flex flex-wrap gap-2">
+              <WhatsAppMenu
+                phone={quote.customerMobile}
+                keys={["waQuoteReminder", "waFollowUp"]}
+                vars={{
+                  name: quote.customerName,
+                  reference: quote.enquiryReference,
+                  staff: admin.displayName || "the VERDI team",
+                  quote: quote.number,
+                  amount: formatPaise(quote.totalPaise),
+                  validUntil: validUntil(quote.createdAt, quote.validDays).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+                }}
+                className="btn-ghost btn-sm max-lg:tap"
+                label="Remind on WhatsApp"
+                testId="q-remind"
+              />
+            </div>
+          )}
           {quote.status === "declined" && (
             <div className="flex flex-wrap gap-2" data-testid="q-declined-next">
               <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => void setStatus("draft")} data-testid="q-revise">

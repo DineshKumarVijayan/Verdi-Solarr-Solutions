@@ -89,6 +89,8 @@ Every enquiry sent from the basket is saved with a reference number (e.g. `VS-26
 - **Follow-up date:** set it when you update an enquiry (*Tomorrow*, *In 3 days*, *Next week* or any date). It shows on the enquiry (red when overdue) and in **My day** on the Dashboard. Closing an enquiry clears it.
 - **Closed is closed:** only the owner or an admin can **Reopen** a Won or Not won enquiry. Reopening a won sale removes its staff bonus and customer points.
 - When a staff member is **deactivated**, their open enquiries become *Unassigned* (noted in History) so others can take them. Their bonuses and quotations stay as they are.
+- **Reassign several at once** (owner and admins): **Enquiries → Reassign several**, tick the enquiries (or *Select open ones on this page*), choose the person or *Unassigned*, then **Move**. Use it for leave, a resignation or to share out work. Only open enquiries move; Won and Not won stay with whoever closed them. Their open quotations move too, and each move is noted in History.
+- **WhatsApp messages:** the **WhatsApp** button on an enquiry offers ready messages for its stage (first contact, follow-up, quotation reminder, thank you, review request), already filled with the customer's name, reference, quotation and amount. WhatsApp opens with the text ready to edit and send. A sent quotation has **Remind on WhatsApp**. Owner and admins change the wording and add the Google review link under **Settings → WhatsApp messages**.
 - The Enquiries list shows the latest 300 and Quotations the latest 200; search finds older ones.
 - *Duplicate / wrong entry* does not count for or against anyone in Performance.
 - Every change is kept under **History** in the enquiry (who, what, when, why).

@@ -35,7 +35,7 @@ export default function Dashboard() {
   const max = Math.max(1, ...d.categories.map((c) => c.count));
   const tiles = [
     { icon: ClipboardList, label: "New enquiries", value: d.newEnquiries, sub: "awaiting follow-up", warn: d.newEnquiries > 0, to: "/admin/enquiries?status=new" },
-    { icon: Users, label: "Customer accounts", value: d.customers, sub: "registered customers", to: "/admin/customers" },
+    ...(admin.role === "owner" || admin.role === "admin" ? [{ icon: Users, label: "Customer accounts", value: d.customers, sub: "registered customers", to: "/admin/customers" }] : []),
     { icon: Package, label: "Active products", value: d.activeProducts, sub: d.inactiveProducts ? `${d.inactiveProducts} hidden` : "none hidden", to: "/admin/products" },
     { icon: Building2, label: "Manufacturers", value: d.brands, sub: "active brands", to: "/admin/catalogue" },
     { icon: Tags, label: "Missing prices", value: d.missingPrices, sub: "shown as “price on request”", warn: d.missingPrices > 0, to: "/admin/prices?missing=1" },
@@ -168,7 +168,7 @@ function PhoneDashboard({ d, canAdd, name, day }: { d: AdminDashboard; canAdd: b
   ].filter((a) => a.n > 0);
   const tiles = [
     { label: "Active products", n: d.activeProducts, to: "/admin/products" },
-    { label: "Customers", n: d.customers, to: "/admin/customers" },
+    ...(canAdd ? [{ label: "Customers", n: d.customers, to: "/admin/customers" }] : []),
     { label: "Brands", n: d.brands, to: "/admin/catalogue" },
     { label: "Categories", n: d.categories.length, to: "/admin/catalogue" },
   ];

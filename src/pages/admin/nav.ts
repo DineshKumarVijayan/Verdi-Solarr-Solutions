@@ -17,7 +17,7 @@ export const ADMIN_NAV = [
   { to: "/admin/performance", label: "Performance", icon: BarChart3, roles: ["owner", "admin"] },
   { to: "/admin/bonus", label: "Bonus", sheetLabel: "Staff bonus", icon: Wallet, roles: ["owner", "admin"] },
   { to: "/admin/my-bonus", label: "My bonus", icon: Wallet, roles: ["price_editor", "viewer"] },
-  { to: "/admin/customers", label: "Customers", icon: Users },
+  { to: "/admin/customers", label: "Customers", icon: Users, roles: ["owner", "admin"] },
   { to: "/admin/settings", label: "Settings", icon: Settings },
   { to: "/admin/users", label: "Staff", icon: ShieldCheck, owner: true },
 ] as {

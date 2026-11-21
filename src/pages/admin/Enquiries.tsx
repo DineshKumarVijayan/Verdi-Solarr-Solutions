@@ -1,6 +1,8 @@
-import { Award, CalendarClock, Check, ChevronDown, FileText, Phone, Plus, RotateCcw, Search, UserRound, X } from "lucide-react";
+import { Award, CalendarClock, Check, ChevronDown, FileText, Phone, Plus, RotateCcw, Search, UserRound, Users, X } from "lucide-react";
 import { usePaged } from "../../components/Pager";
 import { LogEnquiry } from "./LogEnquiry";
+import { WhatsAppMenu } from "./WhatsAppMenu";
+import type { MessageKey } from "../../../shared/messages";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { EnquiryAdminUpdateSchema, formatMobile, issues, normaliseMobile } from "../../../shared/admin-schemas";
@@ -41,6 +43,28 @@ export default function Enquiries() {
       .catch(() => undefined);
   }, [adminMe]);
 
+  // select several enquiries and move them to one person (leave, resignation, rebalancing)
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [moveTo, setMoveTo] = useState("");
+  const [moving, setMoving] = useState(false);
+  const toastTop = useToast();
+  const stopSelecting = () => (setSelecting(false), setPicked(new Set()), setMoveTo(""));
+  const moveSelected = async () => {
+    if (!moveTo) return toastTop("Choose who should take them over.", "error");
+    setMoving(true);
+    try {
+      const r = await send<{ moved: number; skipped: number }>("/api/admin/enquiries/bulk-assign", "POST", { ids: [...picked], adminId: moveTo === "none" ? null : Number(moveTo) });
+      toastTop(`Moved ${r.moved} enquir${r.moved === 1 ? "y" : "ies"}.${r.skipped ? ` ${r.skipped} skipped (already closed or already with that person).` : ""}`, "success");
+      stopSelecting();
+      load();
+    } catch (err) {
+      toastTop(errorText(err), "error");
+    } finally {
+      setMoving(false);
+    }
+  };
+
   const load = useCallback(() => {
     api<{ rows: AdminEnquiryRow[]; counts: Record<string, number> }>(`/api/admin/enquiries?${params}`)
       .then((r) => {
@@ -64,14 +88,21 @@ export default function Enquiries() {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="container-x py-10 max-lg:pt-3 max-lg:pb-24">
+    <div className={`container-x py-10 max-lg:pt-3 ${selecting ? "pb-44 max-lg:pb-72" : "max-lg:pb-24"}`}>
       <PageHead
         title="Enquiries"
         intro="Every enquiry goes New → Contacted → Quoted → Won or Not won. Open one to see the next step. Signed-in customers see the progress in their account."
         actions={
-          <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => setLogging(true)} data-testid="log-enquiry-open">
-            <Plus className="size-4" /> Log enquiry
-          </button>
+          <>
+            {canManage(adminMe) && (
+              <button type="button" className="btn-ghost btn-sm max-lg:tap" onClick={() => (selecting ? stopSelecting() : setSelecting(true))} aria-pressed={selecting} data-testid="bulk-start">
+                <Users className="size-4" /> {selecting ? "Stop selecting" : "Reassign several"}
+              </button>
+            )}
+            <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => setLogging(true)} data-testid="log-enquiry-open">
+              <Plus className="size-4" /> Log enquiry
+            </button>
+          </>
         }
       />
       <LogEnquiry open={logging} onClose={() => setLogging(false)} onSaved={(e) => setRows((rs) => [e, ...(rs ?? [])])} />
@@ -120,17 +151,67 @@ export default function Enquiries() {
       ) : (
         <ul className="mt-6 grid gap-3" data-testid="admin-enquiries">
           {pg.items.map((e) => (
-            <EnquiryRow key={e.id} e={e} staff={staff} open={open === e.id} onToggle={() => setOpen(open === e.id ? null : e.id)} onSaved={(n) => setRows((rs) => rs!.map((r) => (r.id === n.id ? n : r)))} />
+            <EnquiryRow
+              key={e.id}
+              e={e}
+              staff={staff}
+              open={open === e.id}
+              onToggle={() => setOpen(open === e.id ? null : e.id)}
+              onSaved={(n) => setRows((rs) => rs!.map((r) => (r.id === n.id ? n : r)))}
+              select={selecting ? { checked: picked.has(e.id), onChange: (on) => setPicked((p) => { const n = new Set(p); if (on) n.add(e.id); else n.delete(e.id); return n; }) } : undefined}
+            />
           ))}
         </ul>
       )}
       {pg.pager}
+      {selecting && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-card/95 p-3 shadow-lg backdrop-blur max-lg:bottom-16" role="region" aria-label="Reassign selected enquiries" data-testid="bulk-bar">
+          <div className="container-x flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-semibold" data-testid="bulk-count">
+              {picked.size} selected
+            </span>
+            <button type="button" className="btn-ghost btn-sm max-lg:tap" onClick={() => setPicked(new Set(pg.items.filter((x) => x.status === "new" || x.status === "contacted" || x.status === "quoted").map((x) => x.id)))} data-testid="bulk-all">
+              Select open ones on this page
+            </button>
+            <select aria-label="Move to" className="field !w-auto min-w-40 flex-1 !py-1.5" value={moveTo} onChange={(x) => setMoveTo(x.target.value)} data-testid="bulk-to">
+              <option value="">Move to…</option>
+              <option value="none">Unassigned (anyone can take)</option>
+              {staff.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="btn-primary btn-sm max-lg:tap" disabled={moving || picked.size === 0 || !moveTo} onClick={() => void moveSelected()} data-testid="bulk-move">
+              Move {picked.size || ""}
+            </button>
+            <button type="button" className="btn-ghost btn-sm max-lg:tap" onClick={stopSelecting}>
+              Cancel
+            </button>
+            <p className="basis-full text-xs text-muted">Only open enquiries move (Won and Not won stay with whoever closed them). Their open quotations move too.</p>
+          </div>
+        </div>
+      )}
       {(rows?.length ?? 0) >= 300 && <p className="mt-2 text-center text-xs text-muted" data-testid="list-limit">Showing the latest 300. Use search or the filters to find older enquiries.</p>}
     </div>
   );
 }
 
-function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow; staff: { id: number; name: string }[]; open: boolean; onToggle: () => void; onSaved: (e: AdminEnquiryRow) => void }) {
+function EnquiryRow({
+  e,
+  staff,
+  open,
+  onToggle,
+  onSaved,
+  select,
+}: {
+  e: AdminEnquiryRow;
+  staff: { id: number; name: string }[];
+  open: boolean;
+  onToggle: () => void;
+  onSaved: (e: AdminEnquiryRow) => void;
+  select?: { checked: boolean; onChange: (on: boolean) => void };
+}) {
   const admin = useAdmin();
   const isAdmin = canManage(admin);
   // owner/admin can update any enquiry; other staff only the ones they are responsible for
@@ -207,9 +288,26 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
     }
   };
   const quoteLink = e.latestQuote ? `/admin/quotations/${e.latestQuote.id}` : null;
+  const waKeys: MessageKey[] =
+    e.status === "new" ? ["waFirstContact", "waFollowUp"] : e.status === "contacted" ? ["waFollowUp", "waFirstContact"] : e.status === "quoted" ? ["waQuoteReminder", "waFollowUp"] : e.status === "won" ? ["waThanks", "waReview"] : ["waFollowUp"];
+  const waVars = {
+    name: e.contactName,
+    reference: e.reference,
+    staff: admin.displayName || "the VERDI team",
+    quote: e.latestQuote?.number ?? null,
+    amount: e.latestQuote ? formatPaise(e.latestQuote.totalPaise) : null,
+    validUntil: e.latestQuote ? new Date(e.latestQuote.validUntil + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : null,
+  };
+  const waPhone = mobile ?? e.mobile;
 
   return (
     <li className="card overflow-hidden" data-testid="admin-enquiry">
+      <div className="flex">
+      {select && (
+        <label className="flex shrink-0 cursor-pointer items-center pl-4 max-lg:min-w-11" title="Select">
+          <input type="checkbox" className="size-5 accent-verdi-600" checked={select.checked} onChange={(x) => select.onChange(x.target.checked)} aria-label={`Select ${e.reference}`} data-testid="bulk-pick" />
+        </label>
+      )}
       <button type="button" className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 p-4 text-left hover:bg-paper" onClick={onToggle} aria-expanded={open}>
         <span className="num font-semibold">{e.reference}</span>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[e.status]}`}>{STATUS_LABEL[e.status]}</span>
@@ -236,14 +334,13 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
         <span className="text-xs text-muted">{dt(e.createdAt)}</span>
         <ChevronDown className={`size-4 text-subtle transition ${open ? "rotate-180" : ""}`} />
       </button>
+      </div>
       {open && (
         <ActionBar testId="enquiry-actions">
           <a className="btn-ghost tap min-w-0 flex-1" href={`tel:+${mobile ?? e.mobile.replace(/\D/g, "")}`}>
             <Phone className="size-4 shrink-0" /> Call
           </a>
-          <a className="btn-ghost tap min-w-0 flex-1" target="_blank" rel="noopener" href={`https://wa.me/${mobile ?? e.mobile.replace(/\D/g, "")}?text=${encodeURIComponent(`Hello ${e.contactName}, this is VERDI SOLARR SOLUTION regarding your enquiry ${e.reference}.`)}`}>
-            <WhatsAppIcon className="size-4 shrink-0" /> WhatsApp
-          </a>
+          <WhatsAppMenu phone={waPhone} vars={waVars} keys={waKeys} className="btn-ghost tap min-w-0 flex-1" testId="m-wa-menu" />
           <Link className="btn-primary tap min-w-0 flex-1" to="/admin/quotations/new" state={{ enquiry: e }}>
             <FileText className="size-4 shrink-0" /> Quote
           </Link>
@@ -277,13 +374,11 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
               <a className="btn-ghost btn-sm" href={`tel:+${mobile ?? e.mobile.replace(/\D/g, "")}`}>
                 <Phone className="size-3.5" /> {mobile ? formatMobile(mobile) : e.mobile}
               </a>
-              <a className="btn-ghost btn-sm" target="_blank" rel="noopener" href={`https://wa.me/${mobile ?? e.mobile.replace(/\D/g, "")}?text=${encodeURIComponent(`Hello ${e.contactName}, this is VERDI SOLARR SOLUTION regarding your enquiry ${e.reference}.`)}`}>
-                <WhatsAppIcon className="size-3.5" /> WhatsApp
-              </a>
+              <WhatsAppMenu phone={waPhone} vars={waVars} keys={waKeys} className="btn-ghost btn-sm" testId="wa-menu" />
               <Link className="btn-ghost btn-sm" to="/admin/quotations/new" state={{ enquiry: e }} data-testid="enquiry-to-quote">
                 <FileText className="size-3.5" /> Create quotation
               </Link>
-              {e.customerId && (
+              {isAdmin && e.customerId && (
                 <Link className="btn-ghost btn-sm" to={`/admin/customers?open=${e.customerId}`}>
                   <UserRound className="size-3.5" /> Customer account
                 </Link>

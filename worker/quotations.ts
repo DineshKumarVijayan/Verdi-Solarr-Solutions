@@ -408,7 +408,7 @@ export async function setQuotationStatus(env: Env, admin: AdminIdentity, id: num
       .first<{ EnquiryId: number; Status: string; AssignedAdminId: number | null }>();
     if (link && !["won", "lost", "cancelled"].includes(link.Status)) {
       stmts.push(
-        env.DB.prepare("UPDATE Enquiries SET Status = 'won', SalePaise = ?1, ClosedAt = ?2, ClosedReason = NULL, ClosedNote = NULL, UpdatedAt = ?2, UpdatedBy = ?3 WHERE EnquiryId = ?4").bind(before.totalPaise, now, admin.email, link.EnquiryId),
+        env.DB.prepare("UPDATE Enquiries SET Status = 'won', SalePaise = ?1, ClosedAt = ?2, ClosedReason = NULL, NotWonReason = NULL, ClosedNote = NULL, FollowUpOn = NULL, UpdatedAt = ?2, UpdatedBy = ?3 WHERE EnquiryId = ?4").bind(before.totalPaise, now, admin.email, link.EnquiryId),
         env.DB.prepare("INSERT INTO EnquiryEvents (EnquiryId, Kind, FromStatus, ToStatus, SalePaise, Note, ByAdminId, ByIdentity, CreatedAt) VALUES (?1, 'status', ?2, 'won', ?3, ?4, ?5, ?6, ?7)").bind(
           link.EnquiryId,
           link.Status,

@@ -50,6 +50,7 @@ import { isPlaceholderEmail, PLACEHOLDER_EMAIL_DOMAIN } from "../shared/session"
 import { hashPassword, randomToken } from "./crypto";
 import { issueResetLink, loadEnquiries, reference, rewardLedger, toEnquiryView } from "./customers";
 import { bonusStatementsForSale } from "./bonus";
+import { MESSAGE_KEYS, MESSAGE_TEMPLATES, MessageSettingsSchema, REVIEW_LINK_KEY, type MessageSettings } from "../shared/messages";
 import { loyaltyRate, loyaltyStatementsForSale } from "./loyalty";
 import { loyaltyPoints } from "../shared/loyalty";
 import type { Env } from "./env";
@@ -526,9 +527,10 @@ export async function deleteMedia(env: Env, admin: AdminIdentity, productId: num
 async function deleteR2IfUnused(env: Env, storageKey: string): Promise<void> {
   if (!storageKey.startsWith("r2:") || !env.MEDIA) return;
   const used = await env.DB.prepare(
-    `SELECT (SELECT COUNT(*) FROM ProductMedia WHERE StorageKey = ?1) + (SELECT COUNT(*) FROM FieldPhotos WHERE StorageKey = ?1) + (SELECT COUNT(*) FROM Brands WHERE LogoStorageKey = ?1) AS n`,
+    `SELECT (SELECT COUNT(*) FROM ProductMedia WHERE StorageKey = ?1) + (SELECT COUNT(*) FROM FieldPhotos WHERE StorageKey = ?1) + (SELECT COUNT(*) FROM Brands WHERE LogoStorageKey = ?1)
+          + (SELECT COUNT(*) FROM QuotationItems WHERE ImageUrl = ?2) + (SELECT COUNT(*) FROM SiteSettings WHERE SettingValue = ?1) AS n`,
   )
-    .bind(storageKey)
+    .bind(storageKey, mediaUrl(storageKey))
     .first<{ n: number }>();
   if ((used?.n ?? 0) === 0) {
     const key = storageKey.slice(3);
@@ -880,7 +882,7 @@ const ENQ_SELECT = `SELECT e.EnquiryId, e.Reference, e.Status, e.CreatedAt, e.Up
        ${OWNER} AS OwnerId, COALESCE(o.DisplayName, o.Email) AS OwnerName,
        e.NotWonReason AS ClosedReason, e.ClosedNote, e.ClosedAt, e.SalePaise, e.FollowUpOn,
        (SELECT q.TotalPaise FROM Quotations q WHERE q.EnquiryId = e.EnquiryId ORDER BY q.QuotationId DESC LIMIT 1) AS QuotePaise,
-       (SELECT q.QuotationId || '|' || q.Number || '|' || q.Status FROM Quotations q WHERE q.EnquiryId = e.EnquiryId ORDER BY q.QuotationId DESC LIMIT 1) AS LatestQuote,
+       (SELECT q.QuotationId || '|' || q.Number || '|' || q.Status || '|' || date(q.CreatedAt, '+' || q.ValidDays || ' days') || '|' || q.TotalPaise FROM Quotations q WHERE q.EnquiryId = e.EnquiryId ORDER BY q.QuotationId DESC LIMIT 1) AS LatestQuote,
        (SELECT COALESCE(SUM(t.Points), 0) FROM RewardTransactions t WHERE t.EnquiryId = e.EnquiryId AND t.Kind IN ('sale', 'reversal')) AS PtsCredited,
        (SELECT COALESCE(SUM(p.Points), 0) FROM PendingRewards p WHERE p.EnquiryId = e.EnquiryId AND p.ClaimedAt IS NULL) AS PtsWaiting,
        (SELECT COUNT(*) FROM Quotations q WHERE q.EnquiryId = e.EnquiryId) AS QuoteCount
@@ -901,7 +903,7 @@ function toAdminEnquiry(r: EnqRow): AdminEnquiryRow {
     followUpOn: (r.FollowUpOn as string) ?? null,
     points: { credited: (r.PtsCredited as number) ?? 0, waiting: (r.PtsWaiting as number) ?? 0 },
     latestQuote: r.LatestQuote
-      ? (([qid, num, st]) => ({ id: Number(qid), number: num, status: st as NonNullable<AdminEnquiryRow["latestQuote"]>["status"] }))(String(r.LatestQuote).split("|"))
+      ? (([qid, num, st, until, total]) => ({ id: Number(qid), number: num, status: st as NonNullable<AdminEnquiryRow["latestQuote"]>["status"], validUntil: until, totalPaise: Number(total) }))(String(r.LatestQuote).split("|"))
       : null,
     salePaise: (r.SalePaise as number) ?? null,
     quotePaise: (r.QuotePaise as number) ?? null,
@@ -1067,8 +1069,8 @@ export async function updateEnquiry(env: Env, admin: AdminIdentity, id: number, 
   // once): otherwise bonus and points could be added twice.
   const main = await env.DB.prepare(
       `UPDATE Enquiries SET Status = ?1, AdminNotes = ?2, UpdatedAt = ?3, UpdatedBy = ?4,
-         NotWonReason = CASE WHEN ?1 IN ('lost', 'cancelled') THEN ?5 WHEN ?1 = 'won' THEN NULL ELSE NotWonReason END,
-         ClosedNote   = CASE WHEN ?1 IN ('lost', 'cancelled') THEN ?6 WHEN ?1 = 'won' THEN NULL ELSE ClosedNote END,
+         NotWonReason = CASE WHEN ?1 IN ('lost', 'cancelled') THEN COALESCE(?5, NotWonReason) ELSE NULL END,
+         ClosedNote   = CASE WHEN ?1 IN ('lost', 'cancelled') THEN COALESCE(?6, ClosedNote) ELSE NULL END,
          SalePaise    = CASE WHEN ?1 = 'won' THEN COALESCE(?7, SalePaise) WHEN ?1 IN ('lost', 'cancelled') THEN NULL ELSE SalePaise END,
          ClosedAt     = CASE WHEN ?8 = 1 THEN (CASE WHEN ?9 = 1 THEN ?3 ELSE NULL END) ELSE ClosedAt END,
          FollowUpOn   = CASE WHEN ?9 = 1 THEN NULL WHEN ?11 = 1 THEN ?12 ELSE FollowUpOn END
@@ -1118,6 +1120,7 @@ export async function assignEnquiry(env: Env, admin: AdminIdentity, id: number, 
   if ("take" in v && !upd.meta.changes) throw new HttpError(409, "taken", "Someone else already took this enquiry.");
   await env.DB.batch([
     enquiryEvent(env, admin, id, { kind: "assigned", assignedTo: to }, now),
+    ...(to !== null ? [env.DB.prepare("UPDATE Quotations SET OwnerAdminId = ?1 WHERE EnquiryId = ?2 AND Status IN ('draft', 'sent')").bind(to, id)] : []),
     audit(env, admin, "enquiry.assign", "Enquiry", id, { owner: cur.OwnerId }, { owner: to }, now),
     // a won sale's bonus moves to the newly responsible staff member
     ...(await bonusStatementsForSale(env, admin, id, { status: cur.Status, salePaise: cur.SalePaise, ownerId: to }, now)),
@@ -1176,7 +1179,7 @@ export async function enquiryStats(env: Env, admin: AdminIdentity, url: URL): Pr
   const fmt = period === "day" ? "%Y-%m-%d" : period === "month" ? "%Y-%m" : "%Y";
   const scopeAll = `date(e.CreatedAt, ${IST}) BETWEEN ?1 AND ?2${source === "website" ? " AND e.Source = 'website'" : source === "staff" ? " AND e.CreatedByAdminId IS NOT NULL" : ""}`;
   // duplicates / wrong entries do not count for or against anyone
-  const scope = `${scopeAll} AND COALESCE(e.NotWonReason, '') <> 'duplicate'`;
+  const scope = `${scopeAll} AND NOT (e.Status IN ('lost', 'cancelled') AND COALESCE(e.NotWonReason, '') = 'duplicate')`;
   // reached the quotation stage: status quoted/won now, a recorded move to quoted, or a linked quotation
   const quoted = `(e.Status IN ('quoted', 'won') OR EXISTS (SELECT 1 FROM EnquiryEvents x WHERE x.EnquiryId = e.EnquiryId AND x.ToStatus = 'quoted') OR EXISTS (SELECT 1 FROM Quotations q WHERE q.EnquiryId = e.EnquiryId))`;
   const firstQuote = `(SELECT MIN(t) FROM (SELECT x.CreatedAt AS t FROM EnquiryEvents x WHERE x.EnquiryId = e.EnquiryId AND x.ToStatus = 'quoted' UNION ALL SELECT q.CreatedAt FROM Quotations q WHERE q.EnquiryId = e.EnquiryId))`;
@@ -1254,4 +1257,72 @@ export async function myDay(env: Env, admin: AdminIdentity): Promise<MyDay> {
     unassigned: (un.results as MyDay["unassigned"]).map((x) => ({ ...x, source: (x.source ?? "website") as EnquirySource })),
     quotes: qs.results as MyDay["quotes"],
   };
+}
+
+// ------------------------------------------------------------------ bulk reassign (owner / admin)
+
+const BulkAssignSchema = z
+  .object({
+    ids: z.array(z.number().int().positive()).min(1, "Choose at least one enquiry").max(300, "Choose at most 300 enquiries at a time"),
+    adminId: z.number().int().positive().nullable(),
+  })
+  .strict();
+
+/**
+ * Move several open enquiries to one staff member (or back to Unassigned), e.g. for leave or a resignation.
+ * Won / Not won enquiries are left as they are (their sale and bonus stay with whoever made it).
+ * Their open quotations move with them; every move is written to the enquiry's history.
+ */
+export async function bulkAssign(env: Env, admin: AdminIdentity, body: unknown): Promise<{ moved: number; skipped: number }> {
+  requireRole(admin, CONTENT_ROLES, "reassign enquiries");
+  const v = parse(BulkAssignSchema, body);
+  if (v.adminId !== null) {
+    const ok = await env.DB.prepare("SELECT 1 FROM AdminUsers WHERE AdminId = ?1 AND IsActive = 1").bind(v.adminId).first();
+    if (!ok) throw new HttpError(422, "validation", "That staff member is not active.");
+  }
+  const ids = [...new Set(v.ids)];
+  const json = JSON.stringify(ids);
+  const now = nowIso();
+  // one JSON parameter (D1 allows at most 100 bound values); only open enquiries that actually change hands
+  const scope = `EnquiryId IN (SELECT value FROM json_each(?1)) AND Status IN ${OPEN} AND COALESCE(AssignedAdminId, 0) <> COALESCE(?2, 0)`;
+  const res = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO EnquiryEvents (EnquiryId, Kind, AssignedTo, Note, ByAdminId, ByIdentity, CreatedAt)
+       SELECT EnquiryId, 'assigned', ?2, 'Reassigned in bulk', ?3, ?4, ?5 FROM Enquiries WHERE ${scope}`,
+    ).bind(json, v.adminId, admin.id, admin.email, now),
+    ...(v.adminId !== null
+      ? [env.DB.prepare(`UPDATE Quotations SET OwnerAdminId = ?2 WHERE Status IN ('draft', 'sent') AND EnquiryId IN (SELECT EnquiryId FROM Enquiries WHERE ${scope})`).bind(json, v.adminId)]
+      : []),
+    env.DB.prepare(`UPDATE Enquiries SET AssignedAdminId = ?2, UpdatedAt = ?3, UpdatedBy = ?4 WHERE ${scope}`).bind(json, v.adminId, now, admin.email),
+  ]);
+  const moved = res.at(-1)!.meta.changes ?? 0;
+  await audit(env, admin, "enquiry.bulk_assign", "Enquiry", `${moved} enquiries`, null, { adminId: v.adminId, ids }, now).run();
+  return { moved, skipped: ids.length - moved };
+}
+
+// ------------------------------------------------------------------ WhatsApp message templates
+
+/** Saved wording for the one-tap WhatsApp messages (admin only: not part of the public site settings). */
+export async function getMessageTemplates(env: Env): Promise<{ templates: MessageSettings }> {
+  const keys = JSON.stringify([...MESSAGE_KEYS, REVIEW_LINK_KEY]);
+  const r = await env.DB.prepare("SELECT SettingKey, SettingValue FROM SiteSettings WHERE SettingKey IN (SELECT value FROM json_each(?1))").bind(keys).all<{ SettingKey: string; SettingValue: string }>();
+  return { templates: Object.fromEntries(r.results.map((x) => [x.SettingKey, x.SettingValue])) as MessageSettings };
+}
+
+export async function saveMessageTemplates(env: Env, admin: AdminIdentity, body: unknown): Promise<{ templates: MessageSettings }> {
+  requireRole(admin, CONTENT_ROLES, "change the WhatsApp messages");
+  const v = parse(MessageSettingsSchema, body);
+  const now = nowIso();
+  const stmts = Object.entries(v.templates).map(([k, raw]) => {
+    const val = raw.trim();
+    const def = MESSAGE_TEMPLATES.find((t) => t.key === k)?.text;
+    // empty or identical to the default: nothing stored, the default is used
+    return !val || val === def
+      ? env.DB.prepare("DELETE FROM SiteSettings WHERE SettingKey = ?1").bind(k)
+      : env.DB.prepare(
+          "INSERT INTO SiteSettings (SettingKey, SettingValue, UpdatedAt, UpdatedBy) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(SettingKey) DO UPDATE SET SettingValue = excluded.SettingValue, UpdatedAt = excluded.UpdatedAt, UpdatedBy = excluded.UpdatedBy",
+        ).bind(k, val, now, admin.email);
+  });
+  await env.DB.batch([...stmts, audit(env, admin, "messages.update", "Settings", "whatsapp", null, v.templates, now)]);
+  return getMessageTemplates(env);
 }

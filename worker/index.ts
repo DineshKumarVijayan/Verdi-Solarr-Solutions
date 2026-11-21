@@ -142,6 +142,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     }
     if (path === "/api/admin/dashboard" && method === "GET") return json(await dashboard(env, admin));
     if (path === "/api/admin/my-day" && method === "GET") return json(await content.myDay(env, admin));
+    if (path === "/api/admin/message-templates" && method === "GET") return json(await content.getMessageTemplates(env));
+    if (path === "/api/admin/message-templates" && method === "PUT") return json(await content.saveMessageTemplates(env, admin, await readJson(request, 32 * 1024)));
     if (path === "/api/admin/prices" && method === "GET") return json(await listPrices(env, url));
 
     const m = path.match(/^\/api\/admin\/prices\/(\d{1,9})(\/history)?$/);
@@ -225,6 +227,7 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
       if (id && seg.length === 2 && method === "PUT") return json(await content.saveAdminUser(env, admin, id, await body()));
       break;
     case "customers":
+      content.requireRole(admin, ["owner", "admin"], "see customer accounts");
       if (seg.length === 1 && method === "GET") return json(await content.listCustomers(env, url));
       if (id && seg.length === 2 && method === "GET") return json(await content.customerDetail(env, id));
       if (id && seg.length === 2 && method === "PUT") return json(await content.setCustomerActive(env, admin, id, await body()));
@@ -243,6 +246,7 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
       if (id && sub === "pdf" && seg.length === 3 && method === "POST") return json(await quotes.shareQuotationPdf(env, admin, id, request));
       break;
     case "enquiries":
+      if (seg[1] === "bulk-assign" && seg.length === 2 && method === "POST") return json(await content.bulkAssign(env, admin, await body(32 * 1024)));
       if (seg.length === 1 && method === "GET") return json(await content.listEnquiries(env, admin, url));
       if (seg.length === 1 && method === "POST") return json(await content.createStaffEnquiry(env, admin, await body(64 * 1024)), { status: 201 });
       if (seg[1] === "stats" && seg.length === 2 && method === "GET") return json(await content.enquiryStats(env, admin, url));

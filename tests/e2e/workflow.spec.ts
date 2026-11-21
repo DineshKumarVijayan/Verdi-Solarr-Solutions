@@ -60,6 +60,9 @@ test("sales staff see only their own and unassigned work; quotations belong to t
   expect((await staff.delete(`/api/admin/quotations/${staffQ.id}`, { headers: H })).status()).toBe(403);
   // customer accounts (mobiles, emails, points) are for owner and admins only
   expect((await staff.get("/api/admin/customers")).status()).toBe(403);
+  // only owner/admin change the WhatsApp wording or move enquiries in bulk
+  expect((await staff.put("/api/admin/message-templates", { headers: H, data: { templates: { waFollowUp: "Hi {name}" } } })).status()).toBe(403);
+  expect((await staff.post("/api/admin/enquiries/bulk-assign", { headers: H, data: { ids: [mine.id], adminId: null } })).status()).toBe(403);
 
   // with a quotation, Won is recorded by accepting it
   expect((await staff.put(`/api/admin/enquiries/${mine.id}`, { headers: H, data: { status: "won", adminNotes: null, salePaise: 100_000 } })).status()).toBe(409);
@@ -220,4 +223,67 @@ test("deleting a product keeps the image that an existing quotation still shows"
   expect(img).toBeTruthy();
   expect((await request.delete(`/api/admin/products/${productId}`, { headers: H })).ok()).toBeTruthy();
   expect((await request.get(img)).status()).toBe(200);
+});
+
+test("owner moves several open enquiries (and their open quotations) to another staff member in one go", async ({ request, page }) => {
+  const mob = `95${String(Date.now()).slice(-8)}`;
+  const made = await request.post("/api/admin/users", { headers: H, data: { email: "", mobile: mob, password: TEMP, displayName: "Cover Staff", role: "viewer", isActive: true } });
+  const cover = ((await made.json()).users as { id: number; mobile: string }[]).find((u) => u.mobile?.endsWith(mob))!;
+  const log = async (n: string) => (await (await request.post("/api/admin/enquiries", { headers: H, data: { source: "phone", name: n, mobile: "9876500055", location: "Ooty" } })).json()).enquiry;
+  const a = await log(`Bulk A ${Date.now()}`);
+  const b = await log(`Bulk B ${Date.now()}`);
+  const c = await log(`Bulk C ${Date.now()}`);
+  await request.put(`/api/admin/enquiries/${c.id}`, { headers: H, data: { status: "lost", adminNotes: null, closedReason: "price" } });
+  const cat = await (await request.get("/api/catalogue")).json();
+  const p = cat.products.find((x: { price: { sellingPaise: number | null } }) => x.price.sellingPaise !== null);
+  const q = (await (await request.post("/api/admin/quotations", { headers: H, data: { customerName: "Bulk A", customerMobile: "9876500055", validDays: 15, enquiryId: a.id, items: [{ productId: p.id, name: "", unit: "", qty: 1, unitPaise: null, discountType: "none", discountValue: 0 }] } })).json()).quote;
+  // validation
+  expect((await request.post("/api/admin/enquiries/bulk-assign", { headers: H, data: { ids: [], adminId: cover.id } })).status()).toBe(422);
+  const r = await (await request.post("/api/admin/enquiries/bulk-assign", { headers: H, data: { ids: [a.id, b.id, c.id], adminId: cover.id } })).json();
+  expect(r).toEqual({ moved: 2, skipped: 1 }); // the Not won one stays
+  const rows = (await (await request.get(`/api/admin/enquiries?owner=${cover.id}`)).json()).rows as { id: number }[];
+  expect(rows.map((x) => x.id).sort()).toEqual([a.id, b.id].sort());
+  expect((await (await request.get(`/api/admin/quotations/${q.id}`)).json()).quote.owner.name).toBe("Cover Staff");
+  const hist = (await (await request.get(`/api/admin/enquiries/${b.id}/history`)).json()).events as { note: string | null }[];
+  expect(hist.at(-1)?.note).toBe("Reassigned in bulk");
+
+  // the same from the screen: select, choose Unassigned, move
+  await page.goto(`/admin/enquiries?q=${encodeURIComponent("Bulk B")}`);
+  await page.getByTestId("bulk-start").click();
+  await page.getByTestId("admin-enquiry").filter({ hasText: b.reference }).getByTestId("bulk-pick").check();
+  await expect(page.getByTestId("bulk-count")).toHaveText("1 selected");
+  await page.getByTestId("bulk-to").selectOption("none");
+  await page.getByTestId("bulk-move").click();
+  await expect(page.getByText(/Moved 1 enquiry/)).toBeVisible();
+  const after = (await (await request.get(`/api/admin/enquiries?q=${b.reference}`)).json()).rows[0];
+  expect(after.owner).toBeNull();
+  await request.put(`/api/admin/users/${cover.id}`, { headers: H, data: { email: "", mobile: mob, displayName: "Cover Staff", role: "viewer", isActive: false } });
+});
+
+test("WhatsApp messages: owner edits the wording (checked), staff pick a ready message filled with the customer's details", async ({ request, page }) => {
+  expect((await request.put("/api/admin/message-templates", { headers: H, data: { templates: { waFollowUp: "Hi {nmae}" } } })).status()).toBe(422);
+  expect((await request.put("/api/admin/message-templates", { headers: H, data: { templates: { waReviewLink: "not a link" } } })).status()).toBe(422);
+  expect((await request.put("/api/admin/message-templates", { headers: H, data: { templates: { waSomethingElse: "x" } } })).status()).toBe(422);
+  const saved = await (await request.put("/api/admin/message-templates", { headers: H, data: { templates: { waFollowUp: "Hi {name}, checking in about {reference}.", waReviewLink: "https://g.page/r/example/review" } } })).json();
+  expect(saved.templates.waFollowUp).toBe("Hi {name}, checking in about {reference}.");
+
+  const enq = (await (await request.post("/api/admin/enquiries", { headers: H, data: { source: "phone", name: "Template Customer", mobile: "9876500066", location: "Madurai" } })).json()).enquiry;
+  await page.goto(`/admin/enquiries?q=${enq.reference}`);
+  const row = page.getByTestId("admin-enquiry").filter({ hasText: enq.reference });
+  await row.locator("button[aria-expanded]").first().click();
+  await row.getByTestId("wa-menu").click();
+  await expect(page.getByTestId("wa-waFollowUp")).toContainText(`Hi Template Customer, checking in about ${enq.reference}.`);
+  await expect(page.getByTestId("wa-waFirstContact")).toContainText(enq.reference);
+  await page.context().route("https://wa.me/**", (r) => r.fulfill({ body: "ok" }));
+  const [popup] = await Promise.all([page.context().waitForEvent("page"), page.getByTestId("wa-waFollowUp").click()]);
+  expect(decodeURIComponent(popup.url())).toContain(`Hi Template Customer, checking in about ${enq.reference}.`);
+  await popup.close();
+
+  // back to the default wording; the Settings page shows the editor
+  await request.put("/api/admin/message-templates", { headers: H, data: { templates: { waFollowUp: "", waReviewLink: "" } } });
+  await page.goto("/admin/settings");
+  await expect(page.getByTestId("message-templates")).toBeVisible();
+  await page.getByTestId("m-waFollowUp").fill("Hello {name} {oops}");
+  await page.getByTestId("save-messages").click();
+  await expect(page.getByText("Unknown placeholder {oops}")).toBeVisible();
 });

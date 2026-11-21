@@ -341,7 +341,7 @@ export interface AdminEnquiryRow extends EnquiryView {
   /** customer loyalty points from this sale: in their account, or waiting because they have no account yet */
   points: { credited: number; waiting: number };
   /** the most recent quotation made from this enquiry */
-  latestQuote: { id: number; number: string; status: "draft" | "sent" | "accepted" | "declined" } | null;
+  latestQuote: { id: number; number: string; status: "draft" | "sent" | "accepted" | "declined"; validUntil: string; totalPaise: number } | null;
   /** final sale value in paise when won */
   salePaise: number | null;
   /** total of the latest quotation made from this enquiry (pre-fills the sale value) */
