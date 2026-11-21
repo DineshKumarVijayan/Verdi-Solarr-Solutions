@@ -36,6 +36,8 @@ const AdminFieldPhotos = lazy(() => import("./pages/admin/FieldPhotos"));
 const AdminEnquiries = lazy(() => import("./pages/admin/Enquiries"));
 const AdminCustomers = lazy(() => import("./pages/admin/Customers"));
 const AdminPerformance = lazy(() => import("./pages/admin/Performance"));
+const AdminBonus = lazy(() => import("./pages/admin/Bonus"));
+const AdminMyBonus = lazy(() => import("./pages/admin/Bonus").then((m) => ({ default: m.MyBonusPage })));
 const AdminSettings = lazy(() => import("./pages/admin/Settings"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminQuotations = lazy(() => import("./pages/admin/Quotations"));
@@ -123,6 +125,8 @@ export const router = createBrowserRouter([
               { path: "quotations/:id", element: <Page><AdminQuotations /></Page> },
               { path: "customers", element: <Page><AdminCustomers /></Page> },
               { path: "performance", element: <Page><AdminPerformance /></Page> },
+              { path: "bonus", element: <Page><AdminBonus /></Page> },
+              { path: "my-bonus", element: <Page><AdminMyBonus /></Page> },
               { path: "settings", element: <Page><AdminSettings /></Page> },
               { path: "users", element: <Page><AdminUsers /></Page> },
             ],

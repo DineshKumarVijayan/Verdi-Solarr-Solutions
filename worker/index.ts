@@ -10,6 +10,7 @@ import * as quotes from "./quotations";
 import { handleCatalogue, revalidate } from "./catalogue";
 import { productPage, robots, sitemap } from "./seo";
 import * as content from "./content";
+import * as bonus from "./bonus";
 import * as customers from "./customers";
 import type { Env } from "./env";
 import { errorResponse, HttpError, json, readJson } from "./http";
@@ -165,6 +166,15 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
   const subNum = subId && /^\d{1,9}$/.test(subId) ? Number(subId) : null;
 
   switch (res) {
+    case "bonus":
+      if (seg.length === 1 && method === "GET") return json(await bonus.overview(env, admin));
+      if (seg[1] === "entries" && seg.length === 2 && method === "GET") return json(await bonus.listEntries(env, admin, url));
+      if (seg[1] === "rates" && seg.length === 2 && method === "PUT") return json(await bonus.setRate(env, admin, await body()));
+      if (seg[1] === "approve" && seg.length === 2 && method === "POST") return json(await bonus.approve(env, admin, await body(32 * 1024)));
+      if (seg[1] === "adjustments" && seg.length === 2 && method === "POST") return json(await bonus.addAdjustment(env, admin, await body()), { status: 201 });
+      if (seg[1] === "payouts" && seg.length === 2 && method === "POST") return json(await bonus.pay(env, admin, await body(64 * 1024)), { status: 201 });
+      if (seg[1] === "payouts" && /^\d{1,9}$/.test(seg[2] ?? "") && seg[3] === "cancel" && seg.length === 4 && method === "POST") return json(await bonus.cancelPayout(env, admin, Number(seg[2]), await body()));
+      break;
     case "brands":
       if (seg.length === 1 && method === "GET") return json({ brands: await content.listBrands(env) });
       if (seg.length === 1 && method === "POST") return json(await content.saveBrand(env, admin, null, await body()), { status: 201 });

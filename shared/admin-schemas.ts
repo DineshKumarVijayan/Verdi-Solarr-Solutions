@@ -323,7 +323,7 @@ export const StaffEnquirySchema = z
     business: z.string().trim().max(120).optional().default(""),
     location: z.string().trim().min(2, "Enter the customer's location").max(120),
     need: z.string().trim().max(1000).optional().default(""),
-    status: z.enum(["new", "contacted", "quoted", "won", "lost", "cancelled"]).default("contacted"),
+    status: z.enum(["new", "contacted", "quoted"]).default("contacted"),
     items: z
       .array(z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(100000) }).strict())
       .max(50)

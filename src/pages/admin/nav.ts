@@ -1,5 +1,5 @@
 import type { AdminRole } from "../../../shared/types";
-import { BarChart3, ClipboardList, FileText, Images, LayoutDashboard, Layers, Package, Settings, ShieldCheck, Tags, Users } from "lucide-react";
+import { BarChart3, ClipboardList, Wallet, FileText, Images, LayoutDashboard, Layers, Package, Settings, ShieldCheck, Tags, Users } from "lucide-react";
 
 /**
  * The one list of admin sections. The desktop admin bar shows all of them; on phones the first
@@ -15,6 +15,8 @@ export const ADMIN_NAV = [
   { to: "/admin/enquiries", label: "Enquiries", icon: ClipboardList, tab: true },
   { to: "/admin/quotations", label: "Quotations", tabLabel: "Quotes", icon: FileText, tab: true },
   { to: "/admin/performance", label: "Performance", icon: BarChart3, roles: ["owner", "admin"] },
+  { to: "/admin/bonus", label: "Bonus", sheetLabel: "Staff bonus", icon: Wallet, roles: ["owner", "admin"] },
+  { to: "/admin/my-bonus", label: "My bonus", icon: Wallet, roles: ["price_editor", "viewer"] },
   { to: "/admin/customers", label: "Customers", icon: Users },
   { to: "/admin/settings", label: "Settings", icon: Settings },
   { to: "/admin/users", label: "Staff", icon: ShieldCheck, owner: true },

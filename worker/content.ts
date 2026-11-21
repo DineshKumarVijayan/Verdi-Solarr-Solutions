@@ -48,6 +48,7 @@ import { mediaUrl, publishCatalogue, purgeCatalogueEdgeCache } from "./catalogue
 import { isPlaceholderEmail, PLACEHOLDER_EMAIL_DOMAIN } from "../shared/session";
 import { hashPassword, randomToken } from "./crypto";
 import { issueResetLink, loadEnquiries, reference, rewardLedger, toEnquiryView } from "./customers";
+import { bonusStatementsForSale } from "./bonus";
 import type { Env } from "./env";
 import { HttpError, nowIso } from "./http";
 
@@ -902,7 +903,7 @@ function enquiryEvent(env: Env, admin: AdminIdentity, enquiryId: number, e: { ki
 
 /** Owner/admin may act on any enquiry; other staff only on enquiries they are responsible for. */
 async function requireEnquiryOwner(env: Env, admin: AdminIdentity, id: number) {
-  const row = await env.DB.prepare(`SELECT e.Status, e.AdminNotes, ${OWNER} AS OwnerId FROM Enquiries e WHERE e.EnquiryId = ?1`).bind(id).first<{ Status: EnquiryStatus; AdminNotes: string | null; OwnerId: number | null }>();
+  const row = await env.DB.prepare(`SELECT e.Status, e.AdminNotes, e.SalePaise, ${OWNER} AS OwnerId FROM Enquiries e WHERE e.EnquiryId = ?1`).bind(id).first<{ Status: EnquiryStatus; AdminNotes: string | null; SalePaise: number | null; OwnerId: number | null }>();
   if (!row) throw new HttpError(404, "not_found", "Enquiry not found.");
   if (!CONTENT_ROLES.includes(admin.role) && row.OwnerId !== admin.id)
     throw new HttpError(403, "forbidden", row.OwnerId ? "This enquiry is assigned to another staff member." : "Take this enquiry first, then you can update it.");
@@ -1019,6 +1020,9 @@ export async function updateEnquiry(env: Env, admin: AdminIdentity, id: number, 
     audit(env, admin, "enquiry.update", "Enquiry", id, { status: before.Status, adminNotes: before.AdminNotes }, v, now),
   ];
   if (changed) stmts.push(enquiryEvent(env, admin, id, { kind: "status", from: before.Status, to, reason: v.closedReason, note: v.closedNote, salePaise: to === "won" ? v.salePaise : null }, now));
+  // staff bonus follows the sale (created when won, reversed when undone or corrected)
+  const newSale = to === "won" ? (v.salePaise ?? before.SalePaise) : null;
+  stmts.push(...(await bonusStatementsForSale(env, admin, id, { status: to, salePaise: newSale, ownerId: before.OwnerId }, now)));
   await env.DB.batch(stmts);
   return { enquiry: await oneEnquiry(env, id) };
 }
@@ -1026,7 +1030,7 @@ export async function updateEnquiry(env: Env, admin: AdminIdentity, id: number, 
 /** Owner/admin assign or reassign; any staff member may take an unassigned enquiry. */
 export async function assignEnquiry(env: Env, admin: AdminIdentity, id: number, body: unknown) {
   const v = parse(EnquiryAssignSchema, body);
-  const cur = await env.DB.prepare(`SELECT ${OWNER} AS OwnerId FROM Enquiries e WHERE e.EnquiryId = ?1`).bind(id).first<{ OwnerId: number | null }>();
+  const cur = await env.DB.prepare(`SELECT ${OWNER} AS OwnerId, e.Status, e.SalePaise FROM Enquiries e WHERE e.EnquiryId = ?1`).bind(id).first<{ OwnerId: number | null; Status: string; SalePaise: number | null }>();
   if (!cur) throw new HttpError(404, "not_found", "Enquiry not found.");
   let to: number | null;
   if ("take" in v) {
@@ -1049,7 +1053,12 @@ export async function assignEnquiry(env: Env, admin: AdminIdentity, id: number, 
     .bind(to, now, admin.email, id)
     .run();
   if ("take" in v && !upd.meta.changes) throw new HttpError(409, "taken", "Someone else already took this enquiry.");
-  await env.DB.batch([enquiryEvent(env, admin, id, { kind: "assigned", assignedTo: to }, now), audit(env, admin, "enquiry.assign", "Enquiry", id, { owner: cur.OwnerId }, { owner: to }, now)]);
+  await env.DB.batch([
+    enquiryEvent(env, admin, id, { kind: "assigned", assignedTo: to }, now),
+    audit(env, admin, "enquiry.assign", "Enquiry", id, { owner: cur.OwnerId }, { owner: to }, now),
+    // a won sale's bonus moves to the newly responsible staff member
+    ...(await bonusStatementsForSale(env, admin, id, { status: cur.Status, salePaise: cur.SalePaise, ownerId: to }, now)),
+  ]);
   return { enquiry: await oneEnquiry(env, id) };
 }
 

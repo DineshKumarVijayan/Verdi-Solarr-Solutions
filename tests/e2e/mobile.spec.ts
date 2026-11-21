@@ -133,14 +133,14 @@ test("admin on phones: own top bar, tabs and More sheet; no public header, foote
   await expect(page).toHaveURL(/\/admin\/quotations/);
   await page.getByTestId("admin-tab-more").click();
   const sheet = page.getByTestId("admin-more-sheet");
-  await expect(sheet.getByRole("link", { name: "Staff" })).toBeVisible(); // owner only
+  await expect(sheet.getByRole("link", { name: "Staff", exact: true })).toBeVisible(); // owner only
   await sheet.getByRole("link", { name: "Prices" }).click();
   await expect(page).toHaveURL(/\/admin\/prices/);
   await expect(page.getByTestId("admin-topbar")).toContainText("Prices");
 });
 
 // Every route at four phone widths: the page itself never scrolls sideways.
-const ALL_ROUTES = ["/", "/products", "/compare", "/enquiry", "/learn", "/learn/how-solar-cells-work", "/solar-tools/consumption", "/solar-tools/sizing", "/solar-tools/roof", "/solar-tools/kit-builder", "/solar-tools/battery", "/solar-tools/losses", "/solar-tools/orientation", "/solar-tools/system-explorer", "/solar-tools/datasheet-decoder", "/in-the-field", "/contact", "/account", "/privacy", "/terms", "/solar-panels-chennai", "/no-such-page", "/admin", "/admin/prices", "/admin/products", "/admin/products/new", "/admin/catalogue", "/admin/field-photos", "/admin/enquiries", "/admin/quotations", "/admin/quotations/new", "/admin/customers", "/admin/settings", "/admin/users", "/admin/performance"];
+const ALL_ROUTES = ["/", "/products", "/compare", "/enquiry", "/learn", "/learn/how-solar-cells-work", "/solar-tools/consumption", "/solar-tools/sizing", "/solar-tools/roof", "/solar-tools/kit-builder", "/solar-tools/battery", "/solar-tools/losses", "/solar-tools/orientation", "/solar-tools/system-explorer", "/solar-tools/datasheet-decoder", "/in-the-field", "/contact", "/account", "/privacy", "/terms", "/solar-panels-chennai", "/no-such-page", "/admin", "/admin/prices", "/admin/products", "/admin/products/new", "/admin/catalogue", "/admin/field-photos", "/admin/enquiries", "/admin/quotations", "/admin/quotations/new", "/admin/customers", "/admin/settings", "/admin/users", "/admin/performance", "/admin/bonus", "/admin/my-bonus"];
 for (const width of [280, 360, 390, 430]) {
   test.describe(`${width} px, every route`, () => {
     test.use({ viewport: { width, height: 800 } });

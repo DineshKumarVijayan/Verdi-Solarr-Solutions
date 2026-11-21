@@ -188,7 +188,7 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
       <fieldset>
         <legend className="label">Status after the call</legend>
         <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1">
-          {ENQUIRY_STATUSES.filter((s) => s !== "cancelled").map((s) => (
+          {ENQUIRY_STATUSES.filter((s) => s === "new" || s === "contacted" || s === "quoted").map((s) => (
             <button key={s} type="button" className={chip(f.status === s)} aria-pressed={f.status === s} onClick={() => set("status", s)}>
               {STATUS_LABEL[s]}
             </button>

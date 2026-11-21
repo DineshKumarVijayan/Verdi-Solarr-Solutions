@@ -99,6 +99,14 @@ Prices are copied onto the quotation when it is saved. Later catalogue price cha
 
 **PDF details** (owner and admin roles): GSTIN, default validity, signatory name, terms, bank details and the **GPay / UPI QR code** with UPI ID. To add or change the QR code: **Quotations → PDF details → Upload / Replace QR code**. In GPay, tap your profile photo, then your QR code, then Share / Download, and upload that image. The QR is printed in a Payment box under the total. These are printed on every PDF but are not shown on the public website.
 
+## Staff bonus (owner and admins)
+A staff member earns a **% of each sale** they win (the enquiry they are responsible for is marked *won* with the sale amount, or its quotation is accepted).
+- **Rates:** Admin → **Bonus** → *Default bonus for everyone* (e.g. 2%); tap a staff member's rate to give them their own %, or *Use default*. The rate is locked into each bonus when the sale is won, so changing it never alters bonuses already earned.
+- A bonus is created as **Pending** automatically. If the sale is undone or its amount corrected, a **reversing entry** is added automatically (nothing is deleted).
+- **Approve** pending bonuses (tick them, *Approve*), and add **adjustments** (extra or deduction, with a reason the staff member sees).
+- **Pay bonus** (e.g. with the salary): choose the date range and which bonuses, the payment date and method (with salary, bank transfer, UPI, cash, cheque) and a reference, then confirm the exact total. Those bonuses become **Paid** and the person's unpaid balance resets to ₹0. A bonus can belong to only one payment: paying twice, or two people paying at the same time, is refused. A payment recorded by mistake can be **cancelled** with a reason; its bonuses become unpaid again.
+- Staff see only their own bonuses and payments under **My bonus**.
+
 ## Customers & reward points
 Customers create their own accounts (mobile number + password) under the person icon â†’ **Create an account**. They see their enquiry history, status and points under **My account**. Customer accounts are completely separate from admin access.
 - **Reward points:** open a customer â†’ enter `+500` (credit) or `-200` (redeem) with a reason. The customer sees the reason in their history. The balance canâ€™t go below zero.

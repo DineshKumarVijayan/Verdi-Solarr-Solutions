@@ -21,6 +21,8 @@ const TITLES: [RegExp, string][] = [
   [/^\/admin\/quotations\/.+/, "Quotation"],
   [/^\/admin\/quotations/, "Quotations"],
   [/^\/admin\/performance/, "Staff performance"],
+  [/^\/admin\/bonus/, "Staff bonus"],
+  [/^\/admin\/my-bonus/, "My bonus"],
   [/^\/admin\/customers/, "Customers"],
   [/^\/admin\/settings/, "Settings"],
   [/^\/admin\/users/, "Staff"],

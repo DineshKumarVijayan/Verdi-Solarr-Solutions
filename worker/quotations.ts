@@ -24,6 +24,7 @@ import {
 import type { AdminIdentity } from "../shared/types";
 import { mediaUrl } from "./catalogue";
 import { requireRole } from "./content";
+import { bonusStatementsForSale } from "./bonus";
 import { randomToken } from "./crypto";
 import type { Env } from "./env";
 import { HttpError, nowIso } from "./http";
@@ -310,9 +311,9 @@ export async function setQuotationStatus(env: Env, admin: AdminIdentity, id: num
   ];
   // Accepted quotation = final sale: the linked enquiry becomes "Won" with the quotation total as the sale value.
   if (r.data.status === "accepted" && before.status !== "accepted") {
-    const link = await env.DB.prepare("SELECT e.EnquiryId, e.Status FROM Quotations q JOIN Enquiries e ON e.EnquiryId = q.EnquiryId WHERE q.QuotationId = ?1")
+    const link = await env.DB.prepare("SELECT e.EnquiryId, e.Status, e.AssignedAdminId FROM Quotations q JOIN Enquiries e ON e.EnquiryId = q.EnquiryId WHERE q.QuotationId = ?1")
       .bind(id)
-      .first<{ EnquiryId: number; Status: string }>();
+      .first<{ EnquiryId: number; Status: string; AssignedAdminId: number | null }>();
     if (link && !["won", "lost", "cancelled"].includes(link.Status)) {
       stmts.push(
         env.DB.prepare("UPDATE Enquiries SET Status = 'won', SalePaise = ?1, ClosedAt = ?2, ClosedReason = NULL, ClosedNote = NULL, UpdatedAt = ?2, UpdatedBy = ?3 WHERE EnquiryId = ?4").bind(before.totalPaise, now, admin.email, link.EnquiryId),
@@ -325,6 +326,7 @@ export async function setQuotationStatus(env: Env, admin: AdminIdentity, id: num
           admin.email,
           now,
         ),
+        ...(await bonusStatementsForSale(env, admin, link.EnquiryId, { status: "won", salePaise: before.totalPaise, ownerId: link.AssignedAdminId }, now)),
       );
     }
   }

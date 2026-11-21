@@ -87,7 +87,7 @@ export default function AdminLayout() {
           <span className="rounded-full bg-sun-400 px-2.5 py-0.5 font-mono text-[10px] font-semibold tracking-widest text-ink uppercase">Admin</span>
           <nav aria-label="Admin" className="scrollbar-none -mx-1 order-last flex min-w-0 basis-full gap-1 overflow-x-auto px-1 max-lg:[mask-image:linear-gradient(90deg,black_90%,transparent)] lg:flex-wrap lg:overflow-visible">
             {NAV.filter((n) => navAllowed(n, admin.role)).map((n) => (
-              <NavLink key={n.to} end={n.end} to={n.to} className={({ isActive }) => `inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm whitespace-nowrap lg:px-2.5 xl:px-3 ${isActive ? "bg-white/10 text-paper" : "text-paper/70 hover:text-paper"}`}>
+              <NavLink key={n.to} end={n.end} to={n.to} className={({ isActive }) => `inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm whitespace-nowrap lg:px-2 ${isActive ? "bg-white/10 text-paper" : "text-paper/70 hover:text-paper"}`}>
                 <n.icon className="size-4" /> {n.label}
               </NavLink>
             ))}
