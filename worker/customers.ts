@@ -373,9 +373,9 @@ export async function loadEnquiries<T extends EnquiryDbRow>(env: Env, sql: strin
   const ids = head.results.map((r) => r.EnquiryId);
   const items = await env.DB.prepare(
     `SELECT EnquiryId, ProductId, ProductName, BrandName, ModelNumber, Quantity, UnitPricePaise, PriceUnit, GSTRate, GSTIncluded
-     FROM EnquiryItems WHERE EnquiryId IN (${ids.map((_, i) => `?${i + 1}`).join(",")}) ORDER BY EnquiryItemId`,
+     FROM EnquiryItems WHERE EnquiryId IN (SELECT value FROM json_each(?1)) ORDER BY EnquiryItemId`, // one JSON parameter: D1 allows at most 100 bound values
   )
-    .bind(...ids)
+    .bind(JSON.stringify(ids))
     .all<Record<string, unknown>>();
   const map = new Map<number, EnquiryItemView[]>();
   for (const it of items.results) {

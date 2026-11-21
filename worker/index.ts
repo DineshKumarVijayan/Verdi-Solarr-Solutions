@@ -11,6 +11,7 @@ import { handleCatalogue, revalidate } from "./catalogue";
 import { productPage, robots, sitemap } from "./seo";
 import * as content from "./content";
 import * as bonus from "./bonus";
+import * as loyalty from "./loyalty";
 import * as customers from "./customers";
 import type { Env } from "./env";
 import { errorResponse, HttpError, json, readJson } from "./http";
@@ -166,6 +167,10 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
   const subNum = subId && /^\d{1,9}$/.test(subId) ? Number(subId) : null;
 
   switch (res) {
+    case "loyalty":
+      if (seg.length === 1 && method === "GET") return json(await loyalty.loyaltyRate(env));
+      if (seg.length === 1 && method === "PUT") return json(await loyalty.setLoyaltyRate(env, admin, await body()));
+      break;
     case "bonus":
       if (seg.length === 1 && method === "GET") return json(await bonus.overview(env, admin));
       if (seg[1] === "entries" && seg.length === 2 && method === "GET") return json(await bonus.listEntries(env, admin, url));

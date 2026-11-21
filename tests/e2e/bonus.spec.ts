@@ -53,3 +53,12 @@ test("default rate can be changed from the Bonus page and is validated", async (
   await page.getByTestId("save-rate").click();
   await expect(page.getByTestId("default-rate")).toContainText("2.5%");
 });
+
+test("approving or paying more than 100 bonuses at once does not hit the database parameter limit", async ({ request }) => {
+  const ids = Array.from({ length: 150 }, (_, i) => 900_000 + i); // ids that do not exist: nothing is changed
+  const ap = await request.post("/api/admin/bonus/approve", { headers: H, data: { entryIds: ids } });
+  expect(ap.status()).toBe(200);
+  const ov = await (await request.get("/api/admin/bonus")).json();
+  const pay = await request.post("/api/admin/bonus/payouts", { headers: H, data: { staffId: ov.staff[0].staffId, entryIds: ids, expectedPaise: 1, paidOn: "2026-11-30" } });
+  expect(pay.status()).toBe(409); // refused as "already paid / changed", not a server error
+});

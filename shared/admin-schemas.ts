@@ -352,6 +352,7 @@ export const EnquiryAdminUpdateSchema = z
 /** Owner/admin assign (adminId, or null to unassign); any staff member can take an unassigned enquiry. */
 export const EnquiryAssignSchema = z.union([z.object({ adminId: z.number().int().positive().nullable() }).strict(), z.object({ take: z.literal(true) }).strict()]);
 
+/** Either a number of points (+ credit / - redeem), or a sale amount: points = the loyalty % of the sale. */
 export const PointsAdjustSchema = z
   .object({
     points: z
@@ -359,11 +360,14 @@ export const PointsAdjustSchema = z
       .int()
       .min(-10_000_000)
       .max(10_000_000)
-      .refine((n) => n !== 0, "Points cannot be zero"),
+      .refine((n) => n !== 0, "Points cannot be zero")
+      .optional(),
+    salePaise: z.number().int().positive("Enter the sale amount").max(1_000_000_000_000, "Sale amount is too large").optional(),
     reason: z.string().trim().min(3, "Please give a reason").max(200),
     enquiryId: z.number().int().positive().nullish(),
   })
-  .strict();
+  .strict()
+  .refine((v) => (v.points === undefined) !== (v.salePaise === undefined), { message: "Enter points or a sale amount", path: ["points"] });
 
 /** Zod issues -> [{path, message}] for API error details. */
 export function issues(e: z.ZodError): { path: string; message: string }[] {

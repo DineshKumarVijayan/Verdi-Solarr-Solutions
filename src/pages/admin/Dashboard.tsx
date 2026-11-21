@@ -134,7 +134,7 @@ export default function Dashboard() {
             <ul className="mt-4 grid gap-3">
               {d.recentActivity.map((a) => (
                 <li key={a.auditId} className="text-sm">
-                  <p className="font-medium">
+                  <p className="font-medium [overflow-wrap:anywhere]">
                     {a.action} <span className="text-muted">· {a.entityType} #{a.entityId}</span>
                   </p>
                   <p className="text-xs text-muted">

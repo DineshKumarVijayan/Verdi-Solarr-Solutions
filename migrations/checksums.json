@@ -7,5 +7,6 @@
   "0006_staff_logged_enquiries.sql": "64dc96693df9274cbfe8f72b74e1dd55e707c04092275714e6de2f3f0fb43daa",
   "0007_enquiry_pipeline.sql": "6405a92e32f0251860842d121a58aaf251b8cbb3c3e274e08540f39701454fb6",
   "0008_assign_staff_logged_enquiries.sql": "4b442509374b9916fe0f2066a0c7333616fe8fb2925c8b9c65af5fd01c94bd9e",
-  "0009_staff_bonus.sql": "ad8dcaf5ed6cecd8e81ae6e6673b444953d4c3b6f936103224c63ad6fcd9dc23"
+  "0009_staff_bonus.sql": "ad8dcaf5ed6cecd8e81ae6e6673b444953d4c3b6f936103224c63ad6fcd9dc23",
+  "0010_loyalty_points.sql": "525e00ebdba187fdee1f67e581cf5e38c1adc8782f809dd410fd5e0405f90d99"
 }

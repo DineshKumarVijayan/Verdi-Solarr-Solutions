@@ -227,7 +227,7 @@ test("customer registers, sends an enquiry, sees history, status and reward poin
   await expect(page.getByTestId("enquiry-history")).toContainText(ref);
   await expect(page.getByTestId("enquiry-status").first()).toHaveText("Received");
 
-  // Admin: mark won + award points on the enquiry
+  // Admin: mark won (earns loyalty points automatically) + award extra points by hand
   const enq = (await (await request.get(`/api/admin/enquiries?q=${ref}`)).json()).rows[0];
   expect(enq.customerName).toBe("E2E Buyer");
   expect((await request.put(`/api/admin/enquiries/${enq.id}`, { headers: H, data: { status: "won", adminNotes: "e2e", salePaise: 100000 } })).status()).toBe(200);
@@ -237,7 +237,7 @@ test("customer registers, sends an enquiry, sees history, status and reward poin
 
   await page.reload();
   await expect(page.getByTestId("enquiry-status").first()).toHaveText("Order confirmed");
-  await expect(page.getByTestId("points-balance")).toHaveText("250");
+  await expect(page.getByTestId("points-balance")).toHaveText("255"); // 5 earned on the ₹1,000 sale (0.5 %) + 250 credited by hand
 
   // Sign out, wrong password is rejected generically
   await page.getByTestId("sign-out").click();

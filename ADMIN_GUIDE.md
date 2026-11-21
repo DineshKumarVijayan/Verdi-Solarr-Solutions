@@ -110,6 +110,9 @@ A staff member earns a **% of each sale** they win (the enquiry they are respons
 ## Customers & reward points
 Customers create their own accounts (mobile number + password) under the person icon â†’ **Create an account**. They see their enquiry history, status and points under **My account**. Customer accounts are completely separate from admin access.
 - **Reward points:** open a customer â†’ enter `+500` (credit) or `-200` (redeem) with a reason. The customer sees the reason in their history. The balance canâ€™t go below zero.
+- **Loyalty points on sales:** when an enquiry is marked **Won** with a sale amount, the customer automatically earns the loyalty percentage of the sale as points (starts at **0.5 %**; 1 point = ₹1, rounded down). Example: ₹2,00,000 sale → 1,000 points. The enquiry must belong to the customer's account, or have the same mobile number as an account. If the sale amount is corrected the points are corrected; if the sale is undone (lost/cancelled) they are taken back. Accepting a quotation that is linked to an enquiry counts as the sale too.
+- **Points for a sale by hand** (e.g. a shop counter sale): open the customer → **For a sale** → enter the sale amount and a reason. The form shows how many points that gives before you apply it.
+- **Change the loyalty %** (owner and admins): **Customers** → **Change** next to "Loyalty points". The new % applies to sales from then on; points already given stay as they are. Every change is recorded.
 - **Forgotten password:** open the customer â†’ **Create reset link** â†’ **Send on WhatsApp**. The link works once, within 48 hours.
 - **Disable account:** switch **Account enabled** off. They are signed out everywhere immediately.
 

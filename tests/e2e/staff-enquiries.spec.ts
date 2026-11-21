@@ -79,3 +79,12 @@ test("admin tables are paged with 5 / 10 / 20 / All", async ({ page }) => {
   expect(await rows.count()).toBeGreaterThan(10);
   await page.getByTestId("pager").getByTestId("page-size-10").click();
 });
+
+test("the enquiry list still loads with more than 100 enquiries", async ({ request }) => {
+  const H2 = { Origin: process.env.BASE_URL ?? "http://localhost:5173", "Content-Type": "application/json" };
+  const have = (await (await request.get("/api/admin/enquiries")).json()).rows.length as number;
+  for (let i = have; i < 105; i++) await request.post("/api/admin/enquiries", { headers: H2, data: { source: "phone", name: `Bulk ${i}`, mobile: "9876500000", location: "Chennai" } });
+  const r = await request.get("/api/admin/enquiries");
+  expect(r.status()).toBe(200);
+  expect((await r.json()).rows.length).toBeGreaterThan(100);
+});

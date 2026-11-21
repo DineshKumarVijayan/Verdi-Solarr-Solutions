@@ -1,4 +1,7 @@
-import { Award, ClipboardCopy, KeyRound, Search } from "lucide-react";
+import { Award, ClipboardCopy, KeyRound, Percent, Search } from "lucide-react";
+import { basisPointsToPercent, percentToBasisPoints } from "../../../shared/bonus";
+import { loyaltyPoints, type LoyaltySettings } from "../../../shared/loyalty";
+import { rupeesToPaise } from "../../../shared/schemas";
 import { usePaged } from "../../components/Pager";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -47,6 +50,7 @@ export default function Customers() {
   return (
     <div className="container-x py-10">
       <PageHead title="Customers" intro="Customer accounts are separate from staff access. Customers sign in with their mobile number and a password; passwords are stored only as salted hashes." />
+      <LoyaltyRate />
       <div className="relative mt-6 max-w-md">
         <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-subtle" />
         <input aria-label="Search customers" className="field !rounded-full pl-10" placeholder="Name, mobile, email or business" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load(q.trim())} />
@@ -108,6 +112,17 @@ function CustomerModal({ id, onClose, onChanged }: { id: number; onClose: () => 
   const [d, setD] = useState<Detail | null>(null);
   const [pts, setPts] = useState("");
   const [reason, setReason] = useState("");
+  const [mode, setMode] = useState<"points" | "sale">("points");
+  const [sale, setSale] = useState("");
+  const [rate, setRate] = useState<number | null>(null);
+  useEffect(() => {
+    api<LoyaltySettings>("/api/admin/loyalty")
+      .then((r) => setRate(r.rateBasisPoints))
+      .catch(() => undefined);
+  }, []);
+  const salePaise = rupeesToPaise(sale);
+  const salePts = salePaise && !Number.isNaN(salePaise) && rate != null ? loyaltyPoints(salePaise, rate) : null;
+  const ready = mode === "points" ? !!pts && pts !== "-" && Number(pts) !== 0 : !!salePts;
   const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -165,26 +180,45 @@ function CustomerModal({ id, onClose, onChanged }: { id: number; onClose: () => 
                   className="mt-3 grid gap-2"
                   onSubmit={async (e) => {
                     e.preventDefault();
-                    const ok = await act(() => send(`/api/admin/customers/${id}/points`, "POST", { points: Number(pts), reason }), "Points updated.");
+                    const payload = mode === "points" ? { points: Number(pts), reason } : { salePaise, reason };
+                    const ok = await act(() => send(`/api/admin/customers/${id}/points`, "POST", payload), "Points updated.");
                     if (ok) {
                       setPts("");
+                      setSale("");
                       setReason("");
                     }
                   }}
                 >
+                  <div className="flex gap-1 text-xs" role="group" aria-label="Add points by">
+                    {(["points", "sale"] as const).map((m) => (
+                      <button key={m} type="button" aria-pressed={mode === m} className={`rounded-full px-3 py-1.5 max-lg:min-h-11 ${mode === m ? "bg-white/15 text-paper" : "text-paper/60 hover:text-paper"}`} onClick={() => setMode(m)} data-testid={`points-mode-${m}`}>
+                        {m === "points" ? "Points" : "For a sale"}
+                      </button>
+                    ))}
+                  </div>
                   <div className="flex gap-2">
-                    <input aria-label="Points to add or remove" inputMode="numeric" className="field num !py-1.5 text-ink" placeholder="+500 or -200" value={pts} onChange={(e) => setPts(e.target.value.replace(/[^\d-]/g, ""))} />
-                    <button type="submit" className="btn-sun btn-sm shrink-0" disabled={busy || !pts || !reason.trim()}>
+                    {mode === "points" ? (
+                      <input aria-label="Points to add or remove" inputMode="numeric" className="field num !py-1.5 text-ink" placeholder="+500 or -200" value={pts} onChange={(e) => setPts(e.target.value.replace(/[^\d-]/g, ""))} />
+                    ) : (
+                      <input aria-label="Sale amount in rupees" inputMode="decimal" className="field num !py-1.5 text-ink" placeholder="Sale amount ₹" value={sale} onChange={(e) => setSale(e.target.value.replace(/[^\d.,]/g, ""))} data-testid="points-sale" />
+                    )}
+                    <button type="submit" className="btn-sun btn-sm shrink-0" disabled={busy || !ready || !reason.trim()}>
                       Apply
                     </button>
                   </div>
+                  {mode === "sale" && (
+                    <p className="text-xs text-paper/70" data-testid="points-sale-preview">
+                      {rate == null ? "Loading the loyalty %…" : salePts ? `= ${salePts.toLocaleString("en-IN")} points (${basisPointsToPercent(rate)}% of the sale, 1 point = ₹1)` : `Earns ${basisPointsToPercent(rate)}% of the sale as points (1 point = ₹1).`}
+                    </p>
+                  )}
                   <input aria-label="Reason" className="field !py-1.5 text-ink" placeholder="Reason (shown to the customer)" value={reason} onChange={(e) => setReason(e.target.value)} />
-                  {(pts || reason) && (
+                  {(pts || sale || reason) && (
                     <button
                       type="button"
                       className="justify-self-start text-xs text-paper/70 underline hover:text-paper"
                       onClick={() => {
                         setPts("");
+                        setSale("");
                         setReason("");
                       }}
                     >
@@ -271,5 +305,78 @@ function CustomerModal({ id, onClose, onChanged }: { id: number; onClose: () => 
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Loyalty %: every won sale earns the customer this share of the sale as points. Owner/admin can change it. */
+function LoyaltyRate() {
+  const admin = useAdmin();
+  const toast = useToast();
+  const [rate, setRate] = useState<LoyaltySettings | null>(null);
+  const [edit, setEdit] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    api<LoyaltySettings>("/api/admin/loyalty")
+      .then(setRate)
+      .catch(() => undefined);
+  }, []);
+  if (!rate) return null;
+  const save = async () => {
+    const bp = percentToBasisPoints(edit ?? "");
+    if (bp == null || Number.isNaN(bp)) return setErr("Enter a percentage between 0 and 100 (up to two decimals).");
+    setBusy(true);
+    try {
+      setRate(await send<LoyaltySettings>("/api/admin/loyalty", "PUT", { rateBasisPoints: bp }));
+      setEdit(null);
+      setErr(null);
+      toast("Loyalty percentage saved. New sales use it.", "success");
+    } catch (e) {
+      setErr(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-paper p-3 text-sm" data-testid="loyalty-rate">
+      <Percent className="size-4 shrink-0 text-verdi-600" />
+      {edit == null ? (
+        <>
+          <p className="min-w-0 flex-1">
+            Loyalty points: <span className="num font-semibold" data-testid="loyalty-rate-value">{basisPointsToPercent(rate.rateBasisPoints) || "0"}%</span> of each sale{" "}
+            <span className="text-muted">(1 point = ₹1; added when an enquiry is marked won)</span>
+          </p>
+          {canManage(admin) && (
+            <button type="button" className="btn-ghost btn-sm max-lg:min-h-11" onClick={() => setEdit(basisPointsToPercent(rate.rateBasisPoints))} data-testid="loyalty-rate-edit">
+              Change
+            </button>
+          )}
+        </>
+      ) : (
+        <form
+          className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <label className="flex items-center gap-2">
+            <span>Loyalty %</span>
+            <input aria-label="Loyalty percentage" inputMode="decimal" className="field num w-24 !py-1.5" value={edit} onChange={(e) => setEdit(e.target.value)} data-testid="loyalty-rate-input" />
+          </label>
+          <button type="submit" className="btn-primary btn-sm max-lg:min-h-11" disabled={busy} data-testid="loyalty-rate-save">
+            Save
+          </button>
+          <button type="button" className="btn-ghost btn-sm max-lg:min-h-11" onClick={() => (setEdit(null), setErr(null))}>
+            Cancel
+          </button>
+          {err && (
+            <p className="basis-full text-xs text-danger" role="alert">
+              {err}
+            </p>
+          )}
+        </form>
+      )}
+    </section>
   );
 }

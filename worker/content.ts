@@ -49,6 +49,8 @@ import { isPlaceholderEmail, PLACEHOLDER_EMAIL_DOMAIN } from "../shared/session"
 import { hashPassword, randomToken } from "./crypto";
 import { issueResetLink, loadEnquiries, reference, rewardLedger, toEnquiryView } from "./customers";
 import { bonusStatementsForSale } from "./bonus";
+import { loyaltyRate, loyaltyStatementsForSale } from "./loyalty";
+import { loyaltyPoints } from "../shared/loyalty";
 import type { Env } from "./env";
 import { HttpError, nowIso } from "./http";
 
@@ -828,15 +830,19 @@ export async function adjustPoints(env: Env, admin: AdminIdentity, id: number, b
   const v = parse(PointsAdjustSchema, body);
   const cur = await env.DB.prepare("SELECT (SELECT COALESCE(SUM(Points), 0) FROM RewardTransactions WHERE CustomerId = ?1) AS bal, EXISTS (SELECT 1 FROM Customers WHERE CustomerId = ?1) AS ok").bind(id).first<{ bal: number; ok: number }>();
   if (!cur?.ok) throw new HttpError(404, "not_found", "Customer not found.");
-  if (cur.bal + v.points < 0) throw new HttpError(422, "validation", `Balance is only ${cur.bal} points.`, [{ path: "points", message: "Not enough points" }]);
+  // a sale amount is turned into points at the current loyalty %
+  const bp = v.salePaise ? (await loyaltyRate(env)).rateBasisPoints : null;
+  const points = v.salePaise ? loyaltyPoints(v.salePaise, bp!) : v.points!;
+  if (points === 0) throw new HttpError(422, "validation", "This sale is too small to earn a point.", [{ path: "salePaise", message: "Too small to earn a point" }]);
+  if (cur.bal + points < 0) throw new HttpError(422, "validation", `Balance is only ${cur.bal} points.`, [{ path: "points", message: "Not enough points" }]);
   if (v.enquiryId) {
     const e = await env.DB.prepare("SELECT 1 FROM Enquiries WHERE EnquiryId = ?1 AND CustomerId = ?2").bind(v.enquiryId, id).first();
     if (!e) throw new HttpError(422, "validation", "That enquiry does not belong to this customer.");
   }
   const now = nowIso();
   await env.DB.batch([
-    env.DB.prepare("INSERT INTO RewardTransactions (CustomerId, Points, Reason, EnquiryId, CreatedBy, CreatedAt) VALUES (?1, ?2, ?3, ?4, ?5, ?6)").bind(id, v.points, v.reason, v.enquiryId ?? null, admin.email, now),
-    audit(env, admin, "rewards.adjust", "Customer", id, { balance: cur.bal }, v, now),
+    env.DB.prepare("INSERT INTO RewardTransactions (CustomerId, Points, Reason, EnquiryId, SalePaise, RateBasisPoints, CreatedBy, CreatedAt) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)").bind(id, points, v.reason, v.enquiryId ?? null, v.salePaise ?? null, bp, admin.email, now),
+    audit(env, admin, "rewards.adjust", "Customer", id, { balance: cur.bal }, { ...v, points }, now),
   ]);
   return customerDetail(env, id);
 }
@@ -1023,6 +1029,8 @@ export async function updateEnquiry(env: Env, admin: AdminIdentity, id: number, 
   // staff bonus follows the sale (created when won, reversed when undone or corrected)
   const newSale = to === "won" ? (v.salePaise ?? before.SalePaise) : null;
   stmts.push(...(await bonusStatementsForSale(env, admin, id, { status: to, salePaise: newSale, ownerId: before.OwnerId }, now)));
+  // the customer's loyalty points follow the sale the same way
+  stmts.push(...(await loyaltyStatementsForSale(env, admin, id, { status: to, salePaise: newSale }, now)));
   await env.DB.batch(stmts);
   return { enquiry: await oneEnquiry(env, id) };
 }

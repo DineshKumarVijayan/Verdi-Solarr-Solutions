@@ -195,11 +195,11 @@ export async function approve(env: Env, admin: AdminIdentity, body: unknown) {
   requireManager(admin);
   const v = parse(BonusApproveSchema, body);
   const now = nowIso();
-  const marks = v.entryIds.map((_, i) => `?${i + 3}`).join(",");
-  const r = await env.DB.prepare(`UPDATE BonusEntries SET Status = 'approved', ApprovedBy = ?1, ApprovedAt = ?2 WHERE Status = 'pending' AND PayoutId IS NULL AND EntryId IN (${marks})`)
-    .bind(admin.email, now, ...v.entryIds)
+  // ids go in as one JSON parameter (D1 allows at most 100 bound values per query)
+  const r = await env.DB.prepare(`UPDATE BonusEntries SET Status = 'approved', ApprovedBy = ?1, ApprovedAt = ?2 WHERE Status = 'pending' AND PayoutId IS NULL AND EntryId IN (SELECT value FROM json_each(?3))`)
+    .bind(admin.email, now, JSON.stringify(v.entryIds))
     .run();
-  await audit(env, admin, "bonus.approve", v.entryIds.join(","), { count: r.meta.changes }, now).run();
+  await audit(env, admin, "bonus.approve", `${v.entryIds.length} entries`, { count: r.meta.changes, entryIds: v.entryIds }, now).run();
   return { approved: r.meta.changes };
 }
 
@@ -229,16 +229,15 @@ export async function pay(env: Env, admin: AdminIdentity, body: unknown): Promis
   requireManager(admin);
   const v = parse(BonusPayoutSchema, body);
   const ids = [...new Set(v.entryIds)];
-  const marks = ids.map((_, i) => `?${i + 2}`).join(",");
-  const cur = await env.DB.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(AmountPaise), 0) AS total FROM BonusEntries WHERE AdminId = ?1 AND PayoutId IS NULL AND EntryId IN (${marks})`)
-    .bind(v.staffId, ...ids)
+  const idJson = JSON.stringify(ids); // one JSON parameter: D1 allows at most 100 bound values
+  const cur = await env.DB.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(AmountPaise), 0) AS total FROM BonusEntries WHERE AdminId = ?1 AND PayoutId IS NULL AND EntryId IN (SELECT value FROM json_each(?2))`)
+    .bind(v.staffId, idJson)
     .first<{ n: number; total: number }>();
   if (!cur || cur.n !== ids.length) throw new HttpError(409, "already_paid", "Some of these bonuses were already paid. The list has been refreshed: please check it again.");
   if (cur.total !== v.expectedPaise) throw new HttpError(409, "changed", "The amounts changed since you opened this. Please check the total again.");
   if (cur.total <= 0) throw new HttpError(422, "validation", "There is nothing to pay: the chosen bonuses add up to ₹0 or less.");
   const token = randomToken(16);
   const now = nowIso();
-  const upd = ids.map((_, i) => `?${i + 4}`).join(",");
   await env.DB.batch([
     env.DB.prepare("INSERT INTO BonusPayouts (Token, AdminId, PaidOn, Method, Reference, Note, PaidBy, CreatedAt) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)").bind(
       token,
@@ -253,8 +252,8 @@ export async function pay(env: Env, admin: AdminIdentity, body: unknown): Promis
     env.DB.prepare(
       `UPDATE BonusEntries SET PayoutId = (SELECT PayoutId FROM BonusPayouts WHERE Token = ?1), Status = 'paid',
          ApprovedBy = COALESCE(ApprovedBy, ?2), ApprovedAt = COALESCE(ApprovedAt, ?3)
-       WHERE PayoutId IS NULL AND AdminId = (SELECT AdminId FROM BonusPayouts WHERE Token = ?1) AND EntryId IN (${upd})`,
-    ).bind(token, admin.email, now, ...ids),
+       WHERE PayoutId IS NULL AND AdminId = (SELECT AdminId FROM BonusPayouts WHERE Token = ?1) AND EntryId IN (SELECT value FROM json_each(?4))`,
+    ).bind(token, admin.email, now, idJson),
     env.DB.prepare(
       `UPDATE BonusPayouts SET AmountPaise = (SELECT COALESCE(SUM(AmountPaise), 0) FROM BonusEntries WHERE PayoutId = BonusPayouts.PayoutId),
          EntryCount = (SELECT COUNT(*) FROM BonusEntries WHERE PayoutId = BonusPayouts.PayoutId) WHERE Token = ?1`,

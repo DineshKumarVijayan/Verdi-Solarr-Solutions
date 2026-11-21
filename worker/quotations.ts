@@ -25,6 +25,7 @@ import type { AdminIdentity } from "../shared/types";
 import { mediaUrl } from "./catalogue";
 import { requireRole } from "./content";
 import { bonusStatementsForSale } from "./bonus";
+import { loyaltyStatementsForSale } from "./loyalty";
 import { randomToken } from "./crypto";
 import type { Env } from "./env";
 import { HttpError, nowIso } from "./http";
@@ -327,6 +328,7 @@ export async function setQuotationStatus(env: Env, admin: AdminIdentity, id: num
           now,
         ),
         ...(await bonusStatementsForSale(env, admin, link.EnquiryId, { status: "won", salePaise: before.totalPaise, ownerId: link.AssignedAdminId }, now)),
+        ...(await loyaltyStatementsForSale(env, admin, link.EnquiryId, { status: "won", salePaise: before.totalPaise }, now)),
       );
     }
   }
