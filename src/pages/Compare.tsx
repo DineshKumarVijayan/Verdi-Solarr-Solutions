@@ -215,9 +215,9 @@ function MobileCompare({ products, rows, diffOnly, onRemove }: { products: Publi
           return (
             <div key={r.k} className={`border-b border-line/70 py-2.5 ${differs ? "-mx-4 bg-sun-100/40 px-4" : ""}`} data-testid="compare-row">
               <dt className="text-xs text-muted">{r.l}</dt>
-              <div className={`mt-0.5 grid gap-2 ${cols.length > 1 ? "grid-cols-2" : ""}`}>
+              <div className={`mt-1 grid ${cols.length > 1 ? "grid-cols-2 divide-x divide-line" : ""}`}>
                 {r.pair.map((v, j) => (
-                  <dd key={j} className="num min-w-0 text-sm [overflow-wrap:anywhere] text-ink">
+                  <dd key={j} className="num min-w-0 text-[13px] leading-snug [overflow-wrap:anywhere] text-ink first:pr-3 [&:not(:first-child)]:pl-3">
                     {v}
                   </dd>
                 ))}
