@@ -1,14 +1,11 @@
-import { Plus } from "lucide-react";
-import { AnimatePresence } from "motion/react";
-import { useEffect, useState } from "react";
+import { Minus, Plus } from "lucide-react";
 import { Link } from "react-router";
 import { formatPaise } from "../../shared/money";
 import type { PublicProduct } from "../../shared/types";
 import { useBasket } from "../lib/basket";
-import { m } from "./motion";
-import { PriceTag } from "./PriceTag";
-import { ShareButton } from "./ShareButton";
+import { ActionBar } from "./mobile/kit";
 import { useToast } from "./ui";
+import { WhatsAppIcon } from "./WhatsAppIcon";
 
 /** Text used when sharing a product (name, brand, model, listed price). */
 export function shareText(p: PublicProduct, brandName: string): string {
@@ -17,78 +14,54 @@ export function shareText(p: PublicProduct, brandName: string): string {
 }
 
 /**
- * Phones only: once the main "Add to enquiry" box (#buy-box) scrolls out of view, keep price,
- * share and "Add to enquiry" pinned to the bottom of the screen.
+ * Phones only (< lg): bottom action bar on the product page, always visible above the tab bar:
+ * quantity stepper, "Add to enquiry" (primary) and a WhatsApp enquiry button.
  */
-export function StickyBuyBar({ product, brandName }: { product: PublicProduct; brandName: string }) {
-  const [show, setShow] = useState(false);
+export function StickyBuyBar({ product, qty, setQty, whatsappHref }: { product: PublicProduct; qty: number; setQty: (fn: (q: number) => number) => void; whatsappHref: string }) {
   const basket = useBasket();
   const toast = useToast();
-
-  useEffect(() => {
-    let frame = 0;
-    const check = () => {
-      frame = 0;
-      const box = document.getElementById("buy-box");
-      setShow(!!box && box.getBoundingClientRect().bottom < 0);
-    };
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(check);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    check();
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, [product.id]);
-
-  useEffect(() => {
-    // Keep the footer reachable above the bar on phones.
-    document.body.style.paddingBottom = show && window.innerWidth < 1024 ? "4.5rem" : "";
-    return () => {
-      document.body.style.paddingBottom = "";
-    };
-  }, [show]);
-
   return (
-    <AnimatePresence>
-      {show && (
-        <m.div
-          initial={{ y: 100 }}
-          animate={{ y: 0 }}
-          exit={{ y: 100 }}
-          transition={{ type: "spring", stiffness: 400, damping: 36 }}
-          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-line bg-card shadow-[0_-8px_30px_rgba(10,24,34,0.12)] lg:hidden"
-          data-testid="sticky-buy-bar"
-        >
-          <div className="container-x flex items-center gap-3 py-2.5">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs text-muted">{product.name}</p>
-              <PriceTag price={product.price} size="sm" />
-            </div>
-            <ShareButton variant="icon" title={product.name} text={shareText(product, brandName)} path={`/products/${product.slug}`} />
-            <button
-              type="button"
-              className="btn-primary btn-sm shrink-0"
-              onClick={() => {
-                basket.add(product.id, 1, { sellingPaise: product.price.sellingPaise, version: product.price.version });
-                toast(
-                  <span>
-                    Added to enquiry ·{" "}
-                    <Link to="/enquiry" className="underline">
-                      View basket
-                    </Link>
-                  </span>,
-                  "success",
-                );
-              }}
-            >
-              <Plus className="size-4" /> Add to enquiry
-            </button>
-          </div>
-        </m.div>
-      )}
-    </AnimatePresence>
+    <ActionBar testId="sticky-buy-bar">
+      <div className="flex shrink-0 items-center rounded-full border border-line bg-paper" role="group" aria-label="Quantity">
+        <button type="button" className="tap grid place-items-center text-muted" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="Decrease quantity">
+          <Minus className="size-4" />
+        </button>
+        <input
+          aria-label="Quantity"
+          className="num w-9 bg-transparent text-center text-sm outline-none"
+          inputMode="numeric"
+          value={qty}
+          onChange={(e) => {
+            const v = Math.max(1, Math.min(100000, Number(e.target.value.replace(/\D/g, "")) || 1));
+            setQty(() => v);
+          }}
+          data-testid="bar-qty"
+        />
+        <button type="button" className="tap grid place-items-center text-muted" onClick={() => setQty((q) => Math.min(100000, q + 1))} aria-label="Increase quantity">
+          <Plus className="size-4" />
+        </button>
+      </div>
+      <button
+        type="button"
+        className="btn-primary tap min-w-0 flex-1"
+        onClick={() => {
+          basket.add(product.id, qty, { sellingPaise: product.price.sellingPaise, version: product.price.version });
+          toast(
+            <span>
+              Added {qty} to enquiry ·{" "}
+              <Link to="/enquiry" className="underline">
+                View basket
+              </Link>
+            </span>,
+            "success",
+          );
+        }}
+      >
+        <Plus className="size-4 shrink-0" /> <span className="truncate">Add to enquiry</span>
+      </button>
+      <a href={whatsappHref} target="_blank" rel="noopener" className="tap grid shrink-0 place-items-center rounded-full bg-[#1f9e4f] text-white" aria-label="Enquire on WhatsApp">
+        <WhatsAppIcon className="size-5" />
+      </a>
+    </ActionBar>
   );
 }
