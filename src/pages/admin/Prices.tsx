@@ -1,4 +1,5 @@
-import { AlertTriangle, Check, History, Pencil, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, History, Pencil, RefreshCw, Search } from "lucide-react";
+import { Accordion, BottomSheet, useIsPhone } from "../../components/mobile/kit";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { formatPaise, gstLabel } from "../../../shared/money";
@@ -57,19 +58,19 @@ export default function Prices() {
     );
 
   return (
-    <div className="container-x py-10">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold">Price management</h1>
-          <p className="mt-1 text-sm text-muted">Prices are stored in rupees and paise. Saved prices appear on the public site within about a minute.</p>
+    <div className="container-x py-10 max-lg:pt-3">
+      <div className="flex flex-wrap items-end justify-between gap-4 max-lg:items-center max-lg:gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-3xl font-semibold max-lg:text-xl">Price management</h1>
+          <p className="mt-1 text-sm text-muted max-lg:line-clamp-1 max-lg:text-xs">Prices are stored in rupees and paise. Saved prices appear on the public site within about a minute.</p>
         </div>
         <button type="button" className="btn-ghost btn-sm" onClick={load}>
           <RefreshCw className="size-3.5" /> Refresh
         </button>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        <div className="relative min-w-0 flex-1 basis-60">
+      <div className="mt-6 flex flex-wrap gap-2 max-lg:sticky max-lg:top-14 max-lg:z-20 max-lg:-mx-4 max-lg:mt-3 max-lg:border-b max-lg:border-line/70 max-lg:bg-paper max-lg:px-4 max-lg:py-2">
+        <div className="relative min-w-0 flex-1 basis-60 max-lg:basis-full">
           <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-subtle" />
           <input
             aria-label="Search products"
@@ -166,8 +167,19 @@ export default function Prices() {
 
       {editing && (
         <PriceEditor
+          key={editing.productId}
           row={editing}
           canEdit={canEdit}
+          position={rows ? { index: rows.findIndex((r) => r.productId === editing.productId), total: rows.length, missing: rows.filter((r) => r.sellingPaise === null).length } : undefined}
+          onPrev={() => {
+            const i = rows?.findIndex((r) => r.productId === editing.productId) ?? -1;
+            if (rows && i > 0) setEditing(rows[i - 1]);
+          }}
+          onNext={() => {
+            const i = rows?.findIndex((r) => r.productId === editing.productId) ?? -1;
+            if (rows && i >= 0 && i < rows.length - 1) setEditing(rows[i + 1]);
+            else setEditing(null);
+          }}
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
             setRows((rs) => rs?.map((r) => (r.productId === saved.productId ? saved : r)) ?? null);
@@ -179,8 +191,25 @@ export default function Prices() {
   );
 }
 
-function PriceEditor({ row, canEdit, onClose, onSaved }: { row: AdminPriceRow; canEdit: boolean; onClose: () => void; onSaved: (r: AdminPriceRow) => void }) {
+function PriceEditor({
+  row,
+  canEdit,
+  onClose,
+  onSaved,
+  position,
+  onPrev,
+  onNext,
+}: {
+  row: AdminPriceRow;
+  canEdit: boolean;
+  onClose: () => void;
+  onSaved: (r: AdminPriceRow) => void;
+  position?: { index: number; total: number; missing: number };
+  onPrev?: () => void;
+  onNext?: () => void;
+}) {
   const toast = useToast();
+  const isPhone = useIsPhone();
   const [base, setBase] = useState(row);
   const [selling, setSelling] = useState(paiseToRupeeInput(row.sellingPaise));
   const [mrp, setMrp] = useState(paiseToRupeeInput(row.mrpPaise));
@@ -210,7 +239,7 @@ function PriceEditor({ row, canEdit, onClose, onSaved }: { row: AdminPriceRow; c
     setConflict(null);
   };
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
     const e: Record<string, string> = {};
     const sp = rupeesToPaise(selling);
     const mp = rupeesToPaise(mrp);
@@ -219,7 +248,7 @@ function PriceEditor({ row, canEdit, onClose, onSaved }: { row: AdminPriceRow; c
     if (!e.selling && !e.mrp && sp !== null && mp !== null && sp > mp) e.selling = "Selling price cannot exceed MRP";
     if (sp === 0) e.selling = "Use an empty value for “price on request”, not 0";
     setErrors(e);
-    if (Object.keys(e).length) return;
+    if (Object.keys(e).length) return false;
     setSaving(true);
     try {
       const res = await api<{ row: AdminPriceRow; catalogueVersion: number | null }>(`/api/admin/prices/${row.productId}`, {
@@ -240,6 +269,7 @@ function PriceEditor({ row, canEdit, onClose, onSaved }: { row: AdminPriceRow; c
       resetTo(res.row);
       onSaved(res.row);
       loadHistory();
+      return true;
     } catch (err) {
       const ae = err as ApiError;
       if (ae.status === 409) {
@@ -252,10 +282,20 @@ function PriceEditor({ row, canEdit, onClose, onSaved }: { row: AdminPriceRow; c
       } else {
         toast(ae.message ?? "Save failed. Nothing was changed.", "error");
       }
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  if (isPhone)
+    return (
+      <PhonePriceSheet
+        {...{ row, base, canEdit, onClose, position, onPrev, onNext, saving, errors, conflict, resetTo, history }}
+        fields={{ selling, setSelling, mrp, setMrp, gstRate, setGstRate, gstIncluded, setGstIncluded, unit, setUnit, reason, setReason }}
+        save={save}
+      />
+    );
 
   return (
     <Modal open onClose={onClose} title={row.name} description={`${row.sku} · ${row.brand}`} size="lg" fullscreenOnMobile>
@@ -382,5 +422,197 @@ function PriceEditor({ row, canEdit, onClose, onSaved }: { row: AdminPriceRow; c
         </section>
       </div>
     </Modal>
+  );
+}
+
+type PriceFields = {
+  selling: string;
+  setSelling: (v: string) => void;
+  mrp: string;
+  setMrp: (v: string) => void;
+  gstRate: string;
+  setGstRate: (v: string) => void;
+  gstIncluded: boolean;
+  setGstIncluded: (v: boolean) => void;
+  unit: string;
+  setUnit: (v: string) => void;
+  reason: string;
+  setReason: (v: string) => void;
+};
+
+/** Phones: quick price editing in a bottom sheet with ‹ / Save / Save & next ›. Same save logic as desktop. */
+function PhonePriceSheet({
+  row,
+  base,
+  canEdit,
+  onClose,
+  position,
+  onPrev,
+  onNext,
+  saving,
+  errors,
+  conflict,
+  resetTo,
+  history,
+  fields: f,
+  save,
+}: {
+  row: AdminPriceRow;
+  base: AdminPriceRow;
+  canEdit: boolean;
+  onClose: () => void;
+  position?: { index: number; total: number; missing: number };
+  onPrev?: () => void;
+  onNext?: () => void;
+  saving: boolean;
+  errors: Record<string, string>;
+  conflict: AdminPriceRow | null;
+  resetTo: (r: AdminPriceRow) => void;
+  history: PriceHistoryRow[] | null;
+  fields: PriceFields;
+  save: () => Promise<boolean>;
+}) {
+  const seg = (on: boolean) => `tap shrink-0 rounded-full border px-3 text-sm font-medium ${on ? "border-verdi-600 bg-verdi-600 text-white" : "border-line bg-card"}`;
+  const preview = (() => {
+    const p = rupeesToPaise(f.selling);
+    return p === null || Number.isNaN(p) ? "Price on request" : formatPaise(p);
+  })();
+  return (
+    <BottomSheet
+      open
+      onClose={onClose}
+      title={row.name}
+      testId="price-sheet"
+      footer={
+        canEdit ? (
+          <div className="grid grid-cols-[auto_1fr_1.3fr] gap-2">
+            <button type="button" className="btn-ghost tap" onClick={onPrev} disabled={!position || position.index <= 0} aria-label="Previous product">
+              <ChevronLeft className="size-4" />
+            </button>
+            <button type="button" className="btn-ghost tap" disabled={saving} onClick={() => void save()} data-testid="sheet-save">
+              {saving ? <Spinner className="size-4" /> : <Check className="size-4" />} Save
+            </button>
+            <button
+              type="button"
+              className="btn-primary tap"
+              disabled={saving}
+              onClick={async () => {
+                if (await save()) onNext?.();
+              }}
+              data-testid="sheet-save-next"
+            >
+              Save &amp; next <ChevronRight className="size-4" />
+            </button>
+          </div>
+        ) : undefined
+      }
+    >
+      <p className="num -mt-1 text-xs text-muted">
+        {row.sku} · {row.brand}
+        {position && (
+          <>
+            {" · "}
+            <span className={position.missing ? "font-semibold text-sun-600" : ""} data-testid="missing-count">
+              {position.missing} of {position.total} missing a price
+            </span>
+          </>
+        )}
+      </p>
+      {conflict && (
+        <div className="mt-3 rounded-xl border border-sun-300 bg-sun-100 p-3 text-sm" role="alert">
+          <p className="flex items-center gap-1.5 font-semibold">
+            <AlertTriangle className="size-4 text-sun-600" /> Someone else changed this price
+          </p>
+          <p className="mt-1 text-xs">
+            Latest: <strong className="num">{formatPaise(conflict.sellingPaise)}</strong> by {conflict.updatedBy} at {dt(conflict.updatedAt)}. Your edit was not saved.
+          </p>
+          <button type="button" className="btn-dark btn-sm tap mt-2" onClick={() => resetTo(conflict)}>
+            Load latest and re-apply
+          </button>
+        </div>
+      )}
+      <form
+        className="mt-3 grid gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="ps-sell" className="label">
+              Selling price (₹)
+            </label>
+            <input id="ps-sell" className={`field num ${errors.selling ? "!border-danger" : ""}`} inputMode="decimal" placeholder="Empty = on request" value={f.selling} onChange={(e) => f.setSelling(e.target.value)} disabled={!canEdit} aria-invalid={!!errors.selling} data-testid="sheet-price-input" />
+          </div>
+          <div>
+            <label htmlFor="ps-mrp" className="label">
+              MRP (₹, optional)
+            </label>
+            <input id="ps-mrp" className={`field num ${errors.mrp ? "!border-danger" : ""}`} inputMode="decimal" value={f.mrp} onChange={(e) => f.setMrp(e.target.value)} disabled={!canEdit} aria-invalid={!!errors.mrp} />
+          </div>
+        </div>
+        {(errors.selling || errors.mrp) && <p className="-mt-2 text-xs text-danger">{errors.selling ?? errors.mrp}</p>}
+        <fieldset disabled={!canEdit}>
+          <legend className="label">Price unit</legend>
+          <div className="scrollbar-none -mx-5 flex gap-2 overflow-x-auto px-5">
+            {[...new Set([f.unit, ...UNITS])].map((u) => (
+              <button key={u} type="button" className={seg(f.unit === u)} aria-pressed={f.unit === u} onClick={() => f.setUnit(u)}>
+                {u}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset disabled={!canEdit}>
+          <legend className="label">GST rate</legend>
+          <div className="scrollbar-none -mx-5 flex gap-2 overflow-x-auto px-5">
+            <button type="button" className={seg(f.gstRate === "")} aria-pressed={f.gstRate === ""} onClick={() => f.setGstRate("")}>
+              As applicable
+            </button>
+            {GST_RATES.map((r) => (
+              <button key={r} type="button" className={seg(f.gstRate === String(r))} aria-pressed={f.gstRate === String(r)} onClick={() => f.setGstRate(String(r))}>
+                {r}%
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <label className="flex min-h-11 items-center gap-2.5 text-sm">
+          <input type="checkbox" className="size-5 accent-verdi-600" checked={f.gstIncluded} onChange={(e) => f.setGstIncluded(e.target.checked)} disabled={!canEdit} />
+          Selling price includes GST
+        </label>
+        <div>
+          <label htmlFor="ps-reason" className="label">
+            Reason for change (optional)
+          </label>
+          <input id="ps-reason" className="field" maxLength={200} value={f.reason} onChange={(e) => f.setReason(e.target.value)} disabled={!canEdit} />
+        </div>
+        <p className="rounded-xl bg-paper-2 p-3 text-xs text-muted">
+          Customers will see: <strong className="num text-ink">{preview}</strong> {f.unit} · {gstLabel({ gstIncluded: f.gstIncluded, gstRate: f.gstRate === "" ? null : Number(f.gstRate) })}
+        </p>
+        <p className="text-[11px] text-subtle">
+          Version <span className="num">{base.version}</span> · last changed {base.updatedBy === "seed" ? "at import" : `by ${base.updatedBy}`} · {dt(base.updatedAt)}
+        </p>
+      </form>
+      <Accordion title={<span className="flex items-center gap-2 text-sm"><History className="size-4" /> Price history</span>}>
+        {!history ? (
+          <Spinner className="size-4" />
+        ) : history.length === 0 ? (
+          <p className="text-sm text-muted">No changes recorded yet.</p>
+        ) : (
+          <ol className="grid gap-2">
+            {history.map((h) => (
+              <li key={h.historyId} className="text-sm">
+                <span className="num">
+                  {formatPaise(h.oldPricePaise)} → <strong>{formatPaise(h.newPricePaise)}</strong>
+                </span>
+                <span className="block text-xs text-muted">
+                  {h.changedBy} · {dt(h.changedAt)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Accordion>
+    </BottomSheet>
   );
 }

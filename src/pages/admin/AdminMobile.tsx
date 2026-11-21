@@ -35,9 +35,9 @@ export function AdminTopBar() {
       <Link to="/admin" aria-label="Admin dashboard" className="tap -ml-1 grid shrink-0 place-items-center">
         <img src="/brand/verdi-mark.png" alt="" width={32} height={33} className="size-8" />
       </Link>
-      <h1 className="min-w-0 flex-1 truncate text-base font-semibold" aria-live="polite">
+      <p className="min-w-0 flex-1 truncate text-base font-semibold" aria-live="polite">
         {adminTitle(pathname)}
-      </h1>
+      </p>
       <span className="rounded-full bg-sun-400 px-2 py-0.5 font-mono text-[9px] font-semibold tracking-widest text-ink uppercase">Admin</span>
       <a href="/" className="tap -mr-2 grid place-items-center rounded-full text-paper/80" aria-label="View website">
         <ExternalLink className="size-5" />
@@ -47,8 +47,26 @@ export function AdminTopBar() {
 }
 
 export function AdminTabBar({ admin, onPassword, onSignOut }: { admin: AdminIdentity; onPassword: () => void; onSignOut: () => void }) {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const [more, setMore] = useState(false);
+  // Each list remembers its last search/filters: tapping its tab again returns there.
+  useEffect(() => {
+    const root = ADMIN_NAV.find((n) => n.to !== "/admin" && pathname === n.to);
+    if (root) {
+      try {
+        sessionStorage.setItem(`verdi.admin.last:${root.to}`, pathname + search);
+      } catch {
+        /* storage blocked */
+      }
+    }
+  }, [pathname, search]);
+  const lastUrl = (to: string) => {
+    try {
+      return sessionStorage.getItem(`verdi.admin.last:${to}`) ?? to;
+    } catch {
+      return to;
+    }
+  };
   const [newEnq, setNewEnq] = useState(0);
   useEffect(() => setMore(false), [pathname]);
   // "new enquiries" badge (phones only; reuses the dashboard counts endpoint)
@@ -70,7 +88,7 @@ export function AdminTabBar({ admin, onPassword, onSignOut }: { admin: AdminIden
       <nav aria-label="Admin quick navigation" className="tabbar lg:hidden" data-testid="admin-tab-bar">
         <div className="mx-auto flex max-w-lg items-stretch">
           {tabs.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={cls} aria-label={n.to === "/admin/enquiries" ? `Enquiries, ${newEnq} new` : undefined}>
+            <NavLink key={n.to} to={pathname === n.to ? n.to : lastUrl(n.to)} end={n.end} className={({ isActive }) => cls({ isActive: isActive || (n.to !== "/admin" && pathname.startsWith(n.to)) })} aria-label={n.to === "/admin/enquiries" ? `Enquiries, ${newEnq} new` : undefined}>
               <span className="relative">
                 <n.icon className="size-5" />
                 {n.to === "/admin/enquiries" && newEnq > 0 && (

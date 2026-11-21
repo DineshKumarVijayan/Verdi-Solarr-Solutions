@@ -11,6 +11,7 @@ import { api } from "../../lib/api";
 import { useCatalogue } from "../../lib/catalogue";
 import { useAdmin } from "./AdminLayout";
 import { canManage, errorText, FileDrop, fieldErrors, ReadOnlyNote, send, Toggle, uploadFile, useUnsavedWarning } from "./kit";
+import { ActionBar } from "../../components/mobile/kit";
 
 const UNITS = ["per piece", "per metre", "per 100 m coil", "per 500 m coil", "per 2000 m drum", "per set", "per kit"];
 
@@ -89,6 +90,18 @@ export default function ProductEditor() {
     if (await confirmDiscard(dirty)) nav("/admin/products");
   };
   const [errs, setErrs] = useState<Record<string, string>>({});
+  // phones: Details · Specs · Price · Media tabs (desktop shows every section as before)
+  const [tab, setTab] = useState<"details" | "specs" | "price" | "media">("details");
+  const hide = (t: typeof tab) => (tab === t ? "" : "max-lg:hidden");
+  const unsavedCount = (() => {
+    if (!dirty || !baseline.current) return 0;
+    const [bf, bp, bm] = JSON.parse(baseline.current) as [Record<string, unknown>, unknown, unknown];
+    const cf = f as unknown as Record<string, unknown>;
+    let n = Object.keys(cf).filter((k) => JSON.stringify(cf[k]) !== JSON.stringify(bf[k])).length;
+    if (JSON.stringify(bp) !== JSON.stringify(price)) n++;
+    if (JSON.stringify(bm) !== JSON.stringify(pending.map((x) => x.storageKey))) n++;
+    return Math.max(1, n);
+  })();
   const [loadError, setLoadError] = useState<string | null>(null);
   // Set right after "Create": we already hold the saved product, so the URL change must not refetch it
   // (a late response could overwrite media added in the meantime).
@@ -264,13 +277,13 @@ export default function ProductEditor() {
   const specErrors = Object.entries(errs).filter(([k]) => k.startsWith("specs"));
 
   return (
-    <div className="container-x py-10">
-      <Link to="/admin/products" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+    <div className="container-x py-10 max-lg:pt-3 max-lg:pb-24">
+      <Link to="/admin/products" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink max-lg:min-h-11">
         <ArrowLeft className="size-4" /> All products
       </Link>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-3xl font-semibold">{isNew ? "Add a product" : f.name || "Product"}</h1>
+          <h1 className="text-3xl font-semibold max-lg:line-clamp-2 max-lg:text-xl">{isNew ? "Add a product" : f.name || "Product"}</h1>
           {detail && (
             <p className="mt-1 text-xs text-muted">
               Last edited {new Date(detail.updatedAt).toLocaleString("en-IN")} {detail.updatedBy ? `by ${detail.updatedBy}` : ""}
@@ -284,12 +297,12 @@ export default function ProductEditor() {
             </a>
           )}
           {editable && (
-            <button type="button" className="btn-ghost btn-sm" onClick={cancel} disabled={busy} data-testid="cancel-product">
+            <button type="button" className="btn-ghost btn-sm max-lg:hidden" onClick={cancel} disabled={busy} data-testid="cancel-product">
               Cancel
             </button>
           )}
           {editable && (
-            <button type="button" className="btn-primary btn-sm" onClick={save} disabled={busy || uploading > 0} data-testid="save-product">
+            <button type="button" className="btn-primary btn-sm max-lg:hidden" onClick={save} disabled={busy || uploading > 0} data-testid="save-product">
               {busy ? <Spinner className="size-4" /> : <Save className="size-4" />} {isNew ? "Create product" : "Save changes"}
             </button>
           )}
@@ -302,10 +315,42 @@ export default function ProductEditor() {
         </p>
       )}
 
-      <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div role="tablist" aria-label="Product editor sections" className="m-tabs top-14 mt-3 lg:hidden" data-testid="editor-tabs">
+        {(
+          [
+            ["details", "Details", Object.keys(errs).some((k) => !k.startsWith("specs") && !k.startsWith("price") && k !== "_") || !f.name.trim()],
+            ["specs", "Specs", specErrors.length > 0 || f.specs.length === 0],
+            ["price", "Price", !!(errs.price || errs["price.sellingPricePaise"]) || (isNew ? price.selling.trim() === "" : detail?.price?.sellingPaise == null)],
+            ["media", "Media", isNew ? !pending.some((x) => x.type === "image") : !(detail?.media ?? []).some((m) => m.type === "image")],
+          ] as const
+        ).map(([id, label, dot]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} className="m-tab relative" onClick={() => setTab(id)} data-testid={`editor-tab-${id}`}>
+            {label}
+            {dot && <span className="absolute top-2.5 right-0.5 size-2 rounded-full bg-sun-500" aria-label="needs attention" data-testid="tab-dot" />}
+          </button>
+        ))}
+      </div>
+      {editable && (
+        <ActionBar testId="editor-save-bar">
+          <p className="min-w-0 flex-1 truncate text-xs text-muted" aria-live="polite">
+            {dirty ? (
+              <span className="font-semibold text-sun-600">● {unsavedCount} unsaved {unsavedCount === 1 ? "change" : "changes"}</span>
+            ) : (
+              "All changes saved"
+            )}
+          </p>
+          <button type="button" className="btn-ghost tap shrink-0" onClick={cancel} disabled={busy}>
+            Discard
+          </button>
+          <button type="button" className="btn-primary tap shrink-0" onClick={save} disabled={busy || uploading > 0} data-testid="m-save-product">
+            {busy ? <Spinner className="size-4" /> : <Save className="size-4" />} {isNew ? "Create" : "Save"}
+          </button>
+        </ActionBar>
+      )}
+      <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 max-lg:mt-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {/* ------------------------------------------------ basics */}
-          <section className="card grid grid-cols-1 gap-4 p-5">
+          <section className={`card grid grid-cols-1 gap-4 p-5 max-lg:p-4 ${hide("details")}`}>
             <h2 className="font-semibold">Product details</h2>
             {input("name", "Product name", {
               req: true,
@@ -409,7 +454,7 @@ export default function ProductEditor() {
           </section>
 
           {/* ------------------------------------------------ specs */}
-          <section className="card grid min-w-0 grid-cols-1 gap-4 p-5">
+          <section className={`card grid min-w-0 grid-cols-1 gap-4 p-5 max-lg:p-4 ${hide("specs")}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-semibold">Specifications</h2>
               {editable && templates.length > 0 && (
@@ -538,7 +583,7 @@ export default function ProductEditor() {
 
         <div className="grid min-w-0 grid-cols-1 content-start gap-6">
           {/* ------------------------------------------------ price */}
-          <section className="card grid grid-cols-1 gap-3 p-5">
+          <section className={`card grid grid-cols-1 gap-3 p-5 max-lg:p-4 ${hide("price")}`}>
             <h2 className="font-semibold">Price</h2>
             {isNew ? (
               <>
@@ -597,10 +642,12 @@ export default function ProductEditor() {
           </section>
 
           {/* ------------------------------------------------ media */}
+          <div className={`contents ${hide("media")}`}>
           {detail ? <MediaManager product={detail} editable={editable} onChange={(p) => (setDetail(p), reload())} /> : <NewProductMedia pending={pending} setPending={setPending} uploading={uploading} setUploading={setUploading} editable={editable} />}
+          </div>
 
           {detail && editable && (
-            <section className="rounded-3xl border border-danger/30 p-5">
+            <section className={`rounded-3xl border border-danger/30 p-5 ${hide("details")}`}>
               <h2 className="font-semibold text-danger">Remove product</h2>
               <p className="mt-1 text-xs text-muted">To take it off the website temporarily, switch “Visible on website” off. Deleting is permanent.</p>
               <button type="button" className="btn-ghost btn-sm mt-3 !border-danger/40 !text-danger" onClick={remove} data-testid="delete-product">

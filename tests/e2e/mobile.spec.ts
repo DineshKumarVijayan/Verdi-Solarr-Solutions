@@ -278,3 +278,40 @@ test("account on phones: profile card with points and Enquiries / Rewards / Prof
   await tabs.getByRole("tab", { name: "Rewards" }).click();
   await expect(page.getByRole("heading", { name: "Profile" })).toBeHidden();
 });
+
+test("admin dashboard on phones: needs-attention list first, count tiles, quick actions", async ({ page }) => {
+  await page.goto("/admin");
+  const d = page.getByTestId("phone-dashboard");
+  await expect(d).toBeVisible();
+  await expect(d.getByRole("heading", { name: "Needs attention" })).toBeVisible();
+  await expect(d.getByRole("link", { name: /Active products/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Products by category" })).toBeHidden();
+});
+
+test("quick price sheet on phones: Save & next moves to the next product", async ({ page }) => {
+  await page.goto("/admin/prices");
+  const rows = page.getByTestId("admin-price-row");
+  await expect(rows.first()).toBeVisible();
+  await rows.first().getByRole("button", { name: /Edit price/ }).click();
+  const sheet = page.getByTestId("price-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByTestId("missing-count")).toContainText("missing a price");
+  const first = await sheet.getByRole("heading").first().textContent();
+  await expect(sheet.getByTestId("sheet-price-input")).toHaveAttribute("inputmode", "decimal");
+  await sheet.getByTestId("sheet-save-next").click(); // saves the unchanged values, then moves on
+  await expect(sheet.getByRole("heading").first()).not.toHaveText(first ?? "");
+});
+
+test("admin product editor on phones: section tabs and a sticky save bar with unsaved count", async ({ page }) => {
+  await page.goto("/admin/products/new");
+  const tabs = page.getByTestId("editor-tabs");
+  await expect(tabs).toBeVisible();
+  await expect(tabs.getByTestId("tab-dot").first()).toBeVisible(); // empty product: details need attention
+  const bar = page.getByTestId("editor-save-bar");
+  await expect(bar).toContainText("All changes saved");
+  await page.locator("#pe-sku").fill("VS-TEST-PHONE");
+  await expect(bar).toContainText("unsaved");
+  await tabs.getByTestId("editor-tab-specs").click();
+  await expect(page.getByRole("heading", { name: "Specifications" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Product details" })).toBeHidden();
+});

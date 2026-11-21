@@ -402,6 +402,15 @@ select::-ms-expand { display: none; }
   table.rtable td.rt-hide {
     display: none;
   }
+  /* compact rows: secondary cells sit side by side as small chips instead of one line each */
+  table.rtable:not(.rtable-form) tr {
+    gap: 0.25rem 0.6rem;
+    padding: 0.6rem 0.9rem;
+  }
+  table.rtable:not(.rtable-form) td:not(.rt-title):not(.rt-aside):not(.rt-actions) {
+    flex: 0 1 auto;
+    font-size: 0.75rem;
+  }
   table.rtable td[data-label]::before {
     content: attr(data-label) " ";
     color: var(--color-subtle);

@@ -128,8 +128,8 @@ export function PageHead({ title, intro, actions }: { title: string; intro?: Rea
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-3xl font-semibold">{title}</h1>
-        {intro && <p className="mt-1 max-w-2xl text-sm text-muted">{intro}</p>}
+        <h1 className="text-3xl font-semibold max-lg:text-xl">{title}</h1>
+        {intro && <p className="mt-1 max-w-2xl text-sm text-muted max-lg:line-clamp-2 max-lg:text-xs">{intro}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>

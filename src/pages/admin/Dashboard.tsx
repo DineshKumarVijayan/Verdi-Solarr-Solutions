@@ -39,7 +39,9 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="container-x py-10">
+    <>
+    <PhoneDashboard d={d} canAdd={admin.role === "owner" || admin.role === "admin"} name={admin.displayName} />
+    <div className="container-x py-10 max-lg:hidden">
       <h1 className="text-3xl font-semibold">Welcome{admin.displayName ? `, ${admin.displayName}` : ""}</h1>
       <p className="mt-1 text-sm text-muted">
         Public catalogue version <span className="num">{d.catalogueVersion ?? "—"}</span>
@@ -144,6 +146,94 @@ export default function Dashboard() {
           )}
         </section>
       </div>
+    </div>
+    </>
+  );
+}
+
+/** Phones: what needs attention first, then counts, quick actions and recent activity (about one screen). */
+function PhoneDashboard({ d, canAdd, name }: { d: AdminDashboard; canAdd: boolean; name: string | null }) {
+  const attention = [
+    { label: "Products without a price", n: d.missingPrices, to: "/admin/prices?missing=1", icon: Tags },
+    { label: "New enquiries", n: d.newEnquiries, to: "/admin/enquiries?status=new", icon: ClipboardList },
+    { label: "Products without photos", n: d.missingImages, to: "/admin/products", icon: ImageOff },
+    { label: "Products without a datasheet", n: d.missingDatasheets, to: "/admin/products", icon: FileWarning },
+  ].filter((a) => a.n > 0);
+  const tiles = [
+    { label: "Active products", n: d.activeProducts, to: "/admin/products" },
+    { label: "Customers", n: d.customers, to: "/admin/customers" },
+    { label: "Brands", n: d.brands, to: "/admin/catalogue" },
+    { label: "Categories", n: d.categories.length, to: "/admin/catalogue" },
+  ];
+  return (
+    <div className="px-4 pt-3 pb-6 lg:hidden" data-testid="phone-dashboard">
+      <h1 className="text-lg font-semibold">Welcome{name ? `, ${name}` : ""}</h1>
+      <section aria-labelledby="att-h" className="mt-3">
+        <h2 id="att-h" className="text-base font-semibold">
+          Needs attention
+        </h2>
+        {attention.length === 0 ? (
+          <p className="card mt-2 p-4 text-sm text-muted">All caught up.</p>
+        ) : (
+          <ul className="card mt-2 divide-y divide-line/70 overflow-hidden" data-testid="needs-attention">
+            {attention.map((a) => (
+              <li key={a.label}>
+                <Link to={a.to} className="list-row !min-h-14">
+                  <a.icon className="size-5 shrink-0 text-sun-500" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{a.label}</span>
+                  <span className="num rounded-full bg-sun-100 px-2.5 py-0.5 text-xs font-semibold text-sun-600">{a.n}</span>
+                  <ArrowRight className="size-4 shrink-0 text-subtle" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {tiles.map((t) => (
+          <Link key={t.label} to={t.to} className="card p-3">
+            <p className="num text-2xl">{t.n}</p>
+            <p className="text-xs text-muted">{t.label}</p>
+          </Link>
+        ))}
+      </div>
+      {canAdd && (
+        <div className="scrollbar-none -mx-4 mt-4 flex gap-2 overflow-x-auto px-4" role="group" aria-label="Quick actions">
+          <Link to="/admin/products/new" className="chip tap shrink-0 !bg-verdi-600 !text-white">
+            <Plus className="size-4" /> Product
+          </Link>
+          <Link to="/admin/quotations/new" className="chip tap shrink-0">
+            <Plus className="size-4" /> Quotation
+          </Link>
+          <Link to="/admin/prices" className="chip tap shrink-0">
+            ₹ Prices
+          </Link>
+          <Link to="/admin/settings" className="chip tap shrink-0">
+            <Settings className="size-4" /> Contact details
+          </Link>
+        </div>
+      )}
+      <section aria-labelledby="act-h" className="mt-4">
+        <h2 id="act-h" className="flex items-center gap-2 text-base font-semibold">
+          <History className="size-4" /> Recent activity
+        </h2>
+        {d.recentActivity.length === 0 ? (
+          <p className="mt-2 text-sm text-muted">No administrative activity recorded yet.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-line/70">
+            {d.recentActivity.slice(0, 5).map((a) => (
+              <li key={a.auditId} className="py-2 text-sm">
+                <p className="truncate font-medium">
+                  {a.action} <span className="text-muted">· {a.entityType} #{a.entityId}</span>
+                </p>
+                <p className="truncate text-xs text-muted">
+                  {a.adminIdentity} · {dt(a.createdAt)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

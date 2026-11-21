@@ -8,6 +8,7 @@ import { Spinner, useToast } from "../../components/ui";
 import { WhatsAppIcon } from "../../components/WhatsAppIcon";
 import { api } from "../../lib/api";
 import { STATUS_LABEL, STATUS_STYLE } from "../../lib/enquiry-status";
+import { ActionBar, ClampText } from "../../components/mobile/kit";
 import { useAdmin } from "./AdminLayout";
 import { canManage, dt, errorText, PageHead, send } from "./kit";
 
@@ -43,18 +44,18 @@ export default function Enquiries() {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="container-x py-10">
+    <div className="container-x py-10 max-lg:pt-3 max-lg:pb-24">
       <PageHead title="Enquiries" intro="Every enquiry sent from the website basket, including guests. Update the status as you follow up — signed-in customers see it in their account." />
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap gap-2 max-lg:scrollbar-none max-lg:-mx-4 max-lg:mt-3 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-4">
         {[["", `All (${total})`] as const, ...ENQUIRY_STATUSES.map((s) => [s, `${STATUS_LABEL[s]} (${counts[s] ?? 0})`] as const)].map(([k, l]) => (
-          <button key={k} type="button" className={status === k ? "chip-on chip" : "chip"} onClick={() => set("status", k)}>
+          <button key={k} type="button" className={`${status === k ? "chip-on chip" : "chip"} max-lg:tap max-lg:shrink-0 max-lg:whitespace-nowrap`} onClick={() => set("status", k)}>
             {l}
           </button>
         ))}
       </div>
-      <div className="relative mt-3 max-w-md">
-        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-subtle" />
+      <div className="relative mt-3 max-w-md max-lg:sticky max-lg:top-14 max-lg:z-20 max-lg:-mx-4 max-lg:max-w-none max-lg:bg-paper max-lg:px-4 max-lg:py-2">
+        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-subtle max-lg:left-7.5" />
         <input aria-label="Search enquiries" className="field !rounded-full pl-10" placeholder="Reference, name, mobile or business" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && set("q", q.trim())} onBlur={() => set("q", q.trim())} />
       </div>
 
@@ -128,6 +129,19 @@ function EnquiryRow({ e, open, onToggle, onSaved }: { e: AdminEnquiryRow; open: 
         <ChevronDown className={`size-4 text-subtle transition ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
+        <ActionBar testId="enquiry-actions">
+          <a className="btn-ghost tap min-w-0 flex-1" href={`tel:+${mobile ?? e.mobile.replace(/\D/g, "")}`}>
+            <Phone className="size-4 shrink-0" /> Call
+          </a>
+          <a className="btn-ghost tap min-w-0 flex-1" target="_blank" rel="noopener" href={`https://wa.me/${mobile ?? e.mobile.replace(/\D/g, "")}?text=${encodeURIComponent(`Hello ${e.contactName}, this is VERDI SOLARR SOLUTION regarding your enquiry ${e.reference}.`)}`}>
+            <WhatsAppIcon className="size-4 shrink-0" /> WhatsApp
+          </a>
+          <Link className="btn-primary tap min-w-0 flex-1" to="/admin/quotations/new" state={{ enquiry: e }}>
+            <FileText className="size-4 shrink-0" /> Quote
+          </Link>
+        </ActionBar>
+      )}
+      {open && (
         <div className="grid gap-5 border-t border-line p-4 lg:grid-cols-[1.4fr_1fr]">
           <div className="min-w-0">
             <table className="w-full text-sm">
@@ -150,8 +164,8 @@ function EnquiryRow({ e, open, onToggle, onSaved }: { e: AdminEnquiryRow; open: 
                 ))}
               </tbody>
             </table>
-            {e.comments && <p className="mt-3 rounded-xl bg-paper p-3 text-sm whitespace-pre-wrap">{e.comments}</p>}
-            <div className="mt-3 flex flex-wrap gap-2">
+            {e.comments && <ClampText className="mt-3 rounded-xl bg-paper p-3 text-sm whitespace-pre-wrap [&>div]:max-lg:line-clamp-3">{e.comments}</ClampText>}
+            <div className="mt-3 flex flex-wrap gap-2 max-lg:hidden">
               <a className="btn-ghost btn-sm" href={`tel:+${mobile ?? e.mobile.replace(/\D/g, "")}`}>
                 <Phone className="size-3.5" /> {mobile ? formatMobile(mobile) : e.mobile}
               </a>
@@ -173,7 +187,14 @@ function EnquiryRow({ e, open, onToggle, onSaved }: { e: AdminEnquiryRow; open: 
               <label htmlFor={`st-${e.id}`} className="label">
                 Status
               </label>
-              <select id={`st-${e.id}`} className="field" value={status} disabled={!editable} onChange={(x) => setStatus(x.target.value as EnquiryStatus)} data-testid="enquiry-status-select">
+              <div className="flex flex-wrap gap-1.5 lg:hidden" role="radiogroup" aria-label="Status" data-testid="status-segments">
+                {ENQUIRY_STATUSES.map((s) => (
+                  <button key={s} type="button" role="radio" aria-checked={status === s} disabled={!editable} className={`tap rounded-full border px-3 text-sm font-medium ${status === s ? "border-ink bg-ink text-paper" : "border-line bg-card"}`} onClick={() => setStatus(s)}>
+                    {STATUS_LABEL[s]}
+                  </button>
+                ))}
+              </div>
+              <select id={`st-${e.id}`} className="field max-lg:hidden" value={status} disabled={!editable} onChange={(x) => setStatus(x.target.value as EnquiryStatus)} data-testid="enquiry-status-select">
                 {ENQUIRY_STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {STATUS_LABEL[s]}
