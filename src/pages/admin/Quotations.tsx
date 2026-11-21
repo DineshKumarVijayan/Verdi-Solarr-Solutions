@@ -144,6 +144,7 @@ function List() {
         </ul>
       )}
       {pg.pager}
+      {(rows?.length ?? 0) >= 200 && <p className="mt-2 text-center text-xs text-muted" data-testid="list-limit">Showing the latest 200. Use search or the filters to find older quotations.</p>}
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
@@ -380,6 +381,8 @@ function Editor({ id }: { id: number | null }) {
 
   // prefill from an enquiry (Enquiries → "Create quotation")
   const fromEnquiry = useRef<number | null>(null);
+  // a new quotation not made from an enquiry: how staff reached the customer (an enquiry is created for it)
+  const [reached, setReached] = useState<"phone" | "whatsapp" | "visit">("phone");
   useEffect(() => {
     const e = (loc.state as { enquiry?: AdminEnquiryRow } | null)?.enquiry;
     if (id !== null || !e || initFromEnquiry.current) return;
@@ -465,6 +468,7 @@ function Editor({ id }: { id: number | null }) {
       validDays: Number(cust.validDays) || 15,
       // a new quotation made from an enquiry is linked to it (enquiry moves to Quoted; accepting it = Won)
       ...(id === null && fromEnquiry.current ? { enquiryId: fromEnquiry.current } : {}),
+      ...(id === null && !fromEnquiry.current ? { reachedVia: reached } : {}),
       items: lines.map((l) => {
         const p = product(l.productId);
         const listed = p && p.price.sellingPaise !== null;
@@ -664,7 +668,26 @@ function Editor({ id }: { id: number | null }) {
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Name *" value={cust.customerName} onChange={(v) => setC("customerName", v)} testId="q-name" />
               <Field label="Company" value={cust.customerCompany} onChange={(v) => setC("customerCompany", v)} />
-              <Field label="Mobile (WhatsApp)" value={cust.customerMobile} onChange={(v) => setC("customerMobile", v)} inputMode="tel" testId="q-mobile" />
+              <Field label={!quote && !fromEnquiry.current ? "Mobile (WhatsApp) *" : "Mobile (WhatsApp)"} value={cust.customerMobile} onChange={(v) => setC("customerMobile", v)} inputMode="tel" testId="q-mobile" />
+              {!quote && !fromEnquiry.current && (
+                <fieldset className="sm:col-span-2" data-testid="q-reached">
+                  <legend className="text-sm font-medium">How did you reach them?</legend>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {(
+                      [
+                        ["phone", "Phone call"],
+                        ["whatsapp", "WhatsApp"],
+                        ["visit", "Visit"],
+                      ] as const
+                    ).map(([k, l]) => (
+                      <button key={k} type="button" aria-pressed={reached === k} className={`${reached === k ? "chip-on chip" : "chip"} max-lg:tap`} onClick={() => setReached(k)}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-xs text-subtle">An enquiry is created for this customer under your name, so the sale, your bonus and the customer's points are recorded when the quotation is accepted.</p>
+                </fieldset>
+              )}
               <Field label="Email" value={cust.customerEmail} onChange={(v) => setC("customerEmail", v)} inputMode="email" />
               <label className="block sm:col-span-2">
                 <span className="text-sm font-medium">Address / site location</span>

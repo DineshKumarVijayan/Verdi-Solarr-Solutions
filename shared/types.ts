@@ -338,6 +338,8 @@ export interface AdminEnquiryRow extends EnquiryView {
   closedAt: string | null;
   /** next follow-up date (YYYY-MM-DD), open enquiries only */
   followUpOn: string | null;
+  /** customer loyalty points from this sale: in their account, or waiting because they have no account yet */
+  points: { credited: number; waiting: number };
   /** the most recent quotation made from this enquiry */
   latestQuote: { id: number; number: string; status: "draft" | "sent" | "accepted" | "declined" } | null;
   /** final sale value in paise when won */

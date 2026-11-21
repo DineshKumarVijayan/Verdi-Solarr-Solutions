@@ -24,6 +24,7 @@ import {
 import type { AdminIdentity } from "../shared/types";
 import { mediaUrl } from "./catalogue";
 import { requireRole } from "./content";
+import { reference } from "./customers";
 import { bonusStatementsForSale } from "./bonus";
 import { loyaltyStatementsForSale } from "./loyalty";
 import { randomToken } from "./crypto";
@@ -260,6 +261,35 @@ async function nextNumber(env: Env): Promise<string> {
  * Link a new quotation to the enquiry it answers: the enquiry moves to "Quoted" (if it was still new or
  * contacted) and, if nobody was responsible for it yet, the person making the quotation takes it.
  */
+/**
+ * An enquiry for a quotation made without one (staff met the customer offline): owned by the quotation's
+ * maker, at Quoted, with the quotation's products, linked to it. Runs in the quotation's own batch.
+ */
+function newEnquiryStatements(
+  env: Env,
+  q: { ownerId: number | null; identity: string; source: string; name: string; company: string | null; mobile: string; address: string | null; totalPaise: number; number: string },
+  now: string,
+): D1PreparedStatement[] {
+  const ref = reference();
+  const location = (q.address ?? "").split(/\r?\n/)[0].trim().slice(0, 120) || "Not given";
+  return [
+    env.DB.prepare(
+      `INSERT INTO Enquiries (Reference, ContactName, BusinessName, Mobile, Location, Comments, Status, PricesVerified, IndicativeTotalPaise, Source, CreatedByAdminId, AssignedAdminId, CreatedAt, UpdatedAt, UpdatedBy)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'quoted', 1, ?7, ?8, ?9, ?9, ?10, ?10, ?11)`,
+    ).bind(ref, q.name, q.company, q.mobile, location, `Created from quotation ${q.number}`, q.totalPaise, q.source, q.ownerId, now, q.identity),
+    env.DB.prepare(
+      `INSERT INTO EnquiryItems (EnquiryId, ProductId, ProductName, BrandName, ModelNumber, Quantity, UnitPricePaise, PriceUnit, GSTIncluded)
+       SELECT (SELECT EnquiryId FROM Enquiries WHERE Reference = ?1), i.ProductId, i.Name, i.BrandName, i.Model, i.Qty, i.UnitPaise, i.Unit, 0
+       FROM QuotationItems i WHERE i.QuotationId = (SELECT QuotationId FROM Quotations WHERE Number = ?2) ORDER BY i.SortOrder`,
+    ).bind(ref, q.number),
+    env.DB.prepare(
+      `INSERT INTO EnquiryEvents (EnquiryId, Kind, ToStatus, AssignedTo, Note, ByAdminId, ByIdentity, CreatedAt)
+       SELECT EnquiryId, 'created', 'quoted', ?2, ?3, ?2, ?4, ?5 FROM Enquiries WHERE Reference = ?1`,
+    ).bind(ref, q.ownerId, `From quotation ${q.number}`, q.identity, now),
+    env.DB.prepare("UPDATE Quotations SET EnquiryId = (SELECT EnquiryId FROM Enquiries WHERE Reference = ?1) WHERE Number = ?2").bind(ref, q.number),
+  ];
+}
+
 async function enquiryLinkStatements(env: Env, admin: AdminIdentity, enquiryId: number, number: string, now: string) {
   const e = await env.DB.prepare("SELECT Status, AssignedAdminId AS OwnerId FROM Enquiries WHERE EnquiryId = ?1")
     .bind(enquiryId)
@@ -289,6 +319,10 @@ async function enquiryLinkStatements(env: Env, admin: AdminIdentity, enquiryId: 
 
 export async function createQuotation(env: Env, admin: AdminIdentity, body: unknown): Promise<Quote> {
   const v = parseInput(body);
+  if (!v.enquiryId && !v.mobile)
+    throw new HttpError(422, "validation", "Enter the customer's mobile number: it records the sale and gives the customer their points.", [
+      { path: "customerMobile", message: "Needed to record the sale and the customer's points" },
+    ]);
   if (v.enquiryId && !isManager(admin)) {
     const e = await env.DB.prepare("SELECT AssignedAdminId FROM Enquiries WHERE EnquiryId = ?1").bind(v.enquiryId).first<{ AssignedAdminId: number | null }>();
     if (e && e.AssignedAdminId !== null && e.AssignedAdminId !== admin.id) throw new HttpError(403, "forbidden", "This enquiry is assigned to another staff member.");
@@ -305,7 +339,7 @@ export async function createQuotation(env: Env, admin: AdminIdentity, body: unkn
            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?12, ?13, ?14)`,
         ).bind(number, v.customerName, v.customerCompany || null, v.mobile, v.customerEmail || null, v.customerAddress || null, v.notes || null, v.validDays, t.subtotal, t.discount, t.total, admin.email, now, admin.id),
         ...itemStatements(env, number, items),
-        ...(v.enquiryId ? await enquiryLinkStatements(env, admin, v.enquiryId, number, now) : []),
+        ...(v.enquiryId ? await enquiryLinkStatements(env, admin, v.enquiryId, number, now) : newEnquiryStatements(env, { ownerId: admin.id, identity: admin.email, source: v.reachedVia ?? "phone", name: v.customerName, company: v.customerCompany || null, mobile: v.mobile!, address: v.customerAddress || null, totalPaise: t.total, number }, now)),
         audit(env, admin, "quotation.create", number, null, { customer: v.customerName, items: items.length, totalPaise: t.total, enquiryId: v.enquiryId ?? null }, now),
       ]);
       const row = await env.DB.prepare("SELECT QuotationId FROM Quotations WHERE Number = ?1").bind(number).first<{ QuotationId: number }>();
@@ -347,11 +381,26 @@ export async function setQuotationStatus(env: Env, admin: AdminIdentity, id: num
   // undoing an accepted quotation (= undoing a sale) is for the owner or an admin
   if (before.status === "accepted" && r.data.status !== "accepted" && !isManager(admin))
     throw new HttpError(403, "forbidden", "Only the owner or an admin can undo an accepted quotation.");
+  if (r.data.status === before.status) return before;
   const now = nowIso();
-  const stmts: D1PreparedStatement[] = [
-    env.DB.prepare("UPDATE Quotations SET Status = ?2, UpdatedBy = ?3, UpdatedAt = ?4 WHERE QuotationId = ?1").bind(id, r.data.status, admin.email, now),
-    audit(env, admin, "quotation.status", before.number, { status: before.status }, { status: r.data.status }, now),
-  ];
+  if (r.data.status === "accepted") {
+    // an older quotation without an enquiry gets one first, so the sale is recorded like any other
+    if (!before.enquiryId) {
+      const row = await env.DB.prepare("SELECT OwnerAdminId, CustomerMobile, CustomerAddress FROM Quotations WHERE QuotationId = ?1").bind(id).first<{ OwnerAdminId: number | null; CustomerMobile: string | null; CustomerAddress: string | null }>();
+      if (!row?.CustomerMobile) throw new HttpError(422, "validation", "Add the customer's mobile number to this quotation first: it records the sale and gives the customer their points.");
+      await env.DB.batch(
+        newEnquiryStatements(env, { ownerId: row.OwnerAdminId ?? admin.id, identity: admin.email, source: "phone", name: before.customerName, company: before.customerCompany, mobile: row.CustomerMobile, address: row.CustomerAddress, totalPaise: before.totalPaise, number: before.number }, now),
+      );
+      before.enquiryId = (await env.DB.prepare("SELECT EnquiryId FROM Quotations WHERE QuotationId = ?1").bind(id).first<{ EnquiryId: number }>())!.EnquiryId;
+    }
+    const e = await env.DB.prepare("SELECT Status FROM Enquiries WHERE EnquiryId = ?1").bind(before.enquiryId).first<{ Status: string }>();
+    if (e?.Status === "won") throw new HttpError(409, "already_won", "This enquiry is already Won (another quotation or a recorded sale). Undo that first if this quotation replaces it.");
+    if (e?.Status === "lost" || e?.Status === "cancelled") throw new HttpError(409, "closed", "This enquiry is closed as Not won. The owner or an admin must reopen it first.");
+  }
+  // only one change wins if two people (or a double tap) change the status at the same moment
+  const upd = await env.DB.prepare("UPDATE Quotations SET Status = ?2, UpdatedBy = ?3, UpdatedAt = ?4 WHERE QuotationId = ?1 AND Status = ?5").bind(id, r.data.status, admin.email, now, before.status).run();
+  if (!upd.meta.changes) throw new HttpError(409, "changed", "Someone else just changed this quotation. Please refresh and check it.");
+  const stmts: D1PreparedStatement[] = [audit(env, admin, "quotation.status", before.number, { status: before.status }, { status: r.data.status }, now)];
   // Accepted quotation = final sale: the linked enquiry becomes "Won" with the quotation total as the sale value.
   if (r.data.status === "accepted" && before.status !== "accepted") {
     const link = await env.DB.prepare("SELECT e.EnquiryId, e.Status, e.AssignedAdminId FROM Quotations q JOIN Enquiries e ON e.EnquiryId = q.EnquiryId WHERE q.QuotationId = ?1")
@@ -400,7 +449,17 @@ export async function deleteQuotation(env: Env, admin: AdminIdentity, id: number
   if (!isManager(admin)) throw new HttpError(403, "forbidden", "Only the owner or an admin can delete quotations.");
   const before = await env.DB.prepare("SELECT * FROM Quotations WHERE QuotationId = ?1").bind(id).first<QuoteDbRow>();
   if (!before) throw new HttpError(404, "not_found", "Quotation not found.");
-  await env.DB.batch([env.DB.prepare("DELETE FROM Quotations WHERE QuotationId = ?1").bind(id), audit(env, admin, "quotation.delete", before.Number, toRow(before), null, nowIso())]);
+  if (before.Status === "accepted") throw new HttpError(409, "accepted", "An accepted quotation records a sale. Change its status first (this undoes the sale), then delete it.");
+  // its enquiry was at Quoted because of this quotation: with no other quotation it goes back to Contacted
+  const at = nowIso();
+  const lonely = "e.EnquiryId = ?1 AND e.Status = 'quoted' AND NOT EXISTS (SELECT 1 FROM Quotations o WHERE o.EnquiryId = ?1 AND o.QuotationId <> ?2)";
+  const revert = before.EnquiryId
+    ? [
+        env.DB.prepare(`INSERT INTO EnquiryEvents (EnquiryId, Kind, FromStatus, ToStatus, Note, ByAdminId, ByIdentity, CreatedAt) SELECT e.EnquiryId, 'status', 'quoted', 'contacted', ?3, ?4, ?5, ?6 FROM Enquiries e WHERE ${lonely}`).bind(before.EnquiryId, id, `Quotation ${before.Number} deleted`, admin.id, admin.email, at),
+        env.DB.prepare(`UPDATE Enquiries SET Status = 'contacted', UpdatedAt = ?3, UpdatedBy = ?4 WHERE EnquiryId IN (SELECT e.EnquiryId FROM Enquiries e WHERE ${lonely})`).bind(before.EnquiryId, id, at, admin.email),
+      ]
+    : [];
+  await env.DB.batch([...revert, env.DB.prepare("DELETE FROM Quotations WHERE QuotationId = ?1").bind(id), audit(env, admin, "quotation.delete", before.Number, toRow(before), null, nowIso())]);
   if (before.PdfKey && env.MEDIA) await env.MEDIA.delete(before.PdfKey).catch(() => undefined);
   return { ok: true };
 }

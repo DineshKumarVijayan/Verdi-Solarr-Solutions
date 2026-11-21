@@ -58,6 +58,8 @@ test("sales staff see only their own and unassigned work; quotations belong to t
   expect(sList.map((r) => r.id)).toContain(staffQ.id);
   expect(sList.map((r) => r.id)).not.toContain(ownerQ.id);
   expect((await staff.delete(`/api/admin/quotations/${staffQ.id}`, { headers: H })).status()).toBe(403);
+  // customer accounts (mobiles, emails, points) are for owner and admins only
+  expect((await staff.get("/api/admin/customers")).status()).toBe(403);
 
   // with a quotation, Won is recorded by accepting it
   expect((await staff.put(`/api/admin/enquiries/${mine.id}`, { headers: H, data: { status: "won", adminNotes: null, salePaise: 100_000 } })).status()).toBe(409);
@@ -202,4 +204,20 @@ test("deactivating a staff member hands their open enquiries back as Unassigned"
   expect(after.owner).toBeNull();
   const hist = (await (await request.get(`/api/admin/enquiries/${mine.id}/history`)).json()).events as { kind: string; note: string | null }[];
   expect(hist.at(-1)).toMatchObject({ kind: "assigned", note: "Staff member deactivated" });
+});
+
+test("deleting a product keeps the image that an existing quotation still shows", async ({ request }) => {
+  const cat = await (await request.get("/api/catalogue")).json();
+  const copy = (await (await request.post(`/api/admin/products/${cat.products[0].id}/duplicate`, { headers: H })).json());
+  const productId = (copy.product?.id ?? copy.id) as number;
+  // a 1x1 PNG uploaded as this product's only photo
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+  const up = await (await request.post("/api/admin/uploads?kind=image", { headers: { Origin: BASE, "Content-Type": "image/png" }, data: png })).json();
+  expect(up.storageKey).toBeTruthy();
+  expect((await request.post(`/api/admin/products/${productId}/media`, { headers: H, data: { type: "image", storageKey: up.storageKey, isPrimary: true } })).ok()).toBeTruthy();
+  const q = (await (await request.post("/api/admin/quotations", { headers: H, data: { customerName: "Image Keeper", customerMobile: "9876500099", validDays: 15, items: [{ productId, name: "", unit: "", qty: 1, unitPaise: 10000, discountType: "none", discountValue: 0 }] } })).json()).quote;
+  const img = q.items[0].imageUrl as string;
+  expect(img).toBeTruthy();
+  expect((await request.delete(`/api/admin/products/${productId}`, { headers: H })).ok()).toBeTruthy();
+  expect((await request.get(img)).status()).toBe(200);
 });

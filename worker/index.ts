@@ -171,6 +171,7 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
     case "loyalty":
       if (seg.length === 1 && method === "GET") return json(await loyalty.loyaltyRate(env));
       if (seg.length === 1 && method === "PUT") return json(await loyalty.setLoyaltyRate(env, admin, await body()));
+      if (seg[1] === "pending" && seg.length === 2 && method === "GET") return json(await loyalty.listPendingRewards(env, admin));
       break;
     case "bonus":
       if (seg.length === 1 && method === "GET") return json(await bonus.overview(env, admin));

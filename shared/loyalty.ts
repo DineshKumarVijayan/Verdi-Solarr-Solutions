@@ -15,3 +15,12 @@ export interface LoyaltySettings {
 }
 
 export const LoyaltyRateSchema = z.object({ rateBasisPoints: z.number().int("Use at most two decimals").min(0, "Enter a percentage between 0 and 100").max(10_000, "Enter a percentage between 0 and 100") }).strict();
+
+/** Points waiting for a buyer who has no account yet (owner/admin view). */
+export interface PendingReward {
+  mobile: string;
+  name: string | null;
+  points: number;
+  since: string;
+  purchases: number;
+}

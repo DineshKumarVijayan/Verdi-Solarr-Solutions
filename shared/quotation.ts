@@ -44,6 +44,8 @@ export const QuoteInputSchema = z
     items: z.array(QuoteItemInputSchema).min(1, "Add at least one product.").max(100),
     /** the enquiry this quotation answers (set when created from Enquiries) */
     enquiryId: z.number().int().positive().nullable().optional(),
+    /** for a quotation not made from an enquiry: how staff reached the customer (an enquiry is created for it) */
+    reachedVia: z.enum(["phone", "whatsapp", "visit"]).optional(),
   })
   .strict();
 export type QuoteInput = z.infer<typeof QuoteInputSchema>;

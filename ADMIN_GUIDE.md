@@ -88,6 +88,8 @@ Every enquiry sent from the basket is saved with a reference number (e.g. `VS-26
 - Each open enquiry shows a **step bar**, a one-line hint and **one main button** for the next step, so nobody has to guess.
 - **Follow-up date:** set it when you update an enquiry (*Tomorrow*, *In 3 days*, *Next week* or any date). It shows on the enquiry (red when overdue) and in **My day** on the Dashboard. Closing an enquiry clears it.
 - **Closed is closed:** only the owner or an admin can **Reopen** a Won or Not won enquiry. Reopening a won sale removes its staff bonus and customer points.
+- When a staff member is **deactivated**, their open enquiries become *Unassigned* (noted in History) so others can take them. Their bonuses and quotations stay as they are.
+- The Enquiries list shows the latest 300 and Quotations the latest 200; search finds older ones.
 - *Duplicate / wrong entry* does not count for or against anyone in Performance.
 - Every change is kept under **History** in the enquiry (who, what, when, why).
 
@@ -96,6 +98,9 @@ Every enquiry sent from the basket is saved with a reference number (e.g. `VS-26
 
 ## Quotations
 Every staff member can prepare quotations under **Quotations**; each quotation belongs to the person who made it. Sales staff see and change only their own; owner and admins see all (filter **Mine / Everyone**) and only they can delete a quotation. On an enquiry, **Create quotation** fills in the customer details and products and links the two.
+- **Quotation without an enquiry** (you met or called the customer yourself): **New quotation** asks *How did you reach them?* and needs the customer's **mobile number**. An enquiry is created automatically under your name at *Quoted*, so the sale, your bonus and the customer's points are recorded when the quotation is accepted, and it counts in Performance.
+- Deleting a quotation that is the only one on its enquiry moves the enquiry back to *Contacted*. Accepted quotations cannot be deleted (set the status back first).
+- Accepting is refused if the enquiry is already *Won* (by another quotation or a recorded sale) or closed as *Not won* (reopen it first). If two people press Accept at the same moment, only one is recorded.
 1. **New quotation**: enter the customer name. Mobile number, email, company and address are optional.
 2. **Add products**: search the catalogue. Unit prices come from the catalogue and cannot be changed here; change them under Prices. Only products without a listed price, and **Custom lines**, take a typed price.
 3. **Add a discount** to any line if needed: **%** or **â‚¹ off**. Totals update as you type.
@@ -124,6 +129,9 @@ A staff member earns a **% of each sale** they win (the enquiry they are respons
 Customers create their own accounts (mobile number + password) under the person icon â†’ **Create an account**. They see their enquiry history, status and points under **My account**. Customer accounts are completely separate from admin access.
 - **Reward points:** open a customer â†’ enter `+500` (credit) or `-200` (redeem) with a reason. The customer sees the reason in their history. The balance canâ€™t go below zero.
 - **Loyalty points on sales:** when an enquiry is marked **Won** with a sale amount, the customer automatically earns the loyalty percentage of the sale as points (starts at **0.5 %**; 1 point = ₹1, rounded down). Example: ₹2,00,000 sale → 1,000 points. The enquiry must belong to the customer's account, or have the same mobile number as an account. If the sale amount is corrected the points are corrected; if the sale is undone (Not won, reopened, or its quotation acceptance undone) they are taken back. Accepting a quotation that is linked to an enquiry counts as the sale too.
+- **Buyers without an account:** their points are kept **waiting** against their mobile number. The won enquiry shows *"N points waiting"* with an **Invite to register** WhatsApp button, and **Customers → Points waiting to be claimed** lists everyone waiting. When the buyer registers (or signs in) with that number, the points move into their account automatically. Waiting points do not expire. Corrections and cancellations adjust waiting points the same way.
+- Points are given to whoever registers with that mobile number. Before redeeming points, check that the request comes from the customer's own number (for example on WhatsApp).
+- If a sale is cancelled after the customer already used its points, taking the points back can leave a negative balance; it is cleared by their next purchase.
 - **Points for a sale by hand** (e.g. a shop counter sale): open the customer → **For a sale** → enter the sale amount and a reason. The form shows how many points that gives before you apply it.
 - **Change the loyalty %** (owner and admins): **Customers** → **Change** next to "Loyalty points". The new % applies to sales from then on; points already given stay as they are. Every change is recorded.
 - **Forgotten password:** open the customer â†’ **Create reset link** â†’ **Send on WhatsApp**. The link works once, within 48 hours.

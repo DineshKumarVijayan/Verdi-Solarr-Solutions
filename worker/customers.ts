@@ -17,6 +17,7 @@ import type { CustomerProfile, EnquiryItemView, EnquiryStatus, EnquiryView, Rewa
 import { DUMMY_HASH, hashPassword, randomToken, sha256Hex, verifyPassword } from "./crypto";
 import type { Env } from "./env";
 import { HttpError, json, nowIso } from "./http";
+import { claimPendingRewards } from "./loyalty";
 
 // Sessions: signed out after IDLE_MINUTES without activity; at most CUSTOMER_MAX_DAYS in total.
 const SESSION_DAYS = CUSTOMER_MAX_DAYS;
@@ -168,6 +169,8 @@ export async function register(request: Request, env: Env, body: unknown): Promi
     .bind(v.name, v.mobile, v.email, v.business, v.city, hash, now)
     .run();
   const id = r.meta.last_row_id as number;
+  // points earned on purchases before the account existed move into it
+  await claimPendingRewards(env, id, v.mobile);
   const cookies = await startSession(request, env, id);
   const row = await env.DB.prepare("SELECT CustomerId, FullName, Mobile, Email, BusinessName, City, CreatedAt FROM Customers WHERE CustomerId = ?1").bind(id).first<CustomerRow>();
   return withCookies(json({ customer: await profile(env, row!) }, { status: 201 }), cookies);
@@ -199,6 +202,8 @@ export async function login(request: Request, env: Env, body: unknown): Promise<
   }
   const cookies = await startSession(request, env, row.CustomerId);
   const c = await env.DB.prepare("SELECT CustomerId, FullName, Mobile, Email, BusinessName, City, CreatedAt FROM Customers WHERE CustomerId = ?1").bind(row.CustomerId).first<CustomerRow>();
+  // anything that arrived for this number while registering (rare race) is claimed at the next sign-in
+  await claimPendingRewards(env, row.CustomerId, c!.Mobile);
   return withCookies(json({ customer: await profile(env, c!) }), cookies);
 }
 

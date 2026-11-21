@@ -1,6 +1,6 @@
 import { Award, ClipboardCopy, KeyRound, Percent, Search } from "lucide-react";
 import { basisPointsToPercent, percentToBasisPoints } from "../../../shared/bonus";
-import { loyaltyPoints, type LoyaltySettings } from "../../../shared/loyalty";
+import { loyaltyPoints, type LoyaltySettings, type PendingReward } from "../../../shared/loyalty";
 import { rupeesToPaise } from "../../../shared/schemas";
 import { usePaged } from "../../components/Pager";
 import { useCallback, useEffect, useState } from "react";
@@ -51,6 +51,7 @@ export default function Customers() {
     <div className="container-x py-10">
       <PageHead title="Customers" intro="Customer accounts are separate from staff access. Customers sign in with their mobile number and a password; passwords are stored only as salted hashes." />
       <LoyaltyRate />
+      <PendingPoints />
       <div className="relative mt-6 max-w-md">
         <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-subtle" />
         <input aria-label="Search customers" className="field !rounded-full pl-10" placeholder="Name, mobile, email or business" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load(q.trim())} />
@@ -378,5 +379,45 @@ function LoyaltyRate() {
         </form>
       )}
     </section>
+  );
+}
+
+/** Owner/admin: buyers who earned points but have not registered yet, with a WhatsApp invite. */
+function PendingPoints() {
+  const admin = useAdmin();
+  const [rows, setRows] = useState<PendingReward[] | null>(null);
+  useEffect(() => {
+    if (!canManage(admin)) return;
+    api<{ rows: PendingReward[] }>("/api/admin/loyalty/pending")
+      .then((r) => setRows(r.rows))
+      .catch(() => undefined);
+  }, [admin]);
+  if (!rows || rows.length === 0) return null;
+  return (
+    <details className="mt-3 rounded-2xl border border-line bg-card p-3 text-sm" data-testid="pending-points">
+      <summary className="cursor-pointer font-semibold max-lg:min-h-11 max-lg:content-center">
+        Points waiting to be claimed ({rows.length} {rows.length === 1 ? "buyer" : "buyers"} without an account)
+      </summary>
+      <p className="mt-1 text-xs text-muted">They receive these points automatically when they register with this mobile number.</p>
+      <ul className="mt-2 divide-y divide-line/70">
+        {rows.map((r) => (
+          <li key={r.mobile} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+            <span className="min-w-0 flex-1 truncate">
+              {r.name ?? "Customer"} <span className="num text-muted">· {formatMobile(r.mobile)}</span>
+            </span>
+            <span className="num font-semibold">{r.points.toLocaleString("en-IN")} pts</span>
+            <span className="text-xs text-muted">since {dt(r.since)}</span>
+            <a
+              className="btn-ghost btn-sm max-lg:tap"
+              target="_blank"
+              rel="noopener"
+              href={`https://wa.me/${r.mobile}?text=${encodeURIComponent(`Hello${r.name ? " " + r.name : ""}, you have ${r.points} VERDI SOLARR SOLUTION reward points waiting. Create your free account at ${location.origin}/account?mode=register with this mobile number to receive them.`)}`}
+            >
+              <WhatsAppIcon className="size-3.5" /> Invite
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }

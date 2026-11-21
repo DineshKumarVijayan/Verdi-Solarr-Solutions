@@ -125,6 +125,7 @@ export default function Enquiries() {
         </ul>
       )}
       {pg.pager}
+      {(rows?.length ?? 0) >= 300 && <p className="mt-2 text-center text-xs text-muted" data-testid="list-limit">Showing the latest 300. Use search or the filters to find older enquiries.</p>}
     </div>
   );
 }
@@ -332,6 +333,27 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
                 Sale: {formatPaise(e.salePaise)}
                 {e.latestQuote?.status === "accepted" ? ` (quotation ${e.latestQuote.number})` : ""}
               </p>
+            )}
+            {e.points.credited > 0 && (
+              <p className="num text-xs text-muted" data-testid="points-credited">
+                Customer earned {e.points.credited.toLocaleString("en-IN")} loyalty points for this sale.
+              </p>
+            )}
+            {e.points.waiting > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl bg-sun-100 px-3 py-2 text-xs" data-testid="points-waiting">
+                <span className="num min-w-0 flex-1">
+                  {e.points.waiting.toLocaleString("en-IN")} points waiting: this customer has no account yet. They get the points when they register with {mobile ? formatMobile(mobile) : e.mobile}.
+                </span>
+                <a
+                  className="btn-ghost btn-sm max-lg:tap"
+                  target="_blank"
+                  rel="noopener"
+                  href={`https://wa.me/${mobile ?? e.mobile.replace(/\D/g, "")}?text=${encodeURIComponent(`Hello ${e.contactName}, thank you for your purchase from VERDI SOLARR SOLUTION. You have earned ${e.points.waiting} reward points. Create your free account at ${location.origin}/account?mode=register with this mobile number to receive them.`)}`}
+                  data-testid="points-invite"
+                >
+                  <WhatsAppIcon className="size-3.5" /> Invite to register
+                </a>
+              </div>
             )}
 
             {/* the next step: one main button per stage */}

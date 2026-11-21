@@ -758,6 +758,16 @@ export async function saveAdminUser(env: Env, admin: AdminIdentity, id: number |
     // Never put the password (or its hash) in the audit log.
     audit(env, admin, id ? "admin_user.update" : "admin_user.create", "AdminUser", id ?? v.email, before, { ...v, password: v.password ? "(changed)" : undefined }, now),
   ];
+  // Deactivating a staff member: their open enquiries become Unassigned (with a history line) so others can take them.
+  if (id && before && Number(before.IsActive) === 1 && !v.isActive) {
+    stmts.push(
+      env.DB.prepare(
+        `INSERT INTO EnquiryEvents (EnquiryId, Kind, AssignedTo, Note, ByAdminId, ByIdentity, CreatedAt)
+         SELECT EnquiryId, 'assigned', NULL, 'Staff member deactivated', ?2, ?3, ?4 FROM Enquiries WHERE AssignedAdminId = ?1 AND Status IN ${OPEN}`,
+      ).bind(id, admin.id, admin.email, now),
+      env.DB.prepare(`UPDATE Enquiries SET AssignedAdminId = NULL, UpdatedAt = ?2, UpdatedBy = ?3 WHERE AssignedAdminId = ?1 AND Status IN ${OPEN}`).bind(id, now, admin.email),
+    );
+  }
   // A new password or deactivation signs that admin out everywhere (not yourself on a self password change).
   if (id && (hash || !v.isActive)) {
     stmts.push(env.DB.prepare("DELETE FROM AdminSessions WHERE AdminId = ?1 AND ?2 = 0").bind(id, b(String(before!.Email).toLowerCase() === admin.email && v.isActive)));
@@ -871,6 +881,8 @@ const ENQ_SELECT = `SELECT e.EnquiryId, e.Reference, e.Status, e.CreatedAt, e.Up
        e.NotWonReason AS ClosedReason, e.ClosedNote, e.ClosedAt, e.SalePaise, e.FollowUpOn,
        (SELECT q.TotalPaise FROM Quotations q WHERE q.EnquiryId = e.EnquiryId ORDER BY q.QuotationId DESC LIMIT 1) AS QuotePaise,
        (SELECT q.QuotationId || '|' || q.Number || '|' || q.Status FROM Quotations q WHERE q.EnquiryId = e.EnquiryId ORDER BY q.QuotationId DESC LIMIT 1) AS LatestQuote,
+       (SELECT COALESCE(SUM(t.Points), 0) FROM RewardTransactions t WHERE t.EnquiryId = e.EnquiryId AND t.Kind IN ('sale', 'reversal')) AS PtsCredited,
+       (SELECT COALESCE(SUM(p.Points), 0) FROM PendingRewards p WHERE p.EnquiryId = e.EnquiryId AND p.ClaimedAt IS NULL) AS PtsWaiting,
        (SELECT COUNT(*) FROM Quotations q WHERE q.EnquiryId = e.EnquiryId) AS QuoteCount
   FROM Enquiries e LEFT JOIN Customers c ON c.CustomerId = e.CustomerId
   LEFT JOIN AdminUsers a ON a.AdminId = e.CreatedByAdminId
@@ -887,6 +899,7 @@ function toAdminEnquiry(r: EnqRow): AdminEnquiryRow {
     closedNote: (r.ClosedNote as string) ?? null,
     closedAt: (r.ClosedAt as string) ?? null,
     followUpOn: (r.FollowUpOn as string) ?? null,
+    points: { credited: (r.PtsCredited as number) ?? 0, waiting: (r.PtsWaiting as number) ?? 0 },
     latestQuote: r.LatestQuote
       ? (([qid, num, st]) => ({ id: Number(qid), number: num, status: st as NonNullable<AdminEnquiryRow["latestQuote"]>["status"] }))(String(r.LatestQuote).split("|"))
       : null,
@@ -920,10 +933,12 @@ function enquiryEvent(env: Env, admin: AdminIdentity, enquiryId: number, e: { ki
 /** Owner/admin may act on any enquiry; other staff only on enquiries they are responsible for. */
 async function requireEnquiryOwner(env: Env, admin: AdminIdentity, id: number) {
   const row = await env.DB.prepare(
-    `SELECT e.Status, e.AdminNotes, e.SalePaise, ${OWNER} AS OwnerId, (SELECT COUNT(*) FROM Quotations q WHERE q.EnquiryId = e.EnquiryId) AS QuoteCount FROM Enquiries e WHERE e.EnquiryId = ?1`,
+    `SELECT e.Status, e.AdminNotes, e.SalePaise, ${OWNER} AS OwnerId, (SELECT COUNT(*) FROM Quotations q WHERE q.EnquiryId = e.EnquiryId) AS QuoteCount,
+            (SELECT COUNT(*) FROM Quotations q WHERE q.EnquiryId = e.EnquiryId AND q.Status = 'accepted') AS AcceptedCount
+     FROM Enquiries e WHERE e.EnquiryId = ?1`,
   )
     .bind(id)
-    .first<{ Status: EnquiryStatus; AdminNotes: string | null; SalePaise: number | null; OwnerId: number | null; QuoteCount: number }>();
+    .first<{ Status: EnquiryStatus; AdminNotes: string | null; SalePaise: number | null; OwnerId: number | null; QuoteCount: number; AcceptedCount: number }>();
   if (!row) throw new HttpError(404, "not_found", "Enquiry not found.");
   if (!isManager(admin) && row.OwnerId !== admin.id)
     throw new HttpError(403, "forbidden", row.OwnerId ? "This enquiry is assigned to another staff member." : "Take this enquiry first, then you can update it.");
@@ -1043,16 +1058,26 @@ export async function updateEnquiry(env: Env, admin: AdminIdentity, id: number, 
     throw new HttpError(409, "use_quotation", "This enquiry has a quotation. Open the quotation and mark it Accepted: the sale amount comes from the quotation.");
   if (!changed && to === "won" && v.salePaise != null && v.salePaise !== before.SalePaise && !isManager(admin))
     throw new HttpError(403, "forbidden", "Only the owner or an admin can correct the sale amount.");
-  const stmts = [
-    env.DB.prepare(
+  // a sale recorded by an accepted quotation is undone on the quotation (keeps the two in step)
+  if (changed && before.Status === "won" && before.AcceptedCount > 0)
+    throw new HttpError(409, "use_quotation", "This sale came from an accepted quotation. Open the quotation and change its status instead: that also reopens the enquiry.");
+  if (!changed && to === "won" && v.salePaise != null && v.salePaise !== before.SalePaise && before.AcceptedCount > 0)
+    throw new HttpError(409, "use_quotation", "The sale amount comes from the accepted quotation. Change the quotation instead.");
+  // Apply the change only if nobody changed the stage or sale in the meantime (double taps, two people at
+  // once): otherwise bonus and points could be added twice.
+  const main = await env.DB.prepare(
       `UPDATE Enquiries SET Status = ?1, AdminNotes = ?2, UpdatedAt = ?3, UpdatedBy = ?4,
          NotWonReason = CASE WHEN ?1 IN ('lost', 'cancelled') THEN ?5 WHEN ?1 = 'won' THEN NULL ELSE NotWonReason END,
          ClosedNote   = CASE WHEN ?1 IN ('lost', 'cancelled') THEN ?6 WHEN ?1 = 'won' THEN NULL ELSE ClosedNote END,
          SalePaise    = CASE WHEN ?1 = 'won' THEN COALESCE(?7, SalePaise) WHEN ?1 IN ('lost', 'cancelled') THEN NULL ELSE SalePaise END,
          ClosedAt     = CASE WHEN ?8 = 1 THEN (CASE WHEN ?9 = 1 THEN ?3 ELSE NULL END) ELSE ClosedAt END,
          FollowUpOn   = CASE WHEN ?9 = 1 THEN NULL WHEN ?11 = 1 THEN ?12 ELSE FollowUpOn END
-       WHERE EnquiryId = ?10`,
-    ).bind(to, v.adminNotes, now, admin.email, v.closedReason ?? null, v.closedNote?.trim() || null, v.salePaise ?? null, changed ? 1 : 0, closing ? 1 : 0, id, v.followUpOn !== undefined ? 1 : 0, v.followUpOn ?? null),
+       WHERE EnquiryId = ?10 AND Status = ?13 AND COALESCE(SalePaise, -1) = COALESCE(?14, -1)`,
+  )
+    .bind(to, v.adminNotes, now, admin.email, v.closedReason ?? null, v.closedNote?.trim() || null, v.salePaise ?? null, changed ? 1 : 0, closing ? 1 : 0, id, v.followUpOn !== undefined ? 1 : 0, v.followUpOn ?? null, before.Status, before.SalePaise)
+    .run();
+  if (!main.meta.changes) throw new HttpError(409, "changed", "Someone else just updated this enquiry. It has been refreshed: please check it and try again.");
+  const stmts = [
     audit(env, admin, "enquiry.update", "Enquiry", id, { status: before.Status, adminNotes: before.AdminNotes }, v, now),
   ];
   if (changed) stmts.push(enquiryEvent(env, admin, id, { kind: "status", from: before.Status, to, reason: v.closedReason, note: v.closedNote, salePaise: to === "won" ? v.salePaise : null }, now));
