@@ -42,6 +42,8 @@ export const QuoteInputSchema = z
     notes: z.string().trim().max(2000).default(""),
     validDays: z.number().int().min(1).max(365),
     items: z.array(QuoteItemInputSchema).min(1, "Add at least one product.").max(100),
+    /** the enquiry this quotation answers (set when created from Enquiries) */
+    enquiryId: z.number().int().positive().nullable().optional(),
   })
   .strict();
 export type QuoteInput = z.infer<typeof QuoteInputSchema>;

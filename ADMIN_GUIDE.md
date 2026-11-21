@@ -74,8 +74,15 @@ Every enquiry sent from the basket is saved with a reference number (e.g. `VS-26
 - It is saved under **your** staff account in the same Enquiries list (marked *Phone*, *WhatsApp* or *Visit* with your name), so it can be followed up and turned into a quotation like any other enquiry. Every staff role can log enquiries.
 - Each enquiry is labelled **From website** (the customer came to us through the site) or **Staff · Phone · name** (we reached out). Filter with **From customers (website)** or **Staff outreach**.
 
+### Who is responsible, and moving an enquiry along
+- Every enquiry has a **responsible staff member**. Enquiries a staff member logs are theirs. Website enquiries start **Unassigned**: owner/admin assign them (the *Responsible* box in the enquiry), or any staff member taps **Take this enquiry**.
+- Staff sign in with their own mobile and password and can update **only their own** enquiries; owner and admins can update any. Use the **Mine / Unassigned** chips to find yours.
+- Stages: **Received → Contacted → Quoted → Order confirmed (won)**, or **Lost / Cancelled**. Marking **Lost** or **Cancelled** asks *why* (price too high, bought elsewhere, postponed, product not available, delivery time, no response, budget, or Other with a note). Marking **won** asks for the **final sale amount** (pre-filled from the quotation).
+- **Create quotation** from an enquiry links the two: the enquiry moves to *Quoted*, and when the quotation is marked **Accepted** the enquiry becomes *won* with the quotation total as the sale value.
+- Every change is kept under **History** in the enquiry (who, what, when, why).
+
 ### Staff performance (owner and admins)
-**Performance** shows how many enquiries each staff member logged, per day, month or year (India time), with how many were quoted and won. Pick a date range or one staff member; **Show as a table** gives the exact numbers, and **See these enquiries** opens the matching list.
+**Performance** shows, per staff member and by day, month or year (India time): enquiries, how many were contacted, reached a quotation, were won (with **sales value**), lost or cancelled, the win rate, and the average days to the first quotation and to closing. It also lists **why enquiries were lost or cancelled**. Filter by staff member, dates and source (website or staff outreach); **Show as a table** gives exact numbers.
 
 ## Quotations
 Any admin (every role) can prepare quotations under **Quotations**. On an enquiry you can also click **Create quotation**, which fills in the customer details and products.

@@ -13,6 +13,7 @@ import {
   BrandInputSchema,
   CategoryInputSchema,
   EnquiryAdminUpdateSchema,
+  EnquiryAssignSchema,
   FieldPhotoInputSchema,
   issues,
   MediaInputSchema,
@@ -35,7 +36,10 @@ import {
   type AdminProductListRow,
   type AdminRole,
   type AdminUserRow,
+  type ClosedReason,
+  type EnquiryEvent,
   type EnquirySource,
+  type EnquiryStatus,
   type EnquiryStats,
   SITE_SETTING_KEYS,
   type SiteSettingKey,
@@ -843,11 +847,21 @@ export async function customerResetLink(env: Env, admin: AdminIdentity, id: numb
 
 // ------------------------------------------------------------------ enquiries (admin view)
 
+// ------------------------------------------------------------------ enquiries & sales pipeline
+// Responsible staff member (staff-logged enquiries are assigned to their creator when logged).
+const OWNER = "e.AssignedAdminId";
+const CLOSED_STATUSES = ["won", "lost", "cancelled"];
+
 const ENQ_SELECT = `SELECT e.EnquiryId, e.Reference, e.Status, e.CreatedAt, e.UpdatedAt, e.UpdatedBy, e.IndicativeTotalPaise, e.PricesVerified, e.Location, e.Comments,
        e.CustomerId, c.FullName AS CustomerName, e.ContactName, e.BusinessName, e.Mobile, e.AdminNotes,
-       e.Source, e.CreatedByAdminId, COALESCE(a.DisplayName, a.Email) AS CreatedByName
+       e.Source, e.CreatedByAdminId, COALESCE(a.DisplayName, a.Email) AS CreatedByName,
+       ${OWNER} AS OwnerId, COALESCE(o.DisplayName, o.Email) AS OwnerName,
+       e.ClosedReason, e.ClosedNote, e.ClosedAt, e.SalePaise,
+       (SELECT q.TotalPaise FROM Quotations q WHERE q.EnquiryId = e.EnquiryId ORDER BY q.QuotationId DESC LIMIT 1) AS QuotePaise,
+       (SELECT COUNT(*) FROM Quotations q WHERE q.EnquiryId = e.EnquiryId) AS QuoteCount
   FROM Enquiries e LEFT JOIN Customers c ON c.CustomerId = e.CustomerId
-  LEFT JOIN AdminUsers a ON a.AdminId = e.CreatedByAdminId`;
+  LEFT JOIN AdminUsers a ON a.AdminId = e.CreatedByAdminId
+  LEFT JOIN AdminUsers o ON o.AdminId = ${OWNER}`;
 
 type EnqRow = Parameters<typeof toEnquiryView>[0] & Record<string, unknown>;
 function toAdminEnquiry(r: EnqRow): AdminEnquiryRow {
@@ -855,6 +869,13 @@ function toAdminEnquiry(r: EnqRow): AdminEnquiryRow {
     ...toEnquiryView(r),
     source: ((r.Source as string) ?? "website") as EnquirySource,
     createdBy: r.CreatedByAdminId ? { id: r.CreatedByAdminId as number, name: (r.CreatedByName as string) ?? "Staff" } : null,
+    owner: r.OwnerId ? { id: r.OwnerId as number, name: (r.OwnerName as string) ?? "Staff" } : null,
+    closedReason: (r.ClosedReason as ClosedReason) ?? null,
+    closedNote: (r.ClosedNote as string) ?? null,
+    closedAt: (r.ClosedAt as string) ?? null,
+    salePaise: (r.SalePaise as number) ?? null,
+    quotePaise: (r.QuotePaise as number) ?? null,
+    quoteCount: (r.QuoteCount as number) ?? 0,
     customerId: (r.CustomerId as number) ?? null,
     customerName: (r.CustomerName as string) ?? null,
     contactName: r.ContactName as string,
@@ -866,7 +887,29 @@ function toAdminEnquiry(r: EnqRow): AdminEnquiryRow {
   };
 }
 
-export async function listEnquiries(env: Env, url: URL): Promise<{ rows: AdminEnquiryRow[]; counts: Record<string, number> }> {
+async function oneEnquiry(env: Env, id: number): Promise<AdminEnquiryRow> {
+  const rows = await loadEnquiries<EnqRow>(env, `${ENQ_SELECT} WHERE e.EnquiryId = ?1`, [id]);
+  if (!rows[0]) throw new HttpError(404, "not_found", "Enquiry not found.");
+  return toAdminEnquiry(rows[0]);
+}
+
+function enquiryEvent(env: Env, admin: AdminIdentity, enquiryId: number, e: { kind: "created" | "status" | "assigned"; from?: string | null; to?: string | null; assignedTo?: number | null; reason?: string | null; note?: string | null; salePaise?: number | null }, now: string) {
+  return env.DB.prepare(
+    `INSERT INTO EnquiryEvents (EnquiryId, Kind, FromStatus, ToStatus, AssignedTo, Reason, Note, SalePaise, ByAdminId, ByIdentity, CreatedAt)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
+  ).bind(enquiryId, e.kind, e.from ?? null, e.to ?? null, e.assignedTo ?? null, e.reason ?? null, e.note ?? null, e.salePaise ?? null, admin.id, admin.email, now);
+}
+
+/** Owner/admin may act on any enquiry; other staff only on enquiries they are responsible for. */
+async function requireEnquiryOwner(env: Env, admin: AdminIdentity, id: number) {
+  const row = await env.DB.prepare(`SELECT e.Status, e.AdminNotes, ${OWNER} AS OwnerId FROM Enquiries e WHERE e.EnquiryId = ?1`).bind(id).first<{ Status: EnquiryStatus; AdminNotes: string | null; OwnerId: number | null }>();
+  if (!row) throw new HttpError(404, "not_found", "Enquiry not found.");
+  if (!CONTENT_ROLES.includes(admin.role) && row.OwnerId !== admin.id)
+    throw new HttpError(403, "forbidden", row.OwnerId ? "This enquiry is assigned to another staff member." : "Take this enquiry first, then you can update it.");
+  return row;
+}
+
+export async function listEnquiries(env: Env, admin: AdminIdentity, url: URL): Promise<{ rows: AdminEnquiryRow[]; counts: Record<string, number> }> {
   const status = url.searchParams.get("status") ?? "";
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
   const where: string[] = [];
@@ -885,10 +928,15 @@ export async function listEnquiries(env: Env, url: URL): Promise<{ rows: AdminEn
     binds.push(source);
     where.push(`e.Source = ?${binds.length}`);
   } else if (source === "staff") where.push("e.CreatedByAdminId IS NOT NULL");
-  const staff = url.searchParams.get("staff") ?? "";
-  if (/^\d{1,9}$/.test(staff)) {
-    binds.push(Number(staff));
-    where.push(`e.CreatedByAdminId = ?${binds.length}`);
+  // responsible staff member: "me", "none" (unassigned) or a staff id
+  const owner = url.searchParams.get("owner") ?? url.searchParams.get("staff") ?? "";
+  if (owner === "me") {
+    binds.push(admin.id);
+    where.push(`${OWNER} = ?${binds.length}`);
+  } else if (owner === "none") where.push(`${OWNER} IS NULL`);
+  else if (/^\d{1,9}$/.test(owner)) {
+    binds.push(Number(owner));
+    where.push(`${OWNER} = ?${binds.length}`);
   }
   const rows = await loadEnquiries<EnqRow>(env, `${ENQ_SELECT} ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY e.CreatedAt DESC, e.EnquiryId DESC LIMIT 300`, binds);
   const c = await env.DB.prepare("SELECT Status, COUNT(*) AS n FROM Enquiries GROUP BY Status").all<{ Status: string; n: number }>();
@@ -896,14 +944,11 @@ export async function listEnquiries(env: Env, url: URL): Promise<{ rows: AdminEn
 }
 
 /**
- * Staff log an enquiry they handled themselves (phone call, WhatsApp, visit). Any active staff role may
- * log; the enquiry is recorded against their AdminId for the performance report. Product lines are a
- * snapshot of the catalogue at that moment (listed prices only, as on the website).
+ * Staff log a customer they reached out to themselves (phone, WhatsApp, visit). Any active staff role may
+ * log; they become responsible for it. Product lines are a snapshot of the catalogue (listed prices only).
  */
 export async function createStaffEnquiry(env: Env, admin: AdminIdentity, body: unknown): Promise<{ enquiry: AdminEnquiryRow }> {
   const v = parse(StaffEnquirySchema, body);
-  const me = await env.DB.prepare("SELECT AdminId FROM AdminUsers WHERE Email = ?1 COLLATE NOCASE AND IsActive = 1").bind(admin.email).first<{ AdminId: number }>();
-  if (!me) throw new HttpError(403, "forbidden", "Your staff account is not active.");
   const ids = [...new Set(v.items.map((i) => i.productId))];
   const products = ids.length
     ? await env.DB.prepare(
@@ -929,73 +974,173 @@ export async function createStaffEnquiry(env: Env, admin: AdminIdentity, body: u
   });
   const ref = reference();
   const now = nowIso();
+  const closed = CLOSED_STATUSES.includes(v.status);
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO Enquiries (Reference, ContactName, BusinessName, Mobile, Location, Comments, Status, PricesVerified, IndicativeTotalPaise, Source, CreatedByAdminId, CreatedAt, UpdatedAt, UpdatedBy)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13)`,
-    ).bind(ref, v.name, v.business || null, v.mobile, v.location, v.need || null, v.status, priced > 0 ? 1 : 0, priced > 0 ? total : null, v.source, me.AdminId, now, admin.email),
+      `INSERT INTO Enquiries (Reference, ContactName, BusinessName, Mobile, Location, Comments, Status, PricesVerified, IndicativeTotalPaise, Source, CreatedByAdminId, AssignedAdminId, ClosedAt, CreatedAt, UpdatedAt, UpdatedBy)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12, ?13, ?13, ?14)`,
+    ).bind(ref, v.name, v.business || null, v.mobile, v.location, v.need || null, v.status, priced > 0 ? 1 : 0, priced > 0 ? total : null, v.source, admin.id, closed ? now : null, now, admin.email),
     ...items.map((i) =>
       env.DB.prepare(
         `INSERT INTO EnquiryItems (EnquiryId, ProductId, ProductName, BrandName, ModelNumber, Quantity, UnitPricePaise, PriceUnit, GSTRate, GSTIncluded)
          SELECT EnquiryId, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10 FROM Enquiries WHERE Reference = ?1`,
       ).bind(ref, i.productId, i.r.ProductName, i.r.BrandName, i.r.ModelNumber, i.quantity, i.unit, i.r.PriceUnit ?? "per piece", i.r.GSTRate, i.r.GSTIncluded ?? 0),
     ),
+    env.DB.prepare(
+      `INSERT INTO EnquiryEvents (EnquiryId, Kind, ToStatus, AssignedTo, ByAdminId, ByIdentity, CreatedAt)
+       SELECT EnquiryId, 'created', ?2, ?3, ?3, ?4, ?5 FROM Enquiries WHERE Reference = ?1`,
+    ).bind(ref, v.status, admin.id, admin.email, now),
     audit(env, admin, "enquiry.log", "Enquiry", ref, null, { source: v.source, status: v.status, items: v.items.length }, now),
   ]);
-  const rows = await loadEnquiries<EnqRow>(env, `${ENQ_SELECT} WHERE e.Reference = ?1`, [ref]);
-  return { enquiry: toAdminEnquiry(rows[0]) };
+  const row = await env.DB.prepare("SELECT EnquiryId FROM Enquiries WHERE Reference = ?1").bind(ref).first<{ EnquiryId: number }>();
+  return { enquiry: await oneEnquiry(env, row!.EnquiryId) };
+}
+
+/**
+ * Move an enquiry along the pipeline (and/or edit internal notes). Owner/admin: any enquiry; other staff:
+ * only their own. Lost/cancelled store the reason, won stores the sale value; every stage change is logged.
+ */
+export async function updateEnquiry(env: Env, admin: AdminIdentity, id: number, body: unknown) {
+  const v = parse(EnquiryAdminUpdateSchema, body);
+  const before = await requireEnquiryOwner(env, admin, id);
+  const now = nowIso();
+  const to = v.status ?? before.Status;
+  const changed = to !== before.Status;
+  const closing = CLOSED_STATUSES.includes(to);
+  const stmts = [
+    env.DB.prepare(
+      `UPDATE Enquiries SET Status = ?1, AdminNotes = ?2, UpdatedAt = ?3, UpdatedBy = ?4,
+         ClosedReason = CASE WHEN ?1 IN ('lost', 'cancelled') THEN ?5 WHEN ?1 = 'won' THEN NULL ELSE ClosedReason END,
+         ClosedNote   = CASE WHEN ?1 IN ('lost', 'cancelled') THEN ?6 WHEN ?1 = 'won' THEN NULL ELSE ClosedNote END,
+         SalePaise    = CASE WHEN ?1 = 'won' THEN ?7 WHEN ?1 IN ('lost', 'cancelled') THEN NULL ELSE SalePaise END,
+         ClosedAt     = CASE WHEN ?8 = 1 THEN (CASE WHEN ?9 = 1 THEN ?3 ELSE NULL END) ELSE ClosedAt END
+       WHERE EnquiryId = ?10`,
+    ).bind(to, v.adminNotes, now, admin.email, v.closedReason ?? null, v.closedNote?.trim() || null, v.salePaise ?? null, changed ? 1 : 0, closing ? 1 : 0, id),
+    audit(env, admin, "enquiry.update", "Enquiry", id, { status: before.Status, adminNotes: before.AdminNotes }, v, now),
+  ];
+  if (changed) stmts.push(enquiryEvent(env, admin, id, { kind: "status", from: before.Status, to, reason: v.closedReason, note: v.closedNote, salePaise: to === "won" ? v.salePaise : null }, now));
+  await env.DB.batch(stmts);
+  return { enquiry: await oneEnquiry(env, id) };
+}
+
+/** Owner/admin assign or reassign; any staff member may take an unassigned enquiry. */
+export async function assignEnquiry(env: Env, admin: AdminIdentity, id: number, body: unknown) {
+  const v = parse(EnquiryAssignSchema, body);
+  const cur = await env.DB.prepare(`SELECT ${OWNER} AS OwnerId FROM Enquiries e WHERE e.EnquiryId = ?1`).bind(id).first<{ OwnerId: number | null }>();
+  if (!cur) throw new HttpError(404, "not_found", "Enquiry not found.");
+  let to: number | null;
+  if ("take" in v) {
+    if (cur.OwnerId === admin.id) return { enquiry: await oneEnquiry(env, id) };
+    if (cur.OwnerId !== null) throw new HttpError(409, "taken", "Someone else already took this enquiry.");
+    to = admin.id;
+  } else {
+    requireRole(admin, CONTENT_ROLES, "assign enquiries");
+    to = v.adminId;
+    if (to !== null) {
+      const ok = await env.DB.prepare("SELECT 1 FROM AdminUsers WHERE AdminId = ?1 AND IsActive = 1").bind(to).first();
+      if (!ok) throw new HttpError(422, "validation", "That staff member is not active.");
+    }
+  }
+  const now = nowIso();
+  // Guard against two people taking it at the same moment: only assign if still unassigned when taking.
+  const upd = await env.DB.prepare(
+    `UPDATE Enquiries SET AssignedAdminId = ?1, UpdatedAt = ?2, UpdatedBy = ?3 WHERE EnquiryId = ?4 ${"take" in v ? `AND ${OWNER.replace(/e\./g, "")} IS NULL` : ""}`,
+  )
+    .bind(to, now, admin.email, id)
+    .run();
+  if ("take" in v && !upd.meta.changes) throw new HttpError(409, "taken", "Someone else already took this enquiry.");
+  await env.DB.batch([enquiryEvent(env, admin, id, { kind: "assigned", assignedTo: to }, now), audit(env, admin, "enquiry.assign", "Enquiry", id, { owner: cur.OwnerId }, { owner: to }, now)]);
+  return { enquiry: await oneEnquiry(env, id) };
+}
+
+/** Stage changes and assignments of one enquiry, oldest first. */
+export async function enquiryHistory(env: Env, id: number): Promise<{ events: EnquiryEvent[] }> {
+  const r = await env.DB.prepare(
+    `SELECT ev.EventId, ev.Kind, ev.FromStatus, ev.ToStatus, COALESCE(t.DisplayName, t.Email) AS AssignedName, ev.Reason, ev.Note, ev.SalePaise,
+            COALESCE(b.DisplayName, b.Email, ev.ByIdentity) AS ByName, ev.CreatedAt
+     FROM EnquiryEvents ev LEFT JOIN AdminUsers t ON t.AdminId = ev.AssignedTo LEFT JOIN AdminUsers b ON b.AdminId = ev.ByAdminId
+     WHERE ev.EnquiryId = ?1 ORDER BY ev.CreatedAt, ev.EventId`,
+  )
+    .bind(id)
+    .all<Record<string, unknown>>();
+  return {
+    events: r.results.map((x) => ({
+      id: x.EventId as number,
+      kind: x.Kind as EnquiryEvent["kind"],
+      fromStatus: (x.FromStatus as EnquiryStatus) ?? null,
+      toStatus: (x.ToStatus as EnquiryStatus) ?? null,
+      assignedTo: (x.AssignedName as string) ?? null,
+      reason: (x.Reason as ClosedReason) ?? null,
+      note: (x.Note as string) ?? null,
+      salePaise: (x.SalePaise as number) ?? null,
+      by: (x.ByName as string) ?? null,
+      at: x.CreatedAt as string,
+    })),
+  };
 }
 
 const IST = "'+5 hours', '+30 minutes'";
 const ymd = (v: string | null, fallback: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fallback);
 
-/** Owner/admin: enquiries logged per staff member by day, month or year (India time), with outcomes. */
+/**
+ * Owner/admin: the sales pipeline per responsible staff member for enquiries created in the date range
+ * (India time): how many were contacted, quoted, won (with sale value), lost or cancelled, average days to
+ * the first quotation and to closing, lost/cancelled reasons, and a day/month/year breakdown.
+ */
 export async function enquiryStats(env: Env, admin: AdminIdentity, url: URL): Promise<EnquiryStats> {
   requireRole(admin, CONTENT_ROLES, "see staff performance");
   const period = (["day", "month", "year"] as const).find((x) => x === url.searchParams.get("period")) ?? "day";
-  const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
-  const defaultFrom = period === "day" ? new Date(Date.now() + 5.5 * 3600_000 - 29 * 86400_000).toISOString().slice(0, 10) : period === "month" ? `${today.slice(0, 4)}-01-01` : `${Number(today.slice(0, 4)) - 4}-01-01`;
+  const source = (["website", "staff"] as const).find((x) => x === url.searchParams.get("source")) ?? "all";
+  const istNow = Date.now() + 5.5 * 3600_000;
+  const today = new Date(istNow).toISOString().slice(0, 10);
+  const defaultFrom = period === "day" ? new Date(istNow - 29 * 86400_000).toISOString().slice(0, 10) : period === "month" ? `${today.slice(0, 4)}-01-01` : `${Number(today.slice(0, 4)) - 4}-01-01`;
   const from = ymd(url.searchParams.get("from"), defaultFrom);
   const to = ymd(url.searchParams.get("to"), today);
   const fmt = period === "day" ? "%Y-%m-%d" : period === "month" ? "%Y-%m" : "%Y";
-  // day boundaries in India time; "to" is inclusive
-  const range = `date(e.CreatedAt, ${IST}) BETWEEN ?1 AND ?2`;
-  const [staffRows, bucketRows, web] = await env.DB.batch([
+  const scope = `date(e.CreatedAt, ${IST}) BETWEEN ?1 AND ?2${source === "website" ? " AND e.Source = 'website'" : source === "staff" ? " AND e.CreatedByAdminId IS NOT NULL" : ""}`;
+  // reached the quotation stage: status quoted/won now, a recorded move to quoted, or a linked quotation
+  const quoted = `(e.Status IN ('quoted', 'won') OR EXISTS (SELECT 1 FROM EnquiryEvents x WHERE x.EnquiryId = e.EnquiryId AND x.ToStatus = 'quoted') OR EXISTS (SELECT 1 FROM Quotations q WHERE q.EnquiryId = e.EnquiryId))`;
+  const firstQuote = `(SELECT MIN(t) FROM (SELECT x.CreatedAt AS t FROM EnquiryEvents x WHERE x.EnquiryId = e.EnquiryId AND x.ToStatus = 'quoted' UNION ALL SELECT q.CreatedAt FROM Quotations q WHERE q.EnquiryId = e.EnquiryId))`;
+  const [staffRows, unassigned, bucketRows, reasonRows, web] = await env.DB.batch([
     env.DB.prepare(
       `SELECT a.AdminId AS id, COALESCE(a.DisplayName, a.Email) AS name,
-              COUNT(e.EnquiryId) AS total, COALESCE(SUM(e.Status = 'won'), 0) AS won,
-              COALESCE(SUM(e.Status IN ('quoted', 'won')), 0) AS quoted, COALESCE(SUM(e.Status = 'lost'), 0) AS lost
-       FROM AdminUsers a LEFT JOIN Enquiries e ON e.CreatedByAdminId = a.AdminId AND ${range}
+              COUNT(e.EnquiryId) AS total,
+              COALESCE(SUM(e.Status <> 'new'), 0) AS contacted,
+              COALESCE(SUM(${quoted}), 0) AS quoted,
+              COALESCE(SUM(e.Status = 'won'), 0) AS won,
+              COALESCE(SUM(e.Status = 'lost'), 0) AS lost,
+              COALESCE(SUM(e.Status = 'cancelled'), 0) AS cancelled,
+              COALESCE(SUM(e.Status IN ('new', 'contacted', 'quoted')), 0) AS open,
+              COALESCE(SUM(CASE WHEN e.Status = 'won' THEN e.SalePaise END), 0) AS salePaise,
+              ROUND(AVG(julianday(${firstQuote}) - julianday(e.CreatedAt)), 1) AS avgDaysToQuote,
+              ROUND(AVG(CASE WHEN e.Status = 'won' THEN julianday(e.ClosedAt) - julianday(e.CreatedAt) END), 1) AS avgDaysToClose
+       FROM AdminUsers a LEFT JOIN Enquiries e ON ${OWNER} = a.AdminId AND ${scope}
        WHERE a.IsActive = 1 OR e.EnquiryId IS NOT NULL
-       GROUP BY a.AdminId ORDER BY total DESC, name`,
+       GROUP BY a.AdminId ORDER BY won DESC, total DESC, name`,
     ).bind(from, to),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM Enquiries e WHERE ${OWNER} IS NULL AND ${scope}`).bind(from, to),
     env.DB.prepare(
-      `SELECT strftime(?3, e.CreatedAt, ${IST}) AS bucket, e.CreatedByAdminId AS staffId, COUNT(*) AS total, COALESCE(SUM(e.Status = 'won'), 0) AS won
-       FROM Enquiries e WHERE e.CreatedByAdminId IS NOT NULL AND ${range}
-       GROUP BY bucket, e.CreatedByAdminId ORDER BY bucket`,
+      `SELECT strftime(?3, e.CreatedAt, ${IST}) AS bucket, ${OWNER} AS staffId, COUNT(*) AS total,
+              COALESCE(SUM(e.Status = 'won'), 0) AS won, COALESCE(SUM(CASE WHEN e.Status = 'won' THEN e.SalePaise END), 0) AS salePaise
+       FROM Enquiries e WHERE ${scope}
+       GROUP BY bucket, staffId ORDER BY bucket`,
     ).bind(from, to, fmt),
-    env.DB.prepare(`SELECT COUNT(*) AS n FROM Enquiries e WHERE e.Source = 'website' AND ${range}`).bind(from, to),
+    env.DB.prepare(
+      `SELECT e.ClosedReason AS reason, e.Status AS status, COUNT(*) AS count, ${OWNER} AS staffId
+       FROM Enquiries e WHERE e.Status IN ('lost', 'cancelled') AND e.ClosedReason IS NOT NULL AND ${scope}
+       GROUP BY e.ClosedReason, e.Status, staffId ORDER BY count DESC`,
+    ).bind(from, to),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM Enquiries e WHERE e.Source = 'website' AND date(e.CreatedAt, ${IST}) BETWEEN ?1 AND ?2`).bind(from, to),
   ]);
   return {
     period,
     from,
     to,
+    source,
     staff: staffRows.results as EnquiryStats["staff"],
+    unassigned: (unassigned.results[0] as { n: number } | undefined)?.n ?? 0,
     buckets: bucketRows.results as EnquiryStats["buckets"],
+    reasons: reasonRows.results as EnquiryStats["reasons"],
     websiteTotal: (web.results[0] as { n: number } | undefined)?.n ?? 0,
   };
-}
-
-export async function updateEnquiry(env: Env, admin: AdminIdentity, id: number, body: unknown) {
-  requireRole(admin, CONTENT_ROLES, "update enquiries");
-  const v = parse(EnquiryAdminUpdateSchema, body);
-  const before = await env.DB.prepare("SELECT Status, AdminNotes FROM Enquiries WHERE EnquiryId = ?1").bind(id).first();
-  if (!before) throw new HttpError(404, "not_found", "Enquiry not found.");
-  const now = nowIso();
-  await env.DB.batch([
-    env.DB.prepare("UPDATE Enquiries SET Status = COALESCE(?1, Status), AdminNotes = ?2, UpdatedAt = ?3, UpdatedBy = ?4 WHERE EnquiryId = ?5").bind(v.status ?? null, v.adminNotes, now, admin.email, id),
-    audit(env, admin, "enquiry.update", "Enquiry", id, before, v, now),
-  ]);
-  const rows = await loadEnquiries<EnqRow>(env, `${ENQ_SELECT} WHERE e.EnquiryId = ?1`, [id]);
-  return { enquiry: toAdminEnquiry(rows[0]) };
 }

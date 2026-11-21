@@ -10,7 +10,9 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"]],
   snapshotPathTemplate: "{testDir}/desktop-baseline/{projectName}/{arg}{ext}",
-  expect: { toHaveScreenshot: { animations: "disabled", caret: "hide", scale: "css" } },
+  // maxDiffPixels: Chromium on Windows renders text edges (anti-aliasing) slightly differently between runs
+  // (observed up to ~550 px per page). Anything that moves or resizes an element changes far more pixels.
+  expect: { toHaveScreenshot: { animations: "disabled", caret: "hide", scale: "css", maxDiffPixels: 700 } },
   use: { baseURL: process.env.BASE_URL ?? "http://localhost:5173", reducedMotion: "reduce", locale: "en-IN", timezoneId: "Asia/Kolkata" },
   webServer: { command: "npm run dev -- --port 5173 --strictPort", url: (process.env.BASE_URL ?? "http://localhost:5173") + "/api/health", reuseExistingServer: true, timeout: 120_000 },
   projects: [

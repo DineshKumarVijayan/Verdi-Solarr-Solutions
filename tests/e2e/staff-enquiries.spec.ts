@@ -31,7 +31,7 @@ test("staff log a phone enquiry with products; it shows in Enquiries and in the 
   await page.goto("/admin/performance");
   await expect(page.getByTestId("leaderboard")).toBeVisible();
   const totals = page.getByTestId("performance-totals");
-  await expect(totals).toContainText("Staff outreach");
+  await expect(totals).toContainText("Enquiries");
   const logged = Number(await totals.locator("dd").first().textContent());
   expect(logged).toBeGreaterThanOrEqual(1);
   await page.getByRole("radio", { name: "Monthly" }).click();

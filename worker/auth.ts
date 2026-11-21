@@ -44,17 +44,17 @@ export async function requireAdmin(request: Request, env: Env): Promise<AdminIde
   const now = new Date();
   const hash = await sha256Hex(token);
   const row = await env.DB.prepare(
-    `SELECT a.Email, a.DisplayName, a.Role, s.ExpiresAt FROM AdminSessions s JOIN AdminUsers a ON a.AdminId = s.AdminId
+    `SELECT a.AdminId, a.Email, a.DisplayName, a.Role, s.ExpiresAt FROM AdminSessions s JOIN AdminUsers a ON a.AdminId = s.AdminId
      WHERE s.SessionHash = ?1 AND s.ExpiresAt > ?2 AND s.CreatedAt > ?3 AND a.IsActive = 1 AND a.MustChangePassword = 0`,
   )
     .bind(hash, now.toISOString(), new Date(now.getTime() - ADMIN_MAX_HOURS * 3600_000).toISOString())
-    .first<{ Email: string; DisplayName: string | null; Role: AdminRole; ExpiresAt: string }>();
+    .first<{ AdminId: number; Email: string; DisplayName: string | null; Role: AdminRole; ExpiresAt: string }>();
   if (!row) throw new HttpError(401, "unauthenticated", "You were signed out. Please sign in again.");
   // Activity keeps the session alive (sliding idle timeout); written at most every few minutes.
   if (Date.parse(row.ExpiresAt) - now.getTime() < (IDLE_MINUTES - SLIDE_EVERY_MINUTES) * 60_000) {
     await env.DB.prepare("UPDATE AdminSessions SET ExpiresAt = ?1 WHERE SessionHash = ?2").bind(idleDeadline(now), hash).run();
   }
-  return { email: row.Email.toLowerCase(), displayName: row.DisplayName, role: row.Role };
+  return { id: row.AdminId, email: row.Email.toLowerCase(), displayName: row.DisplayName, role: row.Role };
 }
 
 type AdminLoginRow = { AdminId: number; Email: string; DisplayName: string | null; Role: AdminRole; PasswordHash: string | null; IsActive: number; FailedLogins: number; LockedUntil: string | null; MustChangePassword: number };
@@ -98,7 +98,7 @@ async function startAdminSession(request: Request, env: Env, row: AdminLoginRow,
     env.DB.prepare("UPDATE AdminUsers SET FailedLogins = 0, LockedUntil = NULL, LastLoginAt = ?1 WHERE AdminId = ?2").bind(now.toISOString(), row.AdminId),
     env.DB.prepare("INSERT INTO AuditLogs (AdminIdentity, Action, EntityType, EntityId, CreatedAt) VALUES (?1, 'admin.login', 'AdminUser', ?2, ?3)").bind(row.Email.toLowerCase(), String(row.AdminId), now.toISOString()),
   ]);
-  const res = json({ admin: { email: row.Email.toLowerCase(), displayName: row.DisplayName, role: row.Role } satisfies AdminIdentity });
+  const res = json({ admin: { id: row.AdminId, email: row.Email.toLowerCase(), displayName: row.DisplayName, role: row.Role } satisfies AdminIdentity });
   for (const c of adminCookies(new URL(request.url), token)) res.headers.append("Set-Cookie", c);
   return res;
 }

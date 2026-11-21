@@ -230,7 +230,7 @@ test("customer registers, sends an enquiry, sees history, status and reward poin
   // Admin: mark won + award points on the enquiry
   const enq = (await (await request.get(`/api/admin/enquiries?q=${ref}`)).json()).rows[0];
   expect(enq.customerName).toBe("E2E Buyer");
-  expect((await request.put(`/api/admin/enquiries/${enq.id}`, { headers: H, data: { status: "won", adminNotes: "e2e" } })).status()).toBe(200);
+  expect((await request.put(`/api/admin/enquiries/${enq.id}`, { headers: H, data: { status: "won", adminNotes: "e2e", salePaise: 100000 } })).status()).toBe(200);
   expect((await request.post(`/api/admin/customers/${enq.customerId}/points`, { headers: H, data: { points: 250, reason: "Order bonus", enquiryId: enq.id } })).status()).toBe(200);
   const over = await request.post(`/api/admin/customers/${enq.customerId}/points`, { headers: H, data: { points: -1000, reason: "too much" } });
   expect(over.status()).toBe(422);

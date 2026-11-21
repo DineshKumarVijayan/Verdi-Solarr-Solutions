@@ -332,12 +332,25 @@ export const StaffEnquirySchema = z
   .strict();
 export type StaffEnquiry = z.infer<typeof StaffEnquirySchema>;
 
+const CLOSED = ["price", "bought_elsewhere", "postponed", "unavailable", "delivery_time", "no_response", "budget", "other"] as const;
+/** Moving an enquiry along the pipeline. Lost / cancelled need a reason ('other' needs a note); won needs the sale value. */
 export const EnquiryAdminUpdateSchema = z
   .object({
     status: z.enum(["new", "contacted", "quoted", "won", "lost", "cancelled"]).optional(),
     adminNotes: optText(2000),
+    closedReason: z.enum(CLOSED).nullable().optional(),
+    closedNote: z.string().trim().max(500).nullable().optional(),
+    salePaise: z.number().int().min(1, "Enter the sale amount").max(1_000_000_000_00).nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((v, ctx) => {
+    if ((v.status === "lost" || v.status === "cancelled") && !v.closedReason) ctx.addIssue({ code: "custom", path: ["closedReason"], message: "Choose why it was lost or cancelled" });
+    if ((v.status === "lost" || v.status === "cancelled") && v.closedReason === "other" && !v.closedNote?.trim()) ctx.addIssue({ code: "custom", path: ["closedNote"], message: "Describe the reason" });
+    if (v.status === "won" && !v.salePaise) ctx.addIssue({ code: "custom", path: ["salePaise"], message: "Enter the final sale amount" });
+  });
+
+/** Owner/admin assign (adminId, or null to unassign); any staff member can take an unassigned enquiry. */
+export const EnquiryAssignSchema = z.union([z.object({ adminId: z.number().int().positive().nullable() }).strict(), z.object({ take: z.literal(true) }).strict()]);
 
 export const PointsAdjustSchema = z
   .object({

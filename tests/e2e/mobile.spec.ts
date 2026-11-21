@@ -331,7 +331,7 @@ test("staff log an enquiry from the phone dashboard in a full-screen sheet", asy
   await expect(sheet).toBeHidden();
   await expect(page.getByTestId("admin-enquiry").filter({ hasText: name })).toBeVisible();
   await page.goto("/admin/performance");
-  await expect(page.getByTestId("leaderboard")).toBeVisible();
+  await expect(page.getByTestId("leaderboard-cards")).toBeVisible(); // phones: one card per staff member
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
 });
 

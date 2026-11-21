@@ -108,6 +108,8 @@ export interface RevalidatedItem {
 export type AdminRole = "owner" | "admin" | "price_editor" | "viewer";
 
 export interface AdminIdentity {
+  /** AdminUsers.AdminId of the signed-in staff member */
+  id: number;
   email: string;
   displayName: string | null;
   role: AdminRole;
@@ -324,6 +326,16 @@ export interface AdminEnquiryRow extends EnquiryView {
   source: EnquirySource;
   /** staff member who logged it (null for website enquiries) */
   createdBy: { id: number; name: string } | null;
+  /** staff member responsible for it (assigned / picked up; the creator for staff-logged enquiries) */
+  owner: { id: number; name: string } | null;
+  closedReason: ClosedReason | null;
+  closedNote: string | null;
+  closedAt: string | null;
+  /** final sale value in paise when won */
+  salePaise: number | null;
+  /** total of the latest quotation made from this enquiry (pre-fills the sale value) */
+  quotePaise: number | null;
+  quoteCount: number;
   customerId: number | null;
   customerName: string | null;
   contactName: string;
@@ -349,11 +361,57 @@ export interface AdminCustomerRow {
 }
 
 /** Enquiries logged per staff member, bucketed by day / month / year (India time). */
+/** Why an enquiry was lost or cancelled. */
+export const CLOSED_REASONS = ["price", "bought_elsewhere", "postponed", "unavailable", "delivery_time", "no_response", "budget", "other"] as const;
+export type ClosedReason = (typeof CLOSED_REASONS)[number];
+export const CLOSED_REASON_LABEL: Record<ClosedReason, string> = {
+  price: "Price too high",
+  bought_elsewhere: "Bought elsewhere",
+  postponed: "Postponed / not ready",
+  unavailable: "Product not available",
+  delivery_time: "Delivery time too long",
+  no_response: "No response from customer",
+  budget: "Budget / financing",
+  other: "Other",
+};
+
+/** One step in an enquiry's history (stage change or (re)assignment). */
+export interface EnquiryEvent {
+  id: number;
+  kind: "created" | "status" | "assigned";
+  fromStatus: EnquiryStatus | null;
+  toStatus: EnquiryStatus | null;
+  assignedTo: string | null;
+  reason: ClosedReason | null;
+  note: string | null;
+  salePaise: number | null;
+  by: string | null;
+  at: string;
+}
+
+/** Sales pipeline per staff member (owner / admin only). Counts enquiries created in the date range. */
 export interface EnquiryStats {
   period: "day" | "month" | "year";
   from: string;
   to: string;
-  staff: { id: number; name: string; total: number; won: number; quoted: number; lost: number }[];
-  buckets: { bucket: string; staffId: number; total: number; won: number }[];
+  source: "all" | "website" | "staff";
+  staff: {
+    id: number;
+    name: string;
+    total: number;
+    contacted: number;
+    quoted: number;
+    won: number;
+    lost: number;
+    cancelled: number;
+    open: number;
+    salePaise: number;
+    avgDaysToQuote: number | null;
+    avgDaysToClose: number | null;
+  }[];
+  /** enquiries in the range nobody is responsible for yet */
+  unassigned: number;
+  buckets: { bucket: string; staffId: number | null; total: number; won: number; salePaise: number }[];
+  reasons: { reason: ClosedReason; status: "lost" | "cancelled"; count: number; staffId: number | null }[];
   websiteTotal: number;
 }

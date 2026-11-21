@@ -1,19 +1,31 @@
 import { ArrowRight, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import type { EnquiryStats } from "../../../shared/types";
+import { formatPaise } from "../../../shared/money";
+import { CLOSED_REASON_LABEL, type EnquiryStats } from "../../../shared/types";
 import { Accordion } from "../../components/mobile/kit";
+import { usePaged } from "../../components/Pager";
 import { Spinner } from "../../components/ui";
 import { api, ApiError } from "../../lib/api";
 import { usePageMeta } from "../../lib/seo";
 import { PageHead } from "./kit";
-import { usePaged } from "../../components/Pager";
 
 type Period = EnquiryStats["period"];
+type Metric = "total" | "won" | "salePaise";
 const PERIODS: [Period, string][] = [
   ["day", "Daily"],
   ["month", "Monthly"],
   ["year", "Yearly"],
+];
+const METRICS: [Metric, string][] = [
+  ["total", "Enquiries"],
+  ["won", "Won"],
+  ["salePaise", "Sales ₹"],
+];
+const SOURCES: [string, string][] = [
+  ["", "All enquiries"],
+  ["website", "From website"],
+  ["staff", "Staff outreach"],
 ];
 
 const label = (bucket: string, period: Period) => {
@@ -21,6 +33,10 @@ const label = (bucket: string, period: Period) => {
   if (period === "month") return new Date(`${bucket}-01T00:00:00`).toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
   return new Date(`${bucket}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 };
+const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
+const days = (d: number | null) => (d == null ? "—" : `${d} d`);
+/** Whole rupees for compact figures (exact values are in the tables). */
+const rupees = (p: number) => formatPaise(Math.round(p / 100) * 100).replace(/\.00$/, "");
 
 /** Every day / month / year between from and to, so quiet periods show as zero instead of disappearing. */
 function allBuckets(from: string, to: string, period: Period): string[] {
@@ -48,19 +64,23 @@ function allBuckets(from: string, to: string, period: Period): string[] {
   return out;
 }
 
-/** Owner / admin: how many enquiries each staff member logged per day, month or year, and how many were won. */
+/**
+ * Owner / admin: the sales pipeline per staff member — enquiries they are responsible for, how many reached
+ * a quotation and a sale (with value), lost/cancelled with reasons, and how fast — by day, month or year.
+ */
 export default function Performance() {
   usePageMeta("Staff performance", undefined, { noindex: true });
   const [params, setParams] = useSearchParams();
   const period = (["day", "month", "year"] as const).find((p) => p === params.get("period")) ?? "day";
   const staffId = Number(params.get("staff") ?? 0) || null;
+  const source = params.get("source") ?? "";
+  const [metric, setMetric] = useState<Metric>("total");
   const [data, setData] = useState<EnquiryStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const sp = new URLSearchParams({ period });
-    if (params.get("from")) sp.set("from", params.get("from")!);
-    if (params.get("to")) sp.set("to", params.get("to")!);
+    for (const k of ["from", "to", "source"]) if (params.get(k)) sp.set(k, params.get(k)!);
     setError(null);
     api<EnquiryStats>(`/api/admin/enquiries/stats?${sp}`)
       .then(setData)
@@ -77,29 +97,40 @@ export default function Performance() {
       { replace: true },
     );
 
+  const staff = data?.staff ?? [];
+  const shown = staffId ? staff.filter((s) => s.id === staffId) : staff;
+  const sum = shown.reduce(
+    (a, s) => ({ total: a.total + s.total, quoted: a.quoted + s.quoted, won: a.won + s.won, lost: a.lost + s.lost + s.cancelled, sale: a.sale + s.salePaise }),
+    { total: 0, quoted: 0, won: 0, lost: 0, sale: 0 },
+  );
+
   const series = useMemo(() => {
     if (!data) return [];
-    const totals = new Map<string, { total: number; won: number }>();
+    const totals = new Map<string, { total: number; won: number; salePaise: number }>();
     for (const b of data.buckets) {
       if (staffId && b.staffId !== staffId) continue;
-      const t = totals.get(b.bucket) ?? { total: 0, won: 0 };
+      const t = totals.get(b.bucket) ?? { total: 0, won: 0, salePaise: 0 };
       t.total += b.total;
       t.won += b.won;
+      t.salePaise += b.salePaise;
       totals.set(b.bucket, t);
     }
-    return allBuckets(data.from, data.to, data.period).map((k) => ({ bucket: k, ...(totals.get(k) ?? { total: 0, won: 0 }) }));
+    return allBuckets(data.from, data.to, data.period).map((k) => ({ bucket: k, ...(totals.get(k) ?? { total: 0, won: 0, salePaise: 0 }) }));
   }, [data, staffId]);
-
   const table = usePaged(useMemo(() => [...series].reverse(), [series]), "performance.table");
-  const staff = data?.staff ?? [];
-  const shownStaff = staffId ? staff.filter((s) => s.id === staffId) : staff;
-  const sum = shownStaff.reduce((a, s) => ({ total: a.total + s.total, quoted: a.quoted + s.quoted, won: a.won + s.won }), { total: 0, quoted: 0, won: 0 });
-  const maxStaff = Math.max(1, ...staff.map((s) => s.total));
-  const maxBar = Math.max(1, ...series.map((x) => x.total));
+  const maxBar = Math.max(1, ...series.map((x) => x[metric]));
+  const fmtMetric = (v: number) => (metric === "salePaise" ? rupees(v) : String(v));
+
+  const reasons = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of data?.reasons ?? []) if (!staffId || r.staffId === staffId) m.set(r.reason, (m.get(r.reason) ?? 0) + r.count);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [data, staffId]);
+  const maxReason = Math.max(1, ...reasons.map(([, n]) => n));
 
   return (
     <div className="container-x py-10 max-lg:pt-3">
-      <PageHead title="Staff performance" intro="Enquiries your staff created by reaching out to customers (phone, WhatsApp, visits), with how many became quotations and orders. Website enquiries from customers are shown for comparison. India time." />
+      <PageHead title="Staff performance" intro="Enquiries each staff member is responsible for, from first contact to quotation and final sale, with reasons for lost or cancelled enquiries. Counts enquiries created in the chosen dates (India time)." />
 
       {/* filters: one row above the charts */}
       <div className="mt-5 flex flex-wrap items-end gap-2" data-testid="performance-filters">
@@ -118,13 +149,23 @@ export default function Performance() {
           To
           <input type="date" className="field !py-2" value={data?.to ?? ""} min={data?.from} onChange={(e) => set({ to: e.target.value || null })} />
         </label>
-        <label className="grid min-w-40 flex-1 text-xs text-muted sm:flex-none">
+        <label className="grid min-w-36 flex-1 text-xs text-muted sm:flex-none">
           Staff member
           <select className="field !py-2" value={staffId ?? ""} onChange={(e) => set({ staff: e.target.value || null })} data-testid="staff-filter">
             <option value="">All staff</option>
             {staff.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid min-w-36 flex-1 text-xs text-muted sm:flex-none">
+          Source
+          <select className="field !py-2" value={source} onChange={(e) => set({ source: e.target.value || null })} data-testid="source-filter">
+            {SOURCES.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
               </option>
             ))}
           </select>
@@ -140,62 +181,119 @@ export default function Performance() {
 
       {data && (
         <>
-          <dl className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="performance-totals">
+          <dl className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6" data-testid="performance-totals">
             {[
-              ["Staff outreach", sum.total],
-              ["Quoted or won", sum.quoted],
-              ["Won", sum.won],
-              ["From customers (website)", data.websiteTotal],
+              ["Enquiries", String(sum.total)],
+              ["Reached quotation", `${sum.quoted} · ${pct(sum.quoted, sum.total)}`],
+              ["Won (sales)", `${sum.won} · ${pct(sum.won, sum.total)}`],
+              ["Sales value", rupees(sum.sale)],
+              ["Lost or cancelled", String(sum.lost)],
+              ["Unassigned", staffId ? "—" : String(data.unassigned)],
             ].map(([k, v]) => (
               <div key={k} className="card p-3 sm:p-4">
                 <dt className="text-xs text-muted">{k}</dt>
-                <dd className="num mt-1 text-2xl">{v}</dd>
+                <dd className="num mt-1 truncate text-xl sm:text-2xl">{v}</dd>
               </div>
             ))}
           </dl>
 
-          <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_1.3fr]">
-            <section className="card p-4 sm:p-5" aria-labelledby="lb-h">
-              <h2 id="lb-h" className="flex items-center gap-2 font-semibold">
-                <Trophy className="size-4 text-sun-500" /> Enquiries logged per staff member
-              </h2>
-              {staff.length === 0 ? (
-                <p className="mt-3 text-sm text-muted">No staff accounts yet.</p>
-              ) : (
-                <ol className="mt-3 grid gap-3" data-testid="leaderboard">
-                  {staff.map((s, i) => (
-                    <li key={s.id} className={staffId && staffId !== s.id ? "opacity-45" : ""}>
-                      <div className="flex items-baseline justify-between gap-3 text-sm">
-                        <button type="button" className="min-w-0 truncate text-left font-medium hover:underline" onClick={() => set({ staff: staffId === s.id ? null : String(s.id) })}>
-                          <span className="num mr-1.5 text-xs text-subtle">{i + 1}</span>
+          {/* per staff member: desktop table, phone cards */}
+          <section className="card mt-5 p-4 sm:p-5" aria-labelledby="lb-h">
+            <h2 id="lb-h" className="flex items-center gap-2 font-semibold">
+              <Trophy className="size-4 text-sun-500" /> Pipeline per staff member
+            </h2>
+            {staff.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">No staff accounts yet.</p>
+            ) : (
+              <>
+                <div className="mt-3 overflow-x-auto max-md:hidden">
+                  <table className="w-full text-sm" data-testid="leaderboard">
+                    <thead className="text-left text-xs text-muted">
+                      <tr className="border-b border-line">
+                        {["Staff member", "Enquiries", "Contacted", "Quoted", "Won", "Lost", "Cancelled", "Open", "Win rate", "Sales", "Days to quote", "Days to close"].map((h, i) => (
+                          <th key={h} className={`py-2 pr-3 font-medium ${i ? "text-right" : ""}`}>
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {staff.map((s) => (
+                        <tr key={s.id} className={`border-b border-line/60 last:border-0 ${staffId && staffId !== s.id ? "opacity-45" : ""}`}>
+                          <td className="py-2 pr-3">
+                            <button type="button" className="font-medium hover:underline" onClick={() => set({ staff: staffId === s.id ? null : String(s.id) })}>
+                              {s.name}
+                            </button>
+                          </td>
+                          {[s.total, s.contacted, s.quoted, s.won, s.lost, s.cancelled, s.open].map((n, i) => (
+                            <td key={i} className="num py-2 pr-3 text-right">
+                              {n}
+                            </td>
+                          ))}
+                          <td className="num py-2 pr-3 text-right">{pct(s.won, s.total)}</td>
+                          <td className="num py-2 pr-3 text-right">{rupees(s.salePaise)}</td>
+                          <td className="num py-2 pr-3 text-right">{days(s.avgDaysToQuote)}</td>
+                          <td className="num py-2 text-right">{days(s.avgDaysToClose)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <ol className="mt-3 grid gap-2 md:hidden" data-testid="leaderboard-cards">
+                  {staff.map((s) => (
+                    <li key={s.id} className={`rounded-2xl border border-line p-3 ${staffId && staffId !== s.id ? "opacity-45" : ""}`}>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <button type="button" className="tap -my-2 min-w-0 truncate text-left font-semibold" onClick={() => set({ staff: staffId === s.id ? null : String(s.id) })}>
                           {s.name}
                         </button>
-                        <span className="num shrink-0 text-xs text-muted">
-                          <b className="text-sm text-ink">{s.total}</b> · {s.won} won{s.total ? ` (${Math.round((s.won / s.total) * 100)}%)` : ""}
-                        </span>
+                        <span className="num shrink-0 text-sm font-semibold">{rupees(s.salePaise)}</span>
                       </div>
-                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-paper-2" aria-hidden="true">
-                        <div className="h-full rounded-full bg-verdi-500" style={{ width: `${(s.total / maxStaff) * 100}%` }} />
+                      {/* funnel: enquiries -> quoted -> won */}
+                      <div className="mt-2 grid grid-cols-3 gap-1 text-center text-xs" aria-label="Enquiries, quoted, won">
+                        {(
+                          [
+                            ["Enquiries", s.total],
+                            ["Quoted", s.quoted],
+                            ["Won", s.won],
+                          ] as const
+                        ).map(([k, n]) => (
+                          <div key={k} className="rounded-xl bg-paper-2/70 py-1.5">
+                            <p className="num text-base text-ink">{n}</p>
+                            <p className="text-muted">{k}</p>
+                          </div>
+                        ))}
                       </div>
+                      <p className="num mt-2 text-xs text-muted">
+                        Win rate {pct(s.won, s.total)} · lost {s.lost} · cancelled {s.cancelled} · open {s.open} · quote in {days(s.avgDaysToQuote)} · close in {days(s.avgDaysToClose)}
+                      </p>
                     </li>
                   ))}
                 </ol>
-              )}
-            </section>
+              </>
+            )}
+          </section>
 
+          <div className="mt-5 grid gap-5 lg:grid-cols-[1.3fr_1fr]">
             <section className="card min-w-0 p-4 sm:p-5" aria-labelledby="tr-h">
-              <div className="flex items-baseline justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 id="tr-h" className="font-semibold">
-                  {PERIODS.find(([p]) => p === period)![1]} enquiries {staffId ? `· ${staff.find((s) => s.id === staffId)?.name ?? ""}` : "· all staff"}
+                  {PERIODS.find(([p]) => p === period)![1]} {METRICS.find(([m]) => m === metric)![1].toLowerCase()} {staffId ? `· ${staff.find((s) => s.id === staffId)?.name ?? ""}` : "· all staff"}
                 </h2>
-                <span className="num text-xs text-muted">max {maxBar}</span>
+                <div className="flex rounded-full border border-line bg-card p-0.5" role="radiogroup" aria-label="Show">
+                  {METRICS.map(([m, l]) => (
+                    <button key={m} type="button" role="radio" aria-checked={metric === m} className={`tap rounded-full px-2.5 text-xs font-medium lg:min-h-0 lg:py-1 ${metric === m ? "bg-ink text-paper" : "text-muted"}`} onClick={() => setMetric(m)}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="relative mt-4 flex h-40 items-end gap-[2px] border-b border-line" role="img" aria-label={`Bar chart of ${series.length} periods; see the table below for exact numbers`} data-testid="trend-chart">
+              <p className="num mt-1 text-xs text-muted">highest: {fmtMetric(maxBar)}</p>
+              <div className="relative mt-3 flex h-40 items-end gap-[2px] border-b border-line" role="img" aria-label={`Bar chart of ${series.length} periods; see the table below for exact numbers`} data-testid="trend-chart">
                 {series.map((x) => (
-                  <div key={x.bucket} className="group relative flex h-full min-w-0 flex-1 items-end" tabIndex={0} aria-label={`${label(x.bucket, period)}: ${x.total} logged, ${x.won} won`}>
-                    <div className={`w-full rounded-t-[4px] ${x.total ? "bg-verdi-500 group-hover:bg-verdi-700" : "bg-transparent"}`} style={{ height: `${(x.total / maxBar) * 100}%`, minHeight: x.total ? 3 : 0 }} />
+                  <div key={x.bucket} className="group relative flex h-full min-w-0 flex-1 items-end" tabIndex={0} aria-label={`${label(x.bucket, period)}: ${x.total} enquiries, ${x.won} won, ${rupees(x.salePaise)}`}>
+                    <div className={`w-full rounded-t-[4px] ${x[metric] ? "bg-verdi-500 group-hover:bg-verdi-700" : "bg-transparent"}`} style={{ height: `${(x[metric] / maxBar) * 100}%`, minHeight: x[metric] ? 3 : 0 }} />
                     <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 rounded-lg bg-ink px-2 py-1 text-[11px] whitespace-nowrap text-paper group-hover:block group-focus:block">
-                      {label(x.bucket, period)} · {x.total} logged · {x.won} won
+                      {label(x.bucket, period)} · {x.total} enquiries · {x.won} won · {rupees(x.salePaise)}
                     </span>
                   </div>
                 ))}
@@ -212,8 +310,9 @@ export default function Performance() {
                   <thead className="text-left text-xs text-muted">
                     <tr>
                       <th className="py-1 font-medium">Period</th>
-                      <th className="py-1 text-right font-medium">Logged</th>
+                      <th className="py-1 text-right font-medium">Enquiries</th>
                       <th className="py-1 text-right font-medium">Won</th>
+                      <th className="py-1 text-right font-medium">Sales</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -222,6 +321,7 @@ export default function Performance() {
                         <td className="py-1.5">{label(x.bucket, period)}</td>
                         <td className="num py-1.5 text-right">{x.total}</td>
                         <td className="num py-1.5 text-right">{x.won}</td>
+                        <td className="num py-1.5 text-right">{formatPaise(x.salePaise)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -229,9 +329,35 @@ export default function Performance() {
                 {table.pager}
               </Accordion>
             </section>
+
+            <section className="card p-4 sm:p-5" aria-labelledby="rs-h">
+              <h2 id="rs-h" className="font-semibold">
+                Why enquiries were lost or cancelled
+              </h2>
+              {reasons.length === 0 ? (
+                <p className="mt-3 text-sm text-muted">No lost or cancelled enquiries with a reason in this period.</p>
+              ) : (
+                <ol className="mt-3 grid gap-3" data-testid="lost-reasons">
+                  {reasons.map(([r, n]) => (
+                    <li key={r}>
+                      <div className="flex justify-between gap-3 text-sm">
+                        <span className="min-w-0 truncate">{CLOSED_REASON_LABEL[r as keyof typeof CLOSED_REASON_LABEL]}</span>
+                        <span className="num shrink-0 font-semibold">{n}</span>
+                      </div>
+                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-paper-2" aria-hidden="true">
+                        <div className="h-full rounded-full bg-verdi-500" style={{ width: `${(n / maxReason) * 100}%` }} />
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <Link to="/admin/enquiries?status=lost" className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-verdi-700 hover:underline">
+                See lost enquiries <ArrowRight className="size-4" />
+              </Link>
+            </section>
           </div>
 
-          <Link to={`/admin/enquiries?source=staff${staffId ? `&staff=${staffId}` : ""}`} className="mt-5 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-verdi-700 hover:underline">
+          <Link to={`/admin/enquiries${staffId ? `?owner=${staffId}` : ""}`} className="mt-5 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-verdi-700 hover:underline">
             See these enquiries <ArrowRight className="size-4" />
           </Link>
         </>

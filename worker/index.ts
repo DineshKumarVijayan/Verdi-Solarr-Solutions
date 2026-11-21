@@ -226,10 +226,12 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
       if (id && sub === "pdf" && seg.length === 3 && method === "POST") return json(await quotes.shareQuotationPdf(env, admin, id, request));
       break;
     case "enquiries":
-      if (seg.length === 1 && method === "GET") return json(await content.listEnquiries(env, url));
+      if (seg.length === 1 && method === "GET") return json(await content.listEnquiries(env, admin, url));
       if (seg.length === 1 && method === "POST") return json(await content.createStaffEnquiry(env, admin, await body(64 * 1024)), { status: 201 });
       if (seg[1] === "stats" && seg.length === 2 && method === "GET") return json(await content.enquiryStats(env, admin, url));
       if (id && seg.length === 2 && method === "PUT") return json(await content.updateEnquiry(env, admin, id, await body()));
+      if (id && sub === "assign" && seg.length === 3 && method === "POST") return json(await content.assignEnquiry(env, admin, id, await body()));
+      if (id && sub === "history" && seg.length === 3 && method === "GET") return json(await content.enquiryHistory(env, id));
       break;
   }
   return null;

@@ -222,6 +222,37 @@ async function nextNumber(env: Env): Promise<string> {
   return `${prefix}${String(n).padStart(4, "0")}`;
 }
 
+/**
+ * Link a new quotation to the enquiry it answers: the enquiry moves to "Quoted" (if it was still new or
+ * contacted) and, if nobody was responsible for it yet, the person making the quotation takes it.
+ */
+async function enquiryLinkStatements(env: Env, admin: AdminIdentity, enquiryId: number, number: string, now: string) {
+  const e = await env.DB.prepare("SELECT Status, AssignedAdminId AS OwnerId FROM Enquiries WHERE EnquiryId = ?1")
+    .bind(enquiryId)
+    .first<{ Status: string; OwnerId: number | null }>();
+  if (!e) throw new HttpError(422, "validation", "The enquiry this quotation was made from no longer exists.");
+  const stmts: D1PreparedStatement[] = [env.DB.prepare("UPDATE Quotations SET EnquiryId = ?1 WHERE Number = ?2").bind(enquiryId, number)];
+  const ev = (kind: string, from: string | null, to: string | null, assignedTo: number | null) =>
+    env.DB.prepare("INSERT INTO EnquiryEvents (EnquiryId, Kind, FromStatus, ToStatus, AssignedTo, Note, ByAdminId, ByIdentity, CreatedAt) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)").bind(
+      enquiryId,
+      kind,
+      from,
+      to,
+      assignedTo,
+      kind === "status" ? `Quotation ${number}` : null,
+      admin.id,
+      admin.email,
+      now,
+    );
+  if (e.OwnerId === null) {
+    stmts.push(env.DB.prepare("UPDATE Enquiries SET AssignedAdminId = ?1 WHERE EnquiryId = ?2").bind(admin.id, enquiryId), ev("assigned", null, null, admin.id));
+  }
+  if (e.Status === "new" || e.Status === "contacted") {
+    stmts.push(env.DB.prepare("UPDATE Enquiries SET Status = 'quoted', UpdatedAt = ?1, UpdatedBy = ?2 WHERE EnquiryId = ?3").bind(now, admin.email, enquiryId), ev("status", e.Status, "quoted", null));
+  }
+  return stmts;
+}
+
 export async function createQuotation(env: Env, admin: AdminIdentity, body: unknown): Promise<Quote> {
   const v = parseInput(body);
   const items = await resolveItems(env, v, new Map());
@@ -236,7 +267,8 @@ export async function createQuotation(env: Env, admin: AdminIdentity, body: unkn
            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?12, ?13)`,
         ).bind(number, v.customerName, v.customerCompany || null, v.mobile, v.customerEmail || null, v.customerAddress || null, v.notes || null, v.validDays, t.subtotal, t.discount, t.total, admin.email, now),
         ...itemStatements(env, number, items),
-        audit(env, admin, "quotation.create", number, null, { customer: v.customerName, items: items.length, totalPaise: t.total }, now),
+        ...(v.enquiryId ? await enquiryLinkStatements(env, admin, v.enquiryId, number, now) : []),
+        audit(env, admin, "quotation.create", number, null, { customer: v.customerName, items: items.length, totalPaise: t.total, enquiryId: v.enquiryId ?? null }, now),
       ]);
       const row = await env.DB.prepare("SELECT QuotationId FROM Quotations WHERE Number = ?1").bind(number).first<{ QuotationId: number }>();
       return getQuotation(env, row!.QuotationId);
@@ -272,10 +304,31 @@ export async function setQuotationStatus(env: Env, admin: AdminIdentity, id: num
   if (!r.success) throw new HttpError(422, "validation", "Unknown status.");
   const before = await getQuotation(env, id);
   const now = nowIso();
-  await env.DB.batch([
+  const stmts: D1PreparedStatement[] = [
     env.DB.prepare("UPDATE Quotations SET Status = ?2, UpdatedBy = ?3, UpdatedAt = ?4 WHERE QuotationId = ?1").bind(id, r.data.status, admin.email, now),
     audit(env, admin, "quotation.status", before.number, { status: before.status }, { status: r.data.status }, now),
-  ]);
+  ];
+  // Accepted quotation = final sale: the linked enquiry becomes "Won" with the quotation total as the sale value.
+  if (r.data.status === "accepted" && before.status !== "accepted") {
+    const link = await env.DB.prepare("SELECT e.EnquiryId, e.Status FROM Quotations q JOIN Enquiries e ON e.EnquiryId = q.EnquiryId WHERE q.QuotationId = ?1")
+      .bind(id)
+      .first<{ EnquiryId: number; Status: string }>();
+    if (link && !["won", "lost", "cancelled"].includes(link.Status)) {
+      stmts.push(
+        env.DB.prepare("UPDATE Enquiries SET Status = 'won', SalePaise = ?1, ClosedAt = ?2, ClosedReason = NULL, ClosedNote = NULL, UpdatedAt = ?2, UpdatedBy = ?3 WHERE EnquiryId = ?4").bind(before.totalPaise, now, admin.email, link.EnquiryId),
+        env.DB.prepare("INSERT INTO EnquiryEvents (EnquiryId, Kind, FromStatus, ToStatus, SalePaise, Note, ByAdminId, ByIdentity, CreatedAt) VALUES (?1, 'status', ?2, 'won', ?3, ?4, ?5, ?6, ?7)").bind(
+          link.EnquiryId,
+          link.Status,
+          before.totalPaise,
+          `Quotation ${before.number} accepted`,
+          admin.id,
+          admin.email,
+          now,
+        ),
+      );
+    }
+  }
+  await env.DB.batch(stmts);
   return getQuotation(env, id);
 }
 

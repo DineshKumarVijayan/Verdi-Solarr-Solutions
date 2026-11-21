@@ -356,10 +356,12 @@ function Editor({ id }: { id: number | null }) {
   }, [id]);
 
   // prefill from an enquiry (Enquiries → "Create quotation")
+  const fromEnquiry = useRef<number | null>(null);
   useEffect(() => {
     const e = (loc.state as { enquiry?: AdminEnquiryRow } | null)?.enquiry;
     if (id !== null || !e || initFromEnquiry.current) return;
     initFromEnquiry.current = true;
+    fromEnquiry.current = e.id;
     setCust((c) => ({ ...c, customerName: e.contactName, customerCompany: e.business ?? "", customerMobile: e.mobile, customerAddress: e.location ?? "", notes: `Ref. enquiry ${e.reference}` }));
     setLines(e.items.filter((i) => i.productId !== null).map((i) => blankLine(i.productId, i.quantity)));
     setDirty(true);
@@ -438,6 +440,8 @@ function Editor({ id }: { id: number | null }) {
     return {
       ...cust,
       validDays: Number(cust.validDays) || 15,
+      // a new quotation made from an enquiry is linked to it (enquiry moves to Quoted; accepting it = Won)
+      ...(id === null && fromEnquiry.current ? { enquiryId: fromEnquiry.current } : {}),
       items: lines.map((l) => {
         const p = product(l.productId);
         const listed = p && p.price.sellingPaise !== null;
