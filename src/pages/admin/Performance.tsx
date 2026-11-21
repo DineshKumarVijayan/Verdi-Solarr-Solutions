@@ -8,7 +8,7 @@ import { usePaged } from "../../components/Pager";
 import { Spinner } from "../../components/ui";
 import { api, ApiError } from "../../lib/api";
 import { usePageMeta } from "../../lib/seo";
-import { PageHead } from "./kit";
+import { PageHead, ExportButton } from "./kit";
 
 type Period = EnquiryStats["period"];
 type Metric = "total" | "won" | "salePaise";
@@ -130,7 +130,33 @@ export default function Performance() {
 
   return (
     <div className="container-x py-10 max-lg:pt-3">
-      <PageHead title="Staff performance" intro="Enquiries each staff member is responsible for, from first contact to quotation and final sale, with reasons when an enquiry is not won (duplicates and wrong entries do not count for or against anyone), and overdue follow-ups. Counts enquiries created in the chosen dates (India time)." />
+      <PageHead
+        actions={
+          data && (
+            <ExportButton
+              name={`Staff performance ${data.from} to ${data.to}`}
+              build={() => [
+                {
+                  name: "By staff",
+                  columns: [{ header: "Staff member" }, { header: "Enquiries", type: "number" }, { header: "Contacted", type: "number" }, { header: "Quoted", type: "number" }, { header: "Won", type: "number" }, { header: "Not won", type: "number" }, { header: "Open", type: "number" }, { header: "Overdue follow-ups", type: "number" }, { header: "Win rate %", type: "number" }, { header: "Sales (₹)", type: "money" }, { header: "Avg days to quote", type: "number" }, { header: "Avg days to close", type: "number" }],
+                  rows: data.staff.map((x) => [x.name, x.total, x.contacted, x.quoted, x.won, x.lost, x.open, x.overdue, x.total ? Math.round((x.won / x.total) * 1000) / 10 : null, x.salePaise / 100, x.avgDaysToQuote, x.avgDaysToClose]),
+                },
+                {
+                  name: `By ${data.period}`,
+                  columns: [{ header: data.period === "day" ? "Day" : data.period === "month" ? "Month" : "Year" }, { header: "Staff member" }, { header: "Enquiries", type: "number" }, { header: "Won", type: "number" }, { header: "Sales (₹)", type: "money" }],
+                  rows: data.buckets.map((b) => [b.bucket, data.staff.find((x) => x.id === b.staffId)?.name ?? "Unassigned", b.total, b.won, b.salePaise / 100]),
+                },
+                {
+                  name: "Not won reasons",
+                  columns: [{ header: "Reason" }, { header: "Staff member" }, { header: "Enquiries", type: "number" }],
+                  rows: data.reasons.map((r) => [CLOSED_REASON_LABEL[r.reason as keyof typeof CLOSED_REASON_LABEL] ?? r.reason, data.staff.find((x) => x.id === r.staffId)?.name ?? "Unassigned", r.count]),
+                },
+              ]}
+            />
+          )
+        }
+        title="Staff performance"
+        intro="Enquiries each staff member is responsible for, from first contact to quotation and final sale, with reasons when an enquiry is not won (duplicates and wrong entries do not count for or against anyone), and overdue follow-ups. Counts enquiries created in the chosen dates (India time)." />
 
       {/* filters: one row above the charts */}
       <div className="mt-5 flex flex-wrap items-end gap-2" data-testid="performance-filters">

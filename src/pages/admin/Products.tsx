@@ -7,7 +7,7 @@ import type { AdminBrand, AdminCategory, AdminProductDetail, AdminProductListRow
 import { Spinner, useToast } from "../../components/ui";
 import { api } from "../../lib/api";
 import { useAdmin } from "./AdminLayout";
-import { canManage, errorText, PageHead, send } from "./kit";
+import { canManage, errorText, PageHead, send, ExportButton } from "./kit";
 
 export default function AdminProducts() {
   const admin = useAdmin();
@@ -60,11 +60,23 @@ export default function AdminProducts() {
         title="Products"
         intro="Add, edit, hide or remove products. Changes publish to every page of the website straight away."
         actions={
-          canManage(admin) && (
-            <Link to="/admin/products/new" className="btn-primary btn-sm" data-testid="new-product">
-              <Plus className="size-4" /> Add product
-            </Link>
-          )
+          <>
+            <ExportButton
+              name="Products"
+              build={() => [
+                {
+                  name: "Products",
+                  columns: [{ header: "SKU" }, { header: "Product" }, { header: "Model" }, { header: "Series" }, { header: "Brand" }, { header: "Category" }, { header: "Price (₹)", type: "money" }, { header: "Visible" }, { header: "Featured" }, { header: "Photos", type: "number" }, { header: "Datasheet" }, { header: "Updated", type: "datetime" }],
+                  rows: (rows ?? []).map((p) => [p.sku, p.name, p.model, p.seriesName, p.brand, p.category, p.sellingPaise == null ? "Price on request" : p.sellingPaise / 100, p.isActive ? "Yes" : "No", p.isFeatured ? "Yes" : "No", p.images, p.hasDatasheet ? "Yes" : "No", p.updatedAt]),
+                },
+              ]}
+            />
+            {canManage(admin) && (
+              <Link to="/admin/products/new" className="btn-primary btn-sm" data-testid="new-product">
+                <Plus className="size-4" /> Add product
+              </Link>
+            )}
+          </>
         }
       />
 

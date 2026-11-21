@@ -792,7 +792,7 @@ export async function listCustomers(env: Env, url: URL): Promise<{ rows: AdminCu
     `SELECT c.CustomerId, c.FullName, c.Mobile, c.Email, c.BusinessName, c.City, c.IsActive, c.CreatedAt, c.LastLoginAt,
             (SELECT COALESCE(SUM(Points), 0) FROM RewardTransactions t WHERE t.CustomerId = c.CustomerId) AS Points,
             (SELECT COUNT(*) FROM Enquiries e WHERE e.CustomerId = c.CustomerId) AS Enq
-     FROM Customers c ${where} ORDER BY c.CreatedAt DESC LIMIT 500`,
+     FROM Customers c ${where} ORDER BY c.CreatedAt DESC LIMIT ${url.searchParams.get("export") === "1" ? 5000 : 500}`,
   )
     .bind(...binds)
     .all<Record<string, unknown>>();
@@ -981,7 +981,7 @@ export async function listEnquiries(env: Env, admin: AdminIdentity, url: URL): P
     binds.push(Number(owner));
     where.push(`${OWNER} = ?${binds.length}`);
   }
-  const rows = await loadEnquiries<EnqRow>(env, `${ENQ_SELECT} ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY e.CreatedAt DESC, e.EnquiryId DESC LIMIT 300`, binds);
+  const rows = await loadEnquiries<EnqRow>(env, `${ENQ_SELECT} ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY e.CreatedAt DESC, e.EnquiryId DESC LIMIT ${url.searchParams.get("export") === "1" ? 5000 : 300}`, binds);
   const c = isManager(admin)
     ? await env.DB.prepare("SELECT Status, COUNT(*) AS n FROM Enquiries GROUP BY Status").all<{ Status: string; n: number }>()
     : await env.DB.prepare("SELECT Status, COUNT(*) AS n FROM Enquiries WHERE AssignedAdminId = ?1 OR AssignedAdminId IS NULL GROUP BY Status").bind(admin.id).all<{ Status: string; n: number }>();
@@ -1327,4 +1327,13 @@ export async function saveMessageTemplates(env: Env, admin: AdminIdentity, body:
   });
   await env.DB.batch([...stmts, audit(env, admin, "messages.update", "Settings", "whatsapp", null, v.templates, now)]);
   return getMessageTemplates(env);
+}
+
+// ------------------------------------------------------------------ downloads (Excel)
+
+/** Record who downloaded which table (downloads can contain customer details). */
+export async function logExport(env: Env, admin: AdminIdentity, body: unknown) {
+  const v = parse(z.object({ table: z.string().trim().min(1).max(60), rows: z.number().int().min(0).max(1_000_000) }).strict(), body);
+  await audit(env, admin, "export.download", "Export", v.table, null, { rows: v.rows }, nowIso()).run();
+  return { ok: true };
 }

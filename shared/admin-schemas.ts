@@ -364,3 +364,15 @@ export const PointsAdjustSchema = z
 export function issues(e: z.ZodError): { path: string; message: string }[] {
   return e.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
 }
+
+// ---------------------------------------------------------------- stock status & offers
+import { STOCK_STATUSES } from "./stock";
+/** Availability and offer, set by the owner or an admin. */
+export const ProductStatusSchema = z
+  .object({
+    stock: z.enum(STOCK_STATUSES),
+    onOffer: z.boolean(),
+    offerLabel: z.string().trim().max(28, "Keep the offer label short (28 characters)").nullish().transform((v) => v || null),
+  })
+  .strict();
+export type ProductStatusInput = z.infer<typeof ProductStatusSchema>;

@@ -15,7 +15,7 @@ import { api } from "../../lib/api";
 import { ADMIN_STATUS_LABEL as STATUS_LABEL, STATUS_HINT, STATUS_STYLE } from "../../lib/enquiry-status";
 import { Accordion, ActionBar, ClampText } from "../../components/mobile/kit";
 import { useAdmin } from "./AdminLayout";
-import { canManage, dt, errorText, PageHead, send } from "./kit";
+import { canManage, dt, errorText, PageHead, send, ExportButton } from "./kit";
 
 export default function Enquiries() {
   const [params, setParams] = useSearchParams();
@@ -99,6 +99,30 @@ export default function Enquiries() {
                 <Users className="size-4" /> {selecting ? "Stop selecting" : "Reassign several"}
               </button>
             )}
+            <ExportButton
+              name="Enquiries"
+              build={async () => {
+                const r = await api<{ rows: AdminEnquiryRow[] }>(`/api/admin/enquiries?${params}&export=1`);
+                const src = (x: AdminEnquiryRow) => (x.source === "website" ? "Website" : `Staff · ${x.source === "phone" ? "Phone" : x.source === "whatsapp" ? "WhatsApp" : "Visit"}`);
+                return [
+                  {
+                    name: "Enquiries",
+                    columns: [
+                      { header: "Reference" }, { header: "Date", type: "datetime" }, { header: "Stage" }, { header: "From" }, { header: "Customer" }, { header: "Business" }, { header: "Mobile" }, { header: "Location" },
+                      { header: "Responsible" }, { header: "Next follow-up", type: "date" }, { header: "Products" }, { header: "Listed total (₹)", type: "money" }, { header: "Latest quotation" }, { header: "Quotation total (₹)", type: "money" },
+                      { header: "Sale (₹)", type: "money" }, { header: "Not won reason" }, { header: "Reason details" }, { header: "Customer points" }, { header: "Internal notes" }, { header: "Customer's message" },
+                    ],
+                    rows: r.rows.map((x) => [
+                      x.reference, x.createdAt, STATUS_LABEL[x.status], src(x), x.contactName, x.business, x.mobile, x.location,
+                      x.owner?.name ?? "Unassigned", x.followUpOn, x.items.map((i) => `${i.name} × ${i.quantity}`).join("; "), x.totalPaise == null ? null : x.totalPaise / 100,
+                      x.latestQuote ? `${x.latestQuote.number} (${x.latestQuote.status})` : null, x.latestQuote ? x.latestQuote.totalPaise / 100 : null,
+                      x.salePaise == null ? null : x.salePaise / 100, x.closedReason ? CLOSED_REASON_LABEL[x.closedReason] : null, x.closedNote,
+                      x.points.credited ? `${x.points.credited} credited` : x.points.waiting ? `${x.points.waiting} waiting` : null, x.adminNotes, x.comments,
+                    ]),
+                  },
+                ];
+              }}
+            />
             <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => setLogging(true)} data-testid="log-enquiry-open">
               <Plus className="size-4" /> Log enquiry
             </button>

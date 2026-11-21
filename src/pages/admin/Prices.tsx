@@ -10,6 +10,7 @@ import { Modal, Spinner, useToast } from "../../components/ui";
 import { api, ApiError } from "../../lib/api";
 import { useCatalogue } from "../../lib/catalogue";
 import { useAdmin } from "./AdminLayout";
+import { ExportButton } from "./kit";
 
 const UNITS = ["per piece", "per metre", "per 500 m coil", "per 2000 m drum", "per set", "per kit"];
 const dt = (s: string) => (s ? new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
@@ -66,9 +67,29 @@ export default function Prices() {
           <h1 className="text-3xl font-semibold max-lg:text-xl">Price management</h1>
           <p className="mt-1 text-sm text-muted max-lg:line-clamp-1 max-lg:text-xs">Prices are stored in rupees and paise. Saved prices appear on the public site within about a minute.</p>
         </div>
-        <button type="button" className="btn-ghost btn-sm" onClick={load}>
-          <RefreshCw className="size-3.5" /> Refresh
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <ExportButton
+            name="Prices"
+            build={async () => {
+              const all: AdminPriceRow[] = [];
+              for (let offset = 0; offset < 20000; offset += 200) {
+                const r = await api<{ rows: AdminPriceRow[]; total: number }>(`/api/admin/prices?limit=200&offset=${offset}`);
+                all.push(...r.rows);
+                if (all.length >= r.total || r.rows.length === 0) break;
+              }
+              return [
+                {
+                  name: "Prices",
+                  columns: [{ header: "SKU" }, { header: "Product" }, { header: "Model" }, { header: "Brand" }, { header: "Category" }, { header: "Selling price (₹)", type: "money" }, { header: "MRP (₹)", type: "money" }, { header: "GST" }, { header: "Unit" }, { header: "Visible" }, { header: "Updated", type: "datetime" }, { header: "Updated by" }],
+                  rows: all.map((p) => [p.sku, p.name, p.model, p.brand, p.category, p.sellingPaise == null ? "Not set" : p.sellingPaise / 100, p.mrpPaise == null ? null : p.mrpPaise / 100, p.gstIncluded ? "Included" : p.gstRate != null ? `+ ${p.gstRate}%` : "As applicable", p.unit, p.isActive ? "Yes" : "No", p.updatedAt, p.updatedBy]),
+                },
+              ];
+            }}
+          />
+          <button type="button" className="btn-ghost btn-sm" onClick={load}>
+            <RefreshCw className="size-3.5" /> Refresh
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2 max-lg:sticky max-lg:top-14 max-lg:z-20 max-lg:-mx-4 max-lg:mt-3 max-lg:border-b max-lg:border-line/70 max-lg:bg-paper max-lg:px-4 max-lg:py-2">

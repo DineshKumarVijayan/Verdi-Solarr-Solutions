@@ -76,7 +76,9 @@ export function ProductCard({ product, query = "", layout = "grid" }: { product:
             {inBasket ? <Check className="size-3.5" /> : <Plus className="size-3.5" />} {inBasket ? "Add another" : "Add to enquiry"}
           </button>
           <DatasheetButton url={product.datasheet} title={product.seriesName ?? product.name} variant="link" label="Datasheet" />
-          <ShareButton variant="icon" className="ml-auto" title={product.name} text={shareText(product, brand(product.brandId)?.name ?? "")} path={`/products/${product.slug}`} />
+          {/* share + compare always stay together (they wrap as one, right-aligned) */}
+          <div className="ml-auto flex shrink-0 items-center gap-2" data-testid="card-icons">
+          <ShareButton variant="icon" title={product.name} text={shareText(product, brand(product.brandId)?.name ?? "")} path={`/products/${product.slug}`} />
           <button
             type="button"
             className={`rounded-full p-1.5 transition ${inCompare ? "bg-verdi-100 text-verdi-700" : "text-subtle hover:bg-paper-2 hover:text-ink"}`}
@@ -89,6 +91,7 @@ export function ProductCard({ product, query = "", layout = "grid" }: { product:
           >
             <GitCompareArrows className="size-4" />
           </button>
+          </div>
         </div>
       </div>
     </article>

@@ -22,6 +22,9 @@ Passwords are stored only as salted one-way hashes, so nobody can read them, inc
 ### Adding staff (owner)
 **Staff â†’ Add**: enter the mobile number (used to sign in), name, role and a temporary password. Email is optional. Share the temporary password privately. The list shows *Temporary password Â· must set their own* until the person has done so. To remove someone's access, edit the account and switch it to inactive. This signs them out immediately.
 
+## Download to Excel
+Every main list has a **Download Excel** button: Products, Prices, Brands & categories, Customers (with points waiting), Enquiries, Quotations, Staff performance, Staff bonus, My bonus and Staff. The file has every matching row (not only the page you are looking at), uses the filters you have chosen (Enquiries and Quotations), and opens in Excel, Google Sheets or LibreOffice, offline. Money columns are real numbers in ₹, so you can add them up. Each download is recorded in the activity log because files can contain customer details: keep them safe and delete old copies.
+
 ## Dashboard
 Starts with **My day**: your follow-ups that are due or overdue, new enquiries nobody has taken yet, and your quotations that expire within 3 days. Below it: new enquiries, customer accounts, products, missing prices, images and datasheets, and recent activity. Each tile is a shortcut.
 

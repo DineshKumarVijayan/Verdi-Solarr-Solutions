@@ -18,7 +18,7 @@ import { Modal, Spinner, useToast } from "../../components/ui";
 import { api } from "../../lib/api";
 import { usePageMeta } from "../../lib/seo";
 import { useAdmin } from "./AdminLayout";
-import { canManage, dt, errorText, PageHead, send } from "./kit";
+import { canManage, dt, errorText, PageHead, send, ExportButton } from "./kit";
 
 /* Staff bonus: owner/admin set rates, approve, adjust and pay (settling the unpaid balance so nothing is
  * paid twice); every staff member sees their own bonus under "My bonus". */
@@ -150,9 +150,21 @@ export default function Bonus() {
         title="Staff bonus"
         intro="Bonus = the staff member's % of each sale they win. Created automatically when an enquiry is marked won; approve it, then pay it with the salary. Paying settles the balance, so nothing can be paid twice."
         actions={
-          <button type="button" className="btn-ghost btn-sm max-lg:tap" onClick={() => setAdjust(true)} data-testid="bonus-adjust-open">
-            <Plus className="size-4" /> Adjustment
-          </button>
+          <>
+            <ExportButton
+              name="Staff bonus"
+              build={async () => {
+                const all = await api<{ entries: BonusEntry[]; payouts: BonusPayout[] }>("/api/admin/bonus/entries");
+                return [
+                  { name: "Balances", columns: [{ header: "Staff member" }, { header: "Rate %", type: "number" }, { header: "Waiting approval (₹)", type: "money" }, { header: "Approved (₹)", type: "money" }, { header: "Unpaid total (₹)", type: "money" }, { header: "Paid so far (₹)", type: "money" }], rows: (ov?.staff ?? []).map((x) => [x.name, x.effectiveBasisPoints / 100, x.pendingPaise / 100, x.approvedPaise / 100, x.unpaidPaise / 100, x.paidPaise / 100]) },
+                  ...bonusSheets(all.entries, all.payouts),
+                ];
+              }}
+            />
+            <button type="button" className="btn-ghost btn-sm max-lg:tap" onClick={() => setAdjust(true)} data-testid="bonus-adjust-open">
+              <Plus className="size-4" /> Adjustment
+            </button>
+          </>
         }
       />
       {error && <p className="mt-4 rounded-xl bg-danger-bg p-3 text-sm text-danger">{error}</p>}
@@ -537,7 +549,11 @@ export function MyBonusPage() {
   const sum = (f: (e: BonusEntry) => boolean) => (list?.entries ?? []).filter(f).reduce((a, e) => a + e.amountPaise, 0);
   return (
     <div className="container-x py-10 max-lg:pt-3">
-      <PageHead title="My bonus" intro="Your bonus on the sales you have won. It is approved and paid by the owner, usually with your salary." />
+      <PageHead
+        title="My bonus"
+        intro="Your bonus on the sales you have won. It is approved and paid by the owner, usually with your salary."
+        actions={list && <ExportButton name="My bonus" build={() => bonusSheets(list.entries, list.payouts)} />}
+      />
       {error && <p className="mt-4 rounded-xl bg-danger-bg p-3 text-sm text-danger">{error}</p>}
       {!list ? (
         <div className="mt-10 flex justify-center">
@@ -593,4 +609,20 @@ export function MyBonusPage() {
       )}
     </div>
   );
+}
+
+/** Bonus lines and payments as spreadsheet tables. */
+function bonusSheets(entries: BonusEntry[], payouts: BonusPayout[]) {
+  return [
+    {
+      name: "Bonus lines",
+      columns: [{ header: "Date", type: "datetime" as const }, { header: "Staff member" }, { header: "Type" }, { header: "Enquiry" }, { header: "Customer" }, { header: "Sale (₹)", type: "money" as const }, { header: "Rate %", type: "number" as const }, { header: "Bonus (₹)", type: "money" as const }, { header: "Status" }, { header: "Reason" }],
+      rows: entries.map((e) => [e.createdAt, e.staffName, e.kind === "sale" ? "Sale" : e.kind === "reversal" ? "Reversal" : "Adjustment", e.enquiryRef, e.customer, e.salePaise == null ? null : e.salePaise / 100, e.rateBasisPoints == null ? null : e.rateBasisPoints / 100, e.amountPaise / 100, e.status === "pending" ? "Waiting approval" : e.status === "approved" ? "Approved" : "Paid", e.reason]),
+    },
+    {
+      name: "Payments",
+      columns: [{ header: "Paid on", type: "date" as const }, { header: "Staff member" }, { header: "Amount (₹)", type: "money" as const }, { header: "Bonus lines", type: "number" as const }, { header: "Method" }, { header: "Reference" }, { header: "Note" }, { header: "Status" }, { header: "Paid by" }],
+      rows: payouts.map((p) => [p.paidOn, p.staffName, p.amountPaise / 100, p.entryCount, p.method, p.reference, p.note, p.status === "paid" ? "Paid" : `Cancelled: ${p.cancelReason ?? ""}`, p.paidBy]),
+    },
+  ];
 }

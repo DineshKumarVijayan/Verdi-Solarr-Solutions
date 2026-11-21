@@ -1,7 +1,8 @@
-import { UploadCloud } from "lucide-react";
+import { FileSpreadsheet, UploadCloud } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ROLE_LABEL, type AdminIdentity } from "../../../shared/types";
-import { Spinner } from "../../components/ui";
+import { Spinner, useToast } from "../../components/ui";
+import type { Sheet } from "../../lib/xlsx";
 import { api, ApiError } from "../../lib/api";
 
 /** JSON write to an admin endpoint. */
@@ -142,3 +143,37 @@ export function ReadOnlyNote({ admin }: { admin: AdminIdentity }) {
 }
 
 export const dt = (s: string | null) => (s ? new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
+
+/**
+ * "Download Excel": builds a real .xlsx of the given tables (all matching rows, not just the visible page)
+ * so staff can read it offline. The spreadsheet code loads only on click; every download is audit-logged.
+ */
+export function ExportButton({ name, build, className = "btn-ghost btn-sm max-lg:tap", testId = "export-excel" }: { name: string; build: () => Promise<Sheet[]> | Sheet[]; className?: string; testId?: string }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      className={className}
+      disabled={busy}
+      title="Download as an Excel file to read offline"
+      data-testid={testId}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          const [{ downloadXlsx }, sheets] = await Promise.all([import("../../lib/xlsx"), build()]);
+          const rows = sheets.reduce((a, x) => a + x.rows.length, 0);
+          downloadXlsx(name, sheets);
+          void send("/api/admin/exports", "POST", { table: name, rows }).catch(() => undefined);
+          toast(`Downloaded ${rows.toLocaleString("en-IN")} row${rows === 1 ? "" : "s"}.`, "success");
+        } catch (e) {
+          toast(errorText(e, "Could not prepare the download."), "error");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      {busy ? <Spinner className="size-4" /> : <FileSpreadsheet className="size-4" />} Download Excel
+    </button>
+  );
+}

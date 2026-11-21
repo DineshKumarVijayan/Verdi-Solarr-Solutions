@@ -13,7 +13,7 @@ import { WhatsAppIcon } from "../../components/WhatsAppIcon";
 import { api } from "../../lib/api";
 import { STATUS_LABEL, STATUS_STYLE } from "../../lib/enquiry-status";
 import { useAdmin } from "./AdminLayout";
-import { canManage, dt, errorText, PageHead, send, Toggle } from "./kit";
+import { canManage, dt, errorText, PageHead, send, Toggle, ExportButton } from "./kit";
 
 interface Detail {
   customer: AdminCustomerRow;
@@ -49,7 +49,32 @@ export default function Customers() {
 
   return (
     <div className="container-x py-10">
-      <PageHead title="Customers" intro="Customer accounts are separate from staff access. Customers sign in with their mobile number and a password; passwords are stored only as salted hashes." />
+      <PageHead
+        actions={
+          <ExportButton
+            name="Customers"
+            build={async () => {
+              const [list, pending] = await Promise.all([
+                api<{ rows: AdminCustomerRow[] }>(`/api/admin/customers?q=${encodeURIComponent(q.trim())}&export=1`),
+                api<{ rows: PendingReward[] }>("/api/admin/loyalty/pending").catch(() => ({ rows: [] as PendingReward[] })),
+              ]);
+              return [
+                {
+                  name: "Customers",
+                  columns: [{ header: "Name" }, { header: "Mobile" }, { header: "Email" }, { header: "Business" }, { header: "City" }, { header: "Enquiries", type: "number" }, { header: "Points", type: "number" }, { header: "Account" }, { header: "Joined", type: "datetime" }, { header: "Last sign-in", type: "datetime" }],
+                  rows: list.rows.map((c) => [c.name, formatMobile(c.mobile), c.email, c.business, c.city, c.enquiries, c.points, c.isActive ? "Enabled" : "Disabled", c.createdAt, c.lastLoginAt]),
+                },
+                {
+                  name: "Points waiting",
+                  columns: [{ header: "Name" }, { header: "Mobile" }, { header: "Points", type: "number" }, { header: "Purchases", type: "number" }, { header: "Waiting since", type: "datetime" }],
+                  rows: pending.rows.map((p) => [p.name, formatMobile(p.mobile), p.points, p.purchases, p.since]),
+                },
+              ];
+            }}
+          />
+        }
+        title="Customers"
+        intro="Customer accounts are separate from staff access. Customers sign in with their mobile number and a password; passwords are stored only as salted hashes." />
       <LoyaltyRate />
       <PendingPoints />
       <div className="relative mt-6 max-w-md">

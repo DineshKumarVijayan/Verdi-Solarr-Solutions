@@ -127,7 +127,7 @@ export async function listQuotations(env: Env, admin: AdminIdentity, url: URL): 
   }
   const r = await env.DB.prepare(
     `SELECT q.*, COALESCE(o.DisplayName, o.Email) AS OwnerName, e.Reference AS EnquiryReference, (SELECT COUNT(*) FROM QuotationItems i WHERE i.QuotationId = q.QuotationId) AS ItemCount
-     FROM Quotations q LEFT JOIN AdminUsers o ON o.AdminId = q.OwnerAdminId LEFT JOIN Enquiries e ON e.EnquiryId = q.EnquiryId ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY q.CreatedAt DESC LIMIT 200`,
+     FROM Quotations q LEFT JOIN AdminUsers o ON o.AdminId = q.OwnerAdminId LEFT JOIN Enquiries e ON e.EnquiryId = q.EnquiryId ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY q.CreatedAt DESC LIMIT ${url.searchParams.get("export") === "1" ? 5000 : 200}`,
   )
     .bind(...args)
     .all<QuoteDbRow & { ItemCount: number }>();

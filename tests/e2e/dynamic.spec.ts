@@ -76,3 +76,16 @@ test("home page figures are real counts (never placeholders) and the catalogue s
   const showcase = srcs.filter((s) => s.startsWith("/images/products/") || s.startsWith("/api/media/"));
   expect(showcase.every((s) => productImages.has(s))).toBeTruthy();
 });
+
+test("product cards keep share and compare together on one line, also after 'Add to enquiry'", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/products");
+  const cards = page.locator("article", { has: page.getByTestId("add-to-enquiry") });
+  await cards.first().getByTestId("add-to-enquiry").click();
+  await expect(cards.first().getByTestId("add-to-enquiry")).toContainText("Add another");
+  for (let i = 0; i < 3; i++) {
+    const icons = cards.nth(i).getByTestId("card-icons").locator("button");
+    const [a, b] = [await icons.nth(0).boundingBox(), await icons.nth(1).boundingBox()];
+    expect(Math.abs(a!.y - b!.y)).toBeLessThan(2); // same line
+  }
+});

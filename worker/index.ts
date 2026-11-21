@@ -142,6 +142,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     }
     if (path === "/api/admin/dashboard" && method === "GET") return json(await dashboard(env, admin));
     if (path === "/api/admin/my-day" && method === "GET") return json(await content.myDay(env, admin));
+    if (path === "/api/admin/exports" && method === "POST") return json(await content.logExport(env, admin, await readJson(request)));
     if (path === "/api/admin/message-templates" && method === "GET") return json(await content.getMessageTemplates(env));
     if (path === "/api/admin/message-templates" && method === "PUT") return json(await content.saveMessageTemplates(env, admin, await readJson(request, 32 * 1024)));
     if (path === "/api/admin/prices" && method === "GET") return json(await listPrices(env, url));

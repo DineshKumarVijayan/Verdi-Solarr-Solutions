@@ -9,7 +9,7 @@ import { Modal, Spinner, useToast } from "../../components/ui";
 import { api } from "../../lib/api";
 import { useCatalogue } from "../../lib/catalogue";
 import { useAdmin } from "./AdminLayout";
-import { canManage, errorText, FileDrop, fieldErrors, PageHead, ReadOnlyNote, send, Toggle, uploadFile } from "./kit";
+import { canManage, errorText, FileDrop, fieldErrors, PageHead, ReadOnlyNote, send, Toggle, uploadFile, ExportButton } from "./kit";
 
 interface BrandForm {
   name: string;
@@ -131,7 +131,18 @@ export default function Catalog() {
 
   return (
     <div className="container-x py-10">
-      <PageHead title="Brands & categories" intro="Add a new manufacturer or product type here, then add its products under Products. Hidden brands and categories disappear from the website with all their products." />
+      <PageHead
+        actions={
+          <ExportButton
+            name="Brands and categories"
+            build={() => [
+              { name: "Brands", columns: [{ header: "Brand" }, { header: "Web slug" }, { header: "Products", type: "number" }, { header: "Visible" }, { header: "Website" }, { header: "Order", type: "number" }, { header: "Description" }], rows: (brands ?? []).map((b) => [b.name, b.slug, b.productCount, b.isActive ? "Yes" : "No", b.website, b.sortOrder, b.description]) },
+              { name: "Categories", columns: [{ header: "Category" }, { header: "Web slug" }, { header: "Products", type: "number" }, { header: "Visible" }, { header: "Order", type: "number" }, { header: "Description" }], rows: (cats ?? []).map((c) => [c.name, c.slug, c.productCount, c.isActive ? "Yes" : "No", c.sortOrder, c.description]) },
+            ]}
+          />
+        }
+        title="Brands & categories"
+        intro="Add a new manufacturer or product type here, then add its products under Products. Hidden brands and categories disappear from the website with all their products." />
       <ReadOnlyNote admin={admin} />
 
       <div className="mt-8 grid min-w-0 grid-cols-1 gap-8 xl:grid-cols-2">

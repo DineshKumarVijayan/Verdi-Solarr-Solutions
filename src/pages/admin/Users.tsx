@@ -1,12 +1,12 @@
 import { Pencil, Plus, ShieldCheck } from "lucide-react";
 import { usePaged } from "../../components/Pager";
 import { useEffect, useState } from "react";
-import type { AdminRole, AdminUserRow } from "../../../shared/types";
+import { ROLE_LABEL, type AdminRole, type AdminUserRow } from "../../../shared/types";
 import { Modal, Spinner, useToast } from "../../components/ui";
 import { api } from "../../lib/api";
 import { useAdmin } from "./AdminLayout";
 import { formatMobile } from "../../../shared/admin-schemas";
-import { dt, errorText, fieldErrors, PageHead, send, Toggle } from "./kit";
+import { dt, errorText, fieldErrors, PageHead, send, Toggle, ExportButton } from "./kit";
 
 const ROLES: { v: AdminRole; label: string; d: string }[] = [
   { v: "owner", label: "Owner", d: "Everything, including managing admin users." },
@@ -60,9 +60,21 @@ export default function Users() {
           </>
         }
         actions={
-          <button type="button" className="btn-primary btn-sm" onClick={() => (setErrs({}), setEdit({ id: null, email: "", mobile: "", password: "", displayName: "", role: "admin", isActive: true }))} data-testid="new-admin">
-            <Plus className="size-4" /> Add admin
-          </button>
+          <>
+            <ExportButton
+              name="Staff"
+              build={() => [
+                {
+                  name: "Staff",
+                  columns: [{ header: "Name" }, { header: "Mobile" }, { header: "Email" }, { header: "Role" }, { header: "Active" }, { header: "Password set" }, { header: "Added", type: "datetime" }, { header: "Last sign-in", type: "datetime" }],
+                  rows: (users ?? []).map((u) => [u.displayName, u.mobile, u.email.endsWith(".invalid") || u.email.includes("@staff.") ? null : u.email, ROLE_LABEL[u.role], u.isActive ? "Yes" : "No", !u.hasPassword ? "No" : u.mustChangePassword ? "Temporary" : "Yes", u.createdAt, u.lastLoginAt]),
+                },
+              ]}
+            />
+            <button type="button" className="btn-primary btn-sm" onClick={() => (setErrs({}), setEdit({ id: null, email: "", mobile: "", password: "", displayName: "", role: "admin", isActive: true }))} data-testid="new-admin">
+              <Plus className="size-4" /> Add admin
+            </button>
+          </>
         }
       />
       {error && <p className="mt-6 rounded-xl bg-danger-bg p-3 text-sm text-danger">{error}</p>}

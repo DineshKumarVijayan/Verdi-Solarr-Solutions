@@ -15,7 +15,7 @@ import { useCatalogue } from "../../lib/catalogue";
 import { useSite } from "../../lib/site";
 import { useAdmin } from "./AdminLayout";
 import { WhatsAppMenu } from "./WhatsAppMenu";
-import { canManage, dt, errorText, PageHead, send, uploadFile, useUnsavedWarning } from "./kit";
+import { canManage, dt, errorText, PageHead, send, uploadFile, useUnsavedWarning, ExportButton } from "./kit";
 
 const PdfViewer = lazy(() => import("../../components/PdfViewer"));
 
@@ -83,6 +83,19 @@ function List() {
                 <Settings2 className="size-4" /> PDF details
               </button>
             )}
+            <ExportButton
+              name="Quotations"
+              build={async () => {
+                const r = await api<{ rows: QuoteRow[] }>(`/api/admin/quotations?${params}&export=1`);
+                return [
+                  {
+                    name: "Quotations",
+                    columns: [{ header: "Number" }, { header: "Date", type: "datetime" }, { header: "Status" }, { header: "Customer" }, { header: "Company" }, { header: "Mobile" }, { header: "Email" }, { header: "Prepared by" }, { header: "Enquiry" }, { header: "Items", type: "number" }, { header: "Subtotal (₹)", type: "money" }, { header: "Discount (₹)", type: "money" }, { header: "Total (₹)", type: "money" }, { header: "Valid until", type: "date" }, { header: "Last sent", type: "datetime" }],
+                    rows: r.rows.map((x) => [x.number, x.createdAt, isExpired(x) ? `${STATUS_LABEL[x.status]} (expired)` : STATUS_LABEL[x.status], x.customerName, x.customerCompany, x.customerMobile ? formatMobile(x.customerMobile) : null, x.customerEmail, x.owner?.name ?? x.createdBy, x.enquiryReference, x.itemCount, x.subtotalPaise / 100, x.discountPaise / 100, x.totalPaise / 100, validUntil(x.createdAt, x.validDays).toISOString(), x.sentAt]),
+                  },
+                ];
+              }}
+            />
             <Link to="/admin/quotations/new" className="btn-primary btn-sm" data-testid="new-quotation">
               <Plus className="size-4" /> New quotation
             </Link>
