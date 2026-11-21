@@ -19,13 +19,17 @@ export default function Home() {
   );
   const { data } = useCatalogue();
 
+  // Counted from the live catalogue; a figure that is zero (e.g. no datasheets uploaded yet) is not shown.
   const datasheetCount = new Set((data?.products ?? []).map((p) => p.datasheet).filter(Boolean)).size;
-  const stats = [
-    { k: "Product models", v: data?.products.length ?? 45 },
-    { k: "Manufacturer datasheets", v: datasheetCount || 10 },
-    { k: "Brands", v: data?.brands.length ?? 2 },
-    { k: "Product categories", v: data?.categories.length ?? 15 },
-  ];
+  const usedCategories = new Set((data?.products ?? []).map((p) => p.categoryId)).size;
+  const stats = data
+    ? [
+        { k: "Product models", v: data.products.length },
+        { k: "Manufacturer datasheets", v: datasheetCount },
+        { k: "Brands", v: new Set(data.products.map((p) => p.brandId)).size },
+        { k: "Product categories", v: usedCategories },
+      ].filter((x) => x.v > 0)
+    : [];
 
   return (
     <>

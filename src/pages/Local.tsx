@@ -1,3 +1,4 @@
+import { productsForCategorySlugs } from "../../shared/category-role";
 import { ArrowRight, BadgeCheck, ChevronDown, FileText, MapPin, ShieldCheck } from "lucide-react";
 import { usePaged } from "../components/Pager";
 import { useMemo } from "react";
@@ -20,10 +21,10 @@ export const LOCAL_PAGES: LocalPage[] = data.pages;
 export default function Local({ page }: { page: LocalPage }) {
   usePageMeta(page.metaTitle, page.description);
   const SITE = useSite();
-  const { data: cat, category, brand, loading } = useCatalogue();
-  const products = useMemo(() => (cat?.products ?? []).filter((p) => page.categories.length === 0 || page.categories.includes(category(p.categoryId)?.slug ?? "")), [cat, page, category]);
+  const { data: cat, brand, loading } = useCatalogue();
+  const products = useMemo(() => productsForCategorySlugs(page.categories, cat?.categories ?? [], cat?.products ?? []), [cat, page]);
   const brands = [...new Set(products.map((p) => brand(p.brandId)?.name).filter(Boolean))];
-  const shown = page.categories.length === 0 ? products.filter((p) => p.featured).concat(products.filter((p) => !p.featured)).slice(0, 12) : products;
+  const shown = page.categories.length === 0 ? products.slice(0, 12) : products;
   const pg = usePaged(shown, `local.${page.slug}`);
 
   return (

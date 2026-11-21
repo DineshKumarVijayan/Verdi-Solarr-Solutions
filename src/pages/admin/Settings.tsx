@@ -102,7 +102,7 @@ export default function Settings() {
           </div>
         ))}
       </div>
-      <p className="mt-4 max-w-3xl text-xs text-subtle">Search engines read the business name, phone and address from the built-in defaults at build time. If you change them here, also update src/site.ts at the next release so the structured data matches.</p>
+      <p className="mt-4 max-w-3xl text-xs text-subtle">Search engines and link previews use these details too: changes appear on the next page load.</p>
       <MessageTemplates editable={editable} />
     </div>
   );

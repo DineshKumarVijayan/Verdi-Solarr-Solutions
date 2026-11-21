@@ -60,7 +60,7 @@ function page(route, { title, description, body, jsonld = [], noindex = false, i
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(fullTitle)}</title>`)
     .replace(/<meta name="description"[^>]*>/, "")
     .replace("<!--seo-->", head)
-    .replace("<!--prerender-->", `<div class="container-x" style="padding:2rem 1rem">${body}</div>`);
+    .replace("<!--prerender-->", `<div id="prerender" class="container-x" style="padding:2rem 1rem">${body}</div>`);
   const file = route === "/" ? join(OUT, "index.html") : join(OUT, `${route.slice(1)}.html`);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, html);
@@ -100,45 +100,8 @@ page("/products", {
   body: `${nav}<h1>All products</h1><ul>${products.map((p) => `<li><a href="/products/${p.slug}">${esc(p.name)}</a> (${esc(brandName[p.brand])}${p.model ? `, model ${esc(p.model)}` : ""})</li>`).join("")}</ul>`,
 });
 
-// ------------------------------------------------------------ categories
-for (const c of categories) {
-  const items = products.filter((p) => p.category === c.slug);
-  page(`/category/${c.slug}`, {
-    title: `${c.name} — products & prices`,
-    description: items.length ? `${c.name} from ${[...new Set(items.map((p) => brandName[p.brand]))].join(", ")}: ${items.length} models with specifications and manufacturer datasheets. ${c.description}` : `${c.name}: ${c.description} Contact VERDI SOLARR SOLUTION for current availability and pricing.`,
-    jsonld: [crumbs([["Home", "/"], ["Products", "/products"], [c.name, `/category/${c.slug}`]])],
-    body: `${nav}<h1>${esc(c.name)}</h1><p>${esc(c.description)}</p>${items.length ? `<ul>${items.map((p) => `<li><a href="/products/${p.slug}">${esc(p.name)}</a>: ${esc(p.short)}</li>`).join("")}</ul>` : `<p>Listings for this category are being added. Please enquire for availability.</p>`}`,
-  });
-}
-
-// --------------------------------------------------------------- products
-for (const p of products) {
-  const c = catBySlug[p.category];
-  const groups = {};
-  for (const s of p.specs) (groups[s.group] ??= []).push(s);
-  const specHtml = Object.entries(groups)
-    .map(([g, rows]) => `<h3>${esc(g)}</h3><table><tbody>${rows.map((s) => `<tr><th scope="row">${esc(s.label)}</th><td>${esc(s.value)}${s.unit ? " " + esc(s.unit) : ""}</td></tr>`).join("")}</tbody></table>`)
-    .join("");
-  const siblings = products.filter((x) => x.seriesKey === p.seriesKey && x.slug !== p.slug);
-  const productLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: p.name,
-    sku: p.sku,
-    ...(p.model && !p.model.includes("XXX") ? { mpn: p.model } : {}),
-    brand: { "@type": "Brand", name: brandName[p.brand] },
-    category: c.name,
-    description: p.description,
-    additionalProperty: p.specs.slice(0, 20).map((s) => ({ "@type": "PropertyValue", name: s.label, value: s.value, ...(s.unit ? { unitText: s.unit } : {}) })),
-    // No `offers`, ratings or availability: prices are live in D1 and stock is never claimed.
-  };
-  page(`/products/${p.slug}`, {
-    title: `${p.name}${p.model ? ` (${p.model})` : ""} — ${brandName[p.brand]}`,
-    description: `${brandName[p.brand]} ${p.short}`.slice(0, 300),
-    jsonld: [productLd, crumbs([["Home", "/"], ["Products", "/products"], [c.name, `/category/${c.slug}`], [p.variant ?? p.name, `/products/${p.slug}`]])],
-    body: `${nav}<article><p>${esc(brandName[p.brand])} · <a href="/category/${c.slug}">${esc(c.name)}</a></p><h1>${esc(p.name)}</h1>${p.model ? `<p>Model: ${esc(p.model)} · SKU: ${esc(p.sku)}</p>` : ""}<p>${esc(p.description)}</p><ul>${p.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul><h2>Technical specifications</h2>${specHtml}<p><a href="${esc(p.datasheet)}">Manufacturer datasheet (PDF)</a></p>${siblings.length ? `<h2>Other ratings in this family</h2><ul>${siblings.map((s) => `<li><a href="/products/${s.slug}">${esc(s.name)}</a></li>`).join("")}</ul>` : ""}<p>Price: listed live on this page. Send an enquiry for confirmed pricing.</p></article>${contact}`,
-  });
-}
+// Category and product pages are NOT prerendered: the Worker (worker/seo.ts) fills them from the live
+// catalogue, so products and categories added, renamed or deleted in the admin are always current.
 
 // ------------------------------------------------------- local landing pages
 for (const lp of localPages) {

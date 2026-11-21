@@ -8,7 +8,7 @@ import { dashboard, listPrices, priceHistory, updatePrice } from "./admin";
 import { adminChangePassword, adminLogin, adminLogout, assertSameOrigin, requireAdmin, staffHintCookie } from "./auth";
 import * as quotes from "./quotations";
 import { handleCatalogue, revalidate } from "./catalogue";
-import { productPage, robots, sitemap } from "./seo";
+import { LIVE_PATHS, livePage, robots, sitemap } from "./seo";
 import * as content from "./content";
 import * as bonus from "./bonus";
 import * as loyalty from "./loyalty";
@@ -38,7 +38,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   if (!path.startsWith("/api/")) {
     if (path === "/sitemap.xml") return sitemap(request, env, ctx);
     if (path === "/robots.txt") return robots(request);
-    if (path.startsWith("/products/")) return productPage(request, env, ctx);
+    if (path.startsWith("/products/") || path.startsWith("/category/") || LIVE_PATHS.includes(path.replace(/\/+$/, "") || "/")) return livePage(request, env, ctx);
     return env.ASSETS.fetch(request);
   }
 

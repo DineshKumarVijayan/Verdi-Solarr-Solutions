@@ -1,3 +1,4 @@
+import { categoryRole, type CategoryRole } from "../../../shared/category-role";
 import { AlertCircle, CheckCircle2, Info, PackagePlus, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
@@ -17,11 +18,11 @@ export function KitBuilder() {
   const toast = useToast();
   const nav = useNavigate();
   const all = data?.products ?? [];
-  const byCat = (slug: string) => all.filter((p) => category(p.categoryId)?.slug === slug);
-  const modules = byCat("solar-panels");
-  const inverters = byCat("solar-inverters");
-  const optimisers = byCat("power-optimisers");
-  const cables = byCat("solar-dc-cables");
+  const byRole = (role: CategoryRole) => all.filter((p) => categoryRole(category(p.categoryId)) === role);
+  const modules = byRole("panels");
+  const inverters = byRole("inverters");
+  const optimisers = byRole("optimisers");
+  const cables = byRole("dc-cables");
 
   const [moduleId, setModuleId] = useState<number | "">("");
   const [moduleQty, setModuleQty] = useState(10);

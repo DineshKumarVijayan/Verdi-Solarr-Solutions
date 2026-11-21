@@ -1,3 +1,4 @@
+import { categoryRole, type CategoryRole } from "../../shared/category-role";
 import { ShareButton } from "../components/ShareButton";
 import { shareText, StickyBuyBar } from "../components/StickyBuyBar";
 import { Check, ChevronDown, Download, FileText, GitCompareArrows, Minus, Plus } from "lucide-react";
@@ -18,12 +19,12 @@ import { MAX_COMPARE, useCompare } from "../lib/compare";
 import { usePageMeta } from "../lib/seo";
 import { useSite } from "../lib/site";
 
-const PAIRS: Record<string, string[]> = {
-  "solar-panels": ["solar-inverters", "solar-dc-cables", "power-optimisers"],
-  "solar-inverters": ["solar-panels", "solar-dc-cables"],
-  "power-optimisers": ["solar-inverters", "solar-panels"],
-  "solar-dc-cables": ["solar-panels", "solar-inverters"],
-  "solar-street-lights": [],
+const PAIRS: Partial<Record<CategoryRole, CategoryRole[]>> = {
+  panels: ["inverters", "dc-cables", "optimisers"],
+  inverters: ["panels", "dc-cables"],
+  optimisers: ["inverters", "panels"],
+  "dc-cables": ["panels", "inverters"],
+  "street-lights": [],
 };
 
 export default function ProductDetail() {
@@ -77,9 +78,9 @@ function Detail({ product, all, brandName, cat }: { product: PublicProduct; all:
   }, [product]);
 
   const related = useMemo(() => {
-    const pairCats = PAIRS[cat?.slug ?? ""] ?? [];
+    const pairRoles = PAIRS[categoryRole(cat)] ?? [];
     const sameCat = all.filter((p) => p.categoryId === product.categoryId && p.seriesKey !== product.seriesKey);
-    const paired = all.filter((p) => pairCats.includes(category(p.categoryId)?.slug ?? ""));
+    const paired = all.filter((p) => p.categoryId !== product.categoryId && pairRoles.includes(categoryRole(category(p.categoryId))));
     // one representative per series
     const seen = new Set<string>();
     return [...sameCat, ...paired].filter((p) => {

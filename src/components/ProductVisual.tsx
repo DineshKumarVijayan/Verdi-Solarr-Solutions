@@ -1,3 +1,4 @@
+import { categoryRole } from "../../shared/category-role";
 import { fallbackToOriginal, srcSetFor } from "../lib/img";
 import type { PublicProduct } from "../../shared/types";
 
@@ -50,10 +51,12 @@ function categoryNoun(slug: string) {
   return slug.replace(/-/g, " ");
 }
 
+const ROLE_ART: Record<string, string> = { panels: "solar-panels", inverters: "solar-inverters", optimisers: "power-optimisers", "dc-cables": "solar-dc-cables", "street-lights": "solar-street-lights" };
+
 function Illustration({ slug }: { slug: string }) {
   const stroke = "#3aa56c";
   const sun = "#f5ad2e";
-  switch (slug) {
+  switch (ROLE_ART[categoryRole({ slug })] ?? slug) {
     case "solar-panels":
       return (
         <svg viewBox="0 0 120 90" className="h-full max-h-40 w-full" aria-hidden="true">

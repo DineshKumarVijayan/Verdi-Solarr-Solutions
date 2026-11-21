@@ -15,10 +15,12 @@ const NODES = [
 ];
 
 export function SystemExplorer() {
-  const { categoryBySlug, countByCategory } = useCatalogue();
+  const { data, categoryBySlug, countByCategory } = useCatalogue();
   const [sel, setSel] = useState("inverter");
   const node = NODES.find((n) => n.id === sel)!;
-  const cat = categoryBySlug(node.cat);
+  // the category with this slug, else one whose name says what it is (renamed categories still link)
+  const words: Record<string, RegExp> = { panels: /panel|module/, mc4: /mc4|connector/, dccable: /dc cable|solar cable/, optimiser: /optimi/, dcdb: /dcdb/, inverter: /inverter/, acdb: /acdb/, grid: /ac cable|single core/, earth: /earth|lightning/ };
+  const cat = categoryBySlug(node.cat) ?? (data?.categories ?? []).find((c) => words[node.id]?.test(`${c.slug} ${c.name}`.toLowerCase().replace(/-/g, " ")));
   const count = cat ? countByCategory.get(cat.id) ?? 0 : 0;
 
   return (

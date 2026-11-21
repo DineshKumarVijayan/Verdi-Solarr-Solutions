@@ -1,3 +1,4 @@
+import { categoryRole } from "../../shared/category-role";
 import { FilterX, LayoutGrid, List, Search, SlidersHorizontal, X } from "lucide-react";
 import { usePaged } from "../components/Pager";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
@@ -376,7 +377,7 @@ function FilterPanel({ filters, categorySlug, update, onClear, activeCount }: { 
     const next = current.includes(v) ? current.filter((x) => x !== v) : [...current, v];
     update({ [key]: next.length ? next.join(",") : null });
   };
-  const showPhase = !categorySlug || categorySlug === "solar-inverters";
+  const showPhase = !categorySlug || categoryRole({ slug: categorySlug }) === "inverters";
   return (
     <div className="grid gap-7">
       <div className="flex items-center justify-between border-b border-line pb-3">

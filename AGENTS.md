@@ -21,6 +21,7 @@
 - Customer accounts (`Customers`, `CustomerSessions`) are separate from admin auth. Store only peppered PBKDF2 hashes (`worker/crypto.ts`, secret `PASSWORD_PEPPER`, see PASSWORDS.md) and token digests; never log or return them. `RewardTransactions` is append-only (corrections are new negative/positive rows).
 - Site content that changes (field photos, contact details, social links, announcement) lives in D1 and is edited in the admin; do not hard-code it again. `src/site.ts` holds only fallbacks.
 - Uploads: only via `/api/admin/uploads` (type-sniffed, size-limited, R2). Never trust the browser-supplied content type.
+- Everything product-related is dynamic (the admin may delete and rebuild the whole catalogue). Never hard-code product/category slugs, counts, photos or spec claims in the UI: read the live catalogue, and recognise a category by what it is with `shared/category-role.ts`. Catalogue pages (`/`, `/products`, `/category/*`, `/products/*`, local pages) get their title, preview tags, JSON-LD and crawler text from the live catalogue in `worker/seo.ts` (`run_worker_first`); deleted items answer 404 + noindex. `scripts/prerender.mjs` only prerenders non-catalogue pages.
 - Tailwind v4: reusable classes are `@utility` blocks in `src/styles.css` (`@apply` cannot reference `@layer components` classes).
 
 ## Phone layout rules (below `lg`, 1024 px)

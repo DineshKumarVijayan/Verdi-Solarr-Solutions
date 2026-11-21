@@ -7,51 +7,53 @@ import { useCatalogue } from "../../lib/catalogue";
 import { m, Reveal } from "../motion";
 
 type Visual = { src: string; cutout: boolean }[];
-const VISUALS: Record<string, Visual> = {
-  "solar-panels": [
-    { src: "/images/products/anchor-mono-perc-bifacial.webp", cutout: true },
-    { src: "/images/products/anchor-topcon-panels.webp", cutout: false },
-  ],
-  "solar-inverters": [
-    { src: "/images/products/anchor-reno-inverter.webp", cutout: true },
-    { src: "/images/products/anchor-stellar-inverter.webp", cutout: true },
-    { src: "/images/products/anchor-lumina-inverter.webp", cutout: true },
-  ],
-  "power-optimisers": [
-    { src: "/images/products/solaredge-s-series-optimizer.webp", cutout: true },
-    { src: "/images/products/solaredge-hd-wave-inverter.webp", cutout: true },
-  ],
-  "solar-dc-cables": [{ src: "/images/products/anchor-solar-dc-cable-section.webp", cutout: false }],
-  "solar-street-lights": [{ src: "/images/products/anchor-street-light-day.webp", cutout: false }],
-};
 
-function highlights(products: PublicProduct[], slug: string): string[] {
-  const nums = (k: string) => products.flatMap((p) => p.specs.filter((s) => s.k === k).map((s) => Number(s.v))).filter((n) => !Number.isNaN(n));
-  const range = (k: string, unit: string, div = 1) => {
-    const n = nums(k);
-    if (!n.length) return null;
-    const lo = Math.min(...n) / div;
-    const hi = Math.max(...n) / div;
-    return lo === hi ? `${lo} ${unit}` : `${lo}–${hi} ${unit}`;
-  };
-  switch (slug) {
-    case "solar-panels":
-      return [range("power_wp", "Wp"), `up to ${Math.max(...nums("efficiency_pct"))}% efficient`, "Bifacial", "PERC & N-Type TOPCon"].filter(Boolean) as string[];
-    case "solar-inverters":
-      return [range("ac_power_w", "kW", 1000), `up to ${Math.max(...nums("max_efficiency_pct"))}% max. eff.`, "Single & three phase", "Dual MPPT options"].filter(Boolean) as string[];
-    case "power-optimisers":
-      return [range("rated_input_w", "W"), "99.5% max. efficiency", "Module-level MPPT", "IP68"].filter(Boolean) as string[];
-    case "solar-dc-cables":
-      return ["4 & 6 mm²", "Up to 1500 V DC", "IS 17293:2020", "Tinned copper · XLPO"];
-    case "solar-street-lights":
-      return [range("led_power_w", "W"), "LiFePO4 battery", "Motion sensor", "AIO & Hybrid"].filter(Boolean) as string[];
-    default:
-      return [];
+/** Up to three photos for a category: the primary photo of different product families (featured first). */
+function visualsFor(products: PublicProduct[]): Visual {
+  const seen = new Set<string>();
+  const out: Visual = [];
+  for (const p of [...products].sort((x, y) => Number(y.featured) - Number(x.featured))) {
+    const img = p.images[0];
+    const key = p.seriesKey ?? String(p.id);
+    if (!img || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ src: img.url, cutout: true });
+    if (out.length === 3) break;
   }
+  return out;
+}
+
+/** Highlights from the products' own specifications (ranges of the most common numeric specs) and brands. */
+function highlights(products: PublicProduct[], brandName: (id: number) => string | undefined): string[] {
+  const keys = new Map<string, { l: string; u: string | null; vals: number[]; first: number }>();
+  products.forEach((p) =>
+    p.specs.forEach((sp, i) => {
+      const n = Number(String(sp.v).replace(/,/g, ""));
+      if (!Number.isFinite(n) || sp.v === "") return;
+      const e = keys.get(sp.k) ?? { l: sp.l, u: sp.u, vals: [], first: i };
+      e.vals.push(n);
+      keys.set(sp.k, e);
+    }),
+  );
+  const need = Math.max(1, Math.ceil(products.length * 0.6));
+  const ranges = [...keys.values()]
+    .filter((e) => e.vals.length >= need)
+    .sort((a, b) => b.vals.length - a.vals.length || a.first - b.first)
+    .slice(0, 2)
+    .map((e) => {
+      const lo = Math.min(...e.vals);
+      const hi = Math.max(...e.vals);
+      // a short symbol in brackets reads better on a chip: "Nominal maximum power (Pmax)" -> "Pmax"
+      const sym = e.l.match(/\(([^()]{1,6})\)/)?.[1];
+      return `${sym ?? e.l}: ${lo === hi ? lo : `${lo}–${hi}`}${e.u ? " " + e.u : ""}`;
+    });
+  const brands = [...new Set(products.map((p) => brandName(p.brandId)).filter(Boolean))] as string[];
+  return [...ranges, ...(brands.length ? [brands.slice(0, 3).join(" · ")] : [])];
 }
 
 export function CatalogueShowcase() {
-  const { data, countByCategory } = useCatalogue();
+  const { data, countByCategory, brand } = useCatalogue();
+  const brandName = (id: number) => brand(id)?.name;
   const cats = (data?.categories ?? []).filter((c) => (countByCategory.get(c.id) ?? 0) > 0);
   const upcoming = (data?.categories ?? []).filter((c) => (countByCategory.get(c.id) ?? 0) === 0);
   const [i, setI] = useState(0);
@@ -65,8 +67,9 @@ export function CatalogueShowcase() {
   }, [i, paused, cats.length]);
 
   const products = useMemo(() => (data?.products ?? []).filter((p) => p.categoryId === active?.id), [data, active]);
-  const chips = active ? highlights(products, active.slug) : [];
-  const visuals = active ? VISUALS[active.slug] ?? [] : [];
+  const chips = active ? highlights(products, brandName) : [];
+  const visuals = active ? visualsFor(products) : [];
+  const withSheets = products.filter((p) => p.datasheet).length;
 
   // 3D tilt + spotlight
   const px = useMotionValue(0.5);
@@ -158,7 +161,7 @@ export function CatalogueShowcase() {
             <div className="relative grid h-full gap-6 p-7 sm:p-10 md:grid-cols-[1fr_1.1fr]">
               <AnimatePresence mode="wait">
                 <m.div key={active.slug} className="flex flex-col justify-center" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: 0.45 }}>
-                  <p className="font-mono text-[10px] tracking-[0.2em] text-sun-300 uppercase">{countByCategory.get(active.id)} models · datasheets included</p>
+                  <p className="font-mono text-[10px] tracking-[0.2em] text-sun-300 uppercase">{countByCategory.get(active.id)} model{countByCategory.get(active.id) === 1 ? "" : "s"}{withSheets ? " · datasheets included" : ""}</p>
                   <h3 className="mt-2 text-3xl font-semibold sm:text-4xl">{active.name}</h3>
                   <p className="mt-3 max-w-sm text-paper/70">{active.description}</p>
                   <div className="mt-5 flex flex-wrap gap-2">
@@ -185,7 +188,7 @@ export function CatalogueShowcase() {
                         src={v.src}
                         alt=""
                         loading="lazy"
-                        className="absolute inset-0 m-auto max-h-[78%] max-w-[62%] object-contain drop-shadow-[0_30px_40px_rgba(0,0,0,0.55)]"
+                        className="absolute inset-0 m-auto max-h-[78%] max-w-[62%] rounded-2xl object-contain drop-shadow-[0_30px_40px_rgba(0,0,0,0.55)]"
                         style={{ zIndex: n - Math.abs(k - (n - 1) / 2) }}
                         initial={{ opacity: 0, x: 120, rotate: 12, scale: 0.8 }}
                         animate={{ opacity: 1, x: `${offset}%`, rotate: (k - (n - 1) / 2) * 5, scale: k === Math.floor(n / 2) ? 1 : 0.86 }}
@@ -236,6 +239,7 @@ export function CatalogueShowcase() {
  * sizes to its content, so nothing is cut off.
  */
 function MobileCatalogue({ cats, products, count }: { cats: PublicCategory[]; products: PublicProduct[]; count: (id: number) => number }) {
+  const { brand: brandOf } = useCatalogue();
   const ref = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
 
@@ -263,11 +267,9 @@ function MobileCatalogue({ cats, products, count }: { cats: PublicCategory[]; pr
       <div ref={ref} className="scrollbar-none -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-[8%] pt-1 pb-3 sm:px-[20%]" aria-label="Product categories">
         {cats.map((c, k) => {
           const on = k === active;
-          const pic = (VISUALS[c.slug] ?? [])[0];
-          const chips = highlights(
-            products.filter((p) => p.categoryId === c.id),
-            c.slug,
-          ).slice(0, 3);
+          const mine = products.filter((p) => p.categoryId === c.id);
+          const pic = visualsFor(mine)[0];
+          const chips = highlights(mine, (id) => brandOf(id)?.name).slice(0, 3);
           return (
             <Link
               key={c.id}

@@ -5,13 +5,20 @@
 // product photo, and schema.org Product JSON-LD with the live listed price (Google rich results).
 // Only data the business entered is used: no invented stock, ratings or reviews.
 
+import { productsForCategorySlugs } from "../shared/category-role";
 import { formatPaise } from "../shared/money";
+import localPages from "../data/local-pages.json";
 import type { PublicCatalogue, PublicProduct } from "../shared/types";
 import { CATALOGUE_CACHE_KEY, handleCatalogue } from "./catalogue";
 import { PAGE_SECURITY_HEADERS } from "./http";
 import type { Env } from "./env";
 
 const BUSINESS = "VERDI SOLARR SOLUTION";
+type LocalPage = { slug: string; title: string; metaTitle: string; description: string; intro: string; categories: string[]; faqs: [string, string][] };
+const LOCAL_PAGES = (localPages as unknown as { pages: LocalPage[] }).pages;
+/** Paths filled from the live catalogue (also listed in wrangler.jsonc run_worker_first). */
+export const LIVE_PATHS = ["/", "/products", ...LOCAL_PAGES.map((p) => `/${p.slug}`)];
+const localProducts = (slugs: string[], cat: PublicCatalogue) => productsForCategorySlugs(slugs, cat.categories, cat.products).slice(0, 60);
 const DEFAULT_IMAGE = "/media/hero-solar-farm-golden-1200.webp";
 
 let memo: { version: string; data: PublicCatalogue } | null = null;
@@ -71,46 +78,169 @@ function productJsonLd(p: PublicProduct, cat: PublicCatalogue, origin: string) {
   return [product, crumbs];
 }
 
-export async function productPage(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+// ------------------------------------------------------------------ live pages
+// Home, All products, every category, every product and the local landing pages are filled from the LIVE
+// catalogue on each request (title, description, preview tags, JSON-LD and readable content for crawlers),
+// so a catalogue rebuilt from scratch in the admin is what search engines and link previews see. A product
+// or category that no longer exists answers 404 (noindex) instead of an old build-time page.
+
+type Live = { title: string; description: string; canonical: string; image?: string; ogType?: string; jsonld: object[]; body: string; status?: number; noindex?: boolean; product?: PublicProduct };
+
+const nav = `<nav aria-label="Site"><a href="/">Home</a> · <a href="/products">Products</a> · <a href="/learn">Learn</a> · <a href="/solar-tools">Solar tools</a> · <a href="/contact">Contact</a></nav>`;
+const FALLBACK = { phone: "+91 8939277997", email: "Verdisolarrsolution@gmail.com", address: ["#229, Bajanai Koil Street", "Nemam", "Chennai – 600124", "Tamil Nadu, India"] };
+
+/** Business details from the admin Settings (fallback: the built-in defaults). */
+function business(cat: PublicCatalogue) {
+  const s = cat.settings ?? {};
+  const address = (s.address ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  return { phone: s.phone || FALLBACK.phone, email: s.email || FALLBACK.email, address: address.length ? address : FALLBACK.address };
+}
+function contactHtml(cat: PublicCatalogue) {
+  const b = business(cat);
+  return `<address>${BUSINESS}, ${esc(b.address.join(", "))}. Phone / WhatsApp: <a href="tel:${esc(b.phone.replace(/[^\d+]/g, ""))}">${esc(b.phone)}</a>. Email: <a href="mailto:${esc(b.email)}">${esc(b.email)}</a>.</address>`;
+}
+function organization(cat: PublicCatalogue, origin: string) {
+  const b = business(cat);
+  return { "@context": "https://schema.org", "@type": "Organization", name: BUSINESS, url: origin, email: b.email, telephone: b.phone, address: { "@type": "PostalAddress", streetAddress: b.address.join(", "), addressCountry: "IN" } };
+}
+const crumbs = (origin: string, items: [string, string][]) => ({
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: items.map(([name, path], i) => ({ "@type": "ListItem", position: i + 1, name, item: origin + path })),
+});
+const fullTitle = (t: string) => (t.includes(BUSINESS) ? t : `${t} | ${BUSINESS}`);
+const list = (cat: PublicCatalogue, items: PublicProduct[]) =>
+  items.length ? `<ul>${items.map((p) => `<li><a href="/products/${esc(p.slug)}">${esc(p.name)}</a>${p.short ? `: ${esc(p.short)}` : ""}</li>`).join("")}</ul>` : `<p>New products are being added. Please contact us for availability.</p>`;
+
+function notFound(origin: string, what: string): Live {
+  return {
+    title: `${what} not found`,
+    description: `This ${what.toLowerCase()} is no longer listed. Browse the current catalogue.`,
+    canonical: `${origin}/products`,
+    jsonld: [],
+    body: `${nav}<h1>${esc(what)} not found</h1><p>It may have been removed or renamed. <a href="/products">See all current products</a>.</p>`,
+    status: 404,
+    noindex: true,
+  };
+}
+
+function productLive(p: PublicProduct, cat: PublicCatalogue, origin: string): Live {
+  const brand = cat.brands.find((b) => b.id === p.brandId)?.name ?? "";
+  const c = cat.categories.find((x) => x.id === p.categoryId);
+  const price = p.price.sellingPaise != null ? `${formatPaise(p.price.sellingPaise)} ${p.price.unit}. ` : "";
+  const groups = new Map<string, PublicProduct["specs"]>();
+  for (const s of p.specs) groups.set(s.g, [...(groups.get(s.g) ?? []), s]);
+  const specs = [...groups].map(([g, rows]) => `<h3>${esc(g)}</h3><table><tbody>${rows.map((s) => `<tr><th scope="row">${esc(s.l)}</th><td>${esc(s.v)}${s.u ? " " + esc(s.u) : ""}</td></tr>`).join("")}</tbody></table>`).join("");
+  const siblings = p.seriesKey ? cat.products.filter((x) => x.seriesKey === p.seriesKey && x.id !== p.id) : [];
+  return {
+    title: `${p.name}${p.model ? ` (${p.model})` : ""}${brand ? ` — ${brand}` : ""} | ${BUSINESS}`,
+    description: `${price}${brand} ${p.short ?? p.name}. Specifications, datasheet and WhatsApp enquiry.`.slice(0, 300),
+    canonical: `${origin}/products/${p.slug}`,
+    image: absolute(origin, p.images[0]?.url ?? DEFAULT_IMAGE),
+    ogType: "product",
+    jsonld: productJsonLd(p, cat, origin),
+    product: p,
+    body: `${nav}<article><p>${esc(brand)}${c ? ` · <a href="/category/${esc(c.slug)}">${esc(c.name)}</a>` : ""}</p><h1>${esc(p.name)}</h1>${p.model ? `<p>Model: ${esc(p.model)} · SKU: ${esc(p.sku)}</p>` : ""}${p.description ? `<p>${esc(p.description)}</p>` : ""}${p.highlights.length ? `<ul>${p.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : ""}${specs ? `<h2>Technical specifications</h2>${specs}` : ""}${p.datasheet ? `<p><a href="${esc(p.datasheet)}">Manufacturer datasheet (PDF)</a></p>` : ""}${siblings.length ? `<h2>Other ratings in this family</h2>${list(cat, siblings)}` : ""}<p>${p.price.sellingPaise != null ? `Price: ${esc(formatPaise(p.price.sellingPaise))} ${esc(p.price.unit)}.` : "Price on request."} Send an enquiry for confirmed pricing.</p></article>${contactHtml(cat)}`,
+  };
+}
+
+/** What to show for a path, from the live catalogue (null = not a catalogue page). */
+function liveFor(path: string, cat: PublicCatalogue, origin: string): Live | null {
+  const brandsOf = (items: PublicProduct[]) => [...new Set(items.map((p) => cat.brands.find((b) => b.id === p.brandId)?.name).filter(Boolean))].join(", ");
+  if (path === "/") {
+    const cats = cat.categories.filter((c) => cat.products.some((p) => p.categoryId === c.id));
+    return {
+      title: `${BUSINESS} — Solar panels, inverters & solar electricals for businesses`,
+      description: "B2B supplier of solar panels, inverters, solar DC cables and solar electrical components in Chennai. Browse real datasheets, compare specifications and send a WhatsApp enquiry.",
+      canonical: `${origin}/`,
+      jsonld: [organization(cat, origin)],
+      body: `${nav}<h1>Power your next solar project.</h1><p>B2B supplier of solar products for dealers, installers, EPC contractors and businesses${cat.brands.length ? ` (${esc(cat.brands.map((b) => b.name).join(", "))})` : ""}. Every model links to its manufacturer datasheet.</p>${cats.length ? `<h2>Product categories</h2><ul>${cats.map((c) => `<li><a href="/category/${esc(c.slug)}">${esc(c.name)}</a>${c.description ? `: ${esc(c.description)}` : ""}</li>`).join("")}</ul>` : ""}${contactHtml(cat)}`,
+    };
+  }
+  if (path === "/products") {
+    return {
+      title: "Solar products catalogue",
+      description: `${cat.products.length} solar products${cat.brands.length ? ` from ${cat.brands.map((b) => b.name).join(", ")}` : ""}: search by wattage, kW, phase and model, with manufacturer datasheets.`.slice(0, 300),
+      canonical: `${origin}/products`,
+      jsonld: [crumbs(origin, [["Home", "/"], ["Products", "/products"]])],
+      body: `${nav}<h1>All products</h1>${list(cat, cat.products)}`,
+    };
+  }
+  const m = path.match(/^\/(category|products)\/([^/]+)\/?$/);
+  if (m) {
+    const slug = decodeURIComponent(m[2]);
+    if (m[1] === "products") {
+      const p = cat.products.find((x) => x.slug === slug);
+      return p ? productLive(p, cat, origin) : notFound(origin, "Product");
+    }
+    const c = cat.categories.find((x) => x.slug === slug);
+    if (!c) return notFound(origin, "Category");
+    const items = cat.products.filter((p) => p.categoryId === c.id);
+    return {
+      title: `${c.name} — products & prices`,
+      description: (items.length ? `${c.name} from ${brandsOf(items)}: ${items.length} models with specifications and manufacturer datasheets. ${c.description ?? ""}` : `${c.name}: ${c.description ?? ""} Contact ${BUSINESS} for current availability and pricing.`).trim().slice(0, 300),
+      canonical: `${origin}/category/${c.slug}`,
+      image: absolute(origin, items.find((p) => p.images[0])?.images[0]?.url ?? DEFAULT_IMAGE),
+      jsonld: [crumbs(origin, [["Home", "/"], ["Products", "/products"], [c.name, `/category/${c.slug}`]])],
+      body: `${nav}<h1>${esc(c.name)}</h1>${c.description ? `<p>${esc(c.description)}</p>` : ""}${list(cat, items)}`,
+    };
+  }
+  const lp = LOCAL_PAGES.find((x) => `/${x.slug}` === path);
+  if (lp) {
+    const items = localProducts(lp.categories, cat);
+    return {
+      title: lp.metaTitle,
+      description: lp.description,
+      canonical: `${origin}/${lp.slug}`,
+      jsonld: [
+        organization(cat, origin),
+        crumbs(origin, [["Home", "/"], [lp.title, `/${lp.slug}`]]),
+        { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: lp.faqs.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) },
+      ],
+      body: `${nav}<h1>${esc(lp.title)}</h1><p>${esc(lp.intro)}</p><h2>Products</h2>${list(cat, items)}<h2>Frequently asked questions</h2>${lp.faqs.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join("")}${contactHtml(cat)}`,
+    };
+  }
+  return null;
+}
+
+/** Serve a catalogue page with live title, tags, JSON-LD and crawler content (never fails the page itself). */
+export async function livePage(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const asset = await env.ASSETS.fetch(request);
   if (request.method !== "GET" || !asset.ok || !(asset.headers.get("Content-Type") ?? "").includes("text/html")) return asset;
   const url = new URL(request.url);
-  const slug = decodeURIComponent(url.pathname.split("/")[2] ?? "");
-  let cat: PublicCatalogue;
+  let live: Live | null;
   try {
-    cat = await catalogue(env, ctx);
+    live = liveFor(url.pathname.replace(/\/+$/, "") || "/", await catalogue(env, ctx), url.origin);
   } catch {
     return asset; // never break the page because of SEO extras
   }
-  const p = cat.products.find((x) => x.slug === slug);
-  if (!p) return asset;
-
-  const brand = cat.brands.find((b) => b.id === p.brandId)?.name ?? "";
-  const title = `${p.name}${p.model ? ` (${p.model})` : ""}${brand ? ` — ${brand}` : ""} | ${BUSINESS}`;
-  const price = p.price.sellingPaise != null ? `${formatPaise(p.price.sellingPaise)} ${p.price.unit}. ` : "";
-  const description = `${price}${brand} ${p.short ?? p.name}. Specifications, datasheet and WhatsApp enquiry.`.slice(0, 300);
-  const image = absolute(url.origin, p.images[0]?.url ?? DEFAULT_IMAGE);
-  const canonical = `${url.origin}/products/${p.slug}`;
+  if (!live) return asset;
+  const title = fullTitle(live.title);
   const tags = [
-    `<meta name="description" content="${esc(description)}" />`,
-    `<link rel="canonical" href="${esc(canonical)}" />`,
-    `<meta property="og:type" content="product" />`,
+    `<meta name="description" content="${esc(live.description)}" />`,
+    `<link rel="canonical" href="${esc(live.canonical)}" />`,
+    live.noindex ? `<meta name="robots" content="noindex, nofollow" />` : "",
+    `<meta property="og:type" content="${live.ogType ?? "website"}" />`,
     `<meta property="og:site_name" content="${BUSINESS}" />`,
     `<meta property="og:title" content="${esc(title)}" />`,
-    `<meta property="og:description" content="${esc(description)}" />`,
-    `<meta property="og:url" content="${esc(canonical)}" />`,
-    `<meta property="og:image" content="${esc(image)}" />`,
-    `<meta property="og:image:alt" content="${esc(p.images[0]?.alt ?? p.name)}" />`,
+    `<meta property="og:description" content="${esc(live.description)}" />`,
+    `<meta property="og:url" content="${esc(live.canonical)}" />`,
+    `<meta property="og:image" content="${esc(live.image ?? absolute(url.origin, DEFAULT_IMAGE))}" />`,
+    live.product ? `<meta property="og:image:alt" content="${esc(live.product.images[0]?.alt ?? live.product.name)}" />` : "",
     `<meta name="twitter:card" content="summary_large_image" />`,
-    ...(p.price.sellingPaise != null ? [`<meta property="product:price:amount" content="${(p.price.sellingPaise / 100).toFixed(2)}" />`, `<meta property="product:price:currency" content="INR" />`] : []),
-    ...productJsonLd(p, cat, url.origin).map((j) => `<script type="application/ld+json">${JSON.stringify(j).replace(/</g, "\\u003c")}</script>`),
-  ].join("\n    ");
-
+    ...(live.product?.price.sellingPaise != null
+      ? [`<meta property="product:price:amount" content="${(live.product.price.sellingPaise / 100).toFixed(2)}" />`, `<meta property="product:price:currency" content="INR" />`]
+      : []),
+    ...live.jsonld.map((j) => `<script type="application/ld+json">${JSON.stringify(j).replace(/</g, "\\u003c")}</script>`),
+  ]
+    .filter(Boolean)
+    .join("\n    ");
   const remove = {
     element: (el: Element) => {
       el.remove();
     },
   };
+  let filled = false;
   const res = new HTMLRewriter()
     .on("title", {
       element: (el) => {
@@ -118,7 +248,9 @@ export async function productPage(request: Request, env: Env, ctx: ExecutionCont
       },
     })
     .on('meta[name="description"]', remove)
+    .on('meta[name="robots"]', remove)
     .on('meta[property^="og:"]', remove)
+    .on('meta[property^="product:"]', remove)
     .on('meta[name^="twitter:"]', remove)
     .on('link[rel="canonical"]', remove)
     .on('script[type="application/ld+json"]', remove)
@@ -127,9 +259,23 @@ export async function productPage(request: Request, env: Env, ctx: ExecutionCont
         el.append(tags, { html: true });
       },
     })
+    // the readable content for crawlers (the app replaces it when it starts)
+    .on("#prerender", {
+      element: (el) => {
+        filled = true;
+        el.setInnerContent(live!.body, { html: true });
+      },
+    })
+    .on("#root", {
+      element: (el) => {
+        el.onEndTag((end) => {
+          if (!filled) end.before(`<div id="prerender" class="container-x" style="padding:2rem 1rem">${live!.body}</div>`, { html: true });
+        });
+      },
+    })
     .transform(asset);
-  const out = new Response(res.body, res);
-  out.headers.set("Cache-Control", "public, max-age=0, must-revalidate"); // price in the tags must stay current
+  const out = new Response(res.body, { status: live.status ?? 200, headers: res.headers });
+  out.headers.set("Cache-Control", "public, max-age=0, must-revalidate"); // live catalogue and prices
   for (const [k, v] of Object.entries(PAGE_SECURITY_HEADERS)) {
     // The local dev server injects an inline start-up script (React refresh) that a strict CSP
     // blocks, leaving a blank page. Production builds have no inline scripts, so the CSP stays there.
@@ -137,16 +283,17 @@ export async function productPage(request: Request, env: Env, ctx: ExecutionCont
     out.headers.set(k, v);
   }
   out.headers.delete("ETag");
+  if (live.noindex) out.headers.set("X-Robots-Tag", "noindex");
   return out;
 }
 
 /** sitemap.xml = static routes from the build (routes.json) + every live product and category. */
 export async function sitemap(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const origin = new URL(request.url).origin;
-  const paths = new Set<string>(["/", "/products"]);
+  const paths = new Set<string>(LIVE_PATHS); // home, all products and the local landing pages
   try {
     const r = await env.ASSETS.fetch(new Request(`${origin}/routes.json`));
-    if (r.ok) for (const p of (await r.json()) as string[]) paths.add(p);
+    if (r.ok) for (const p of (await r.json()) as string[]) if (!/^\/(products|category)\//.test(p)) paths.add(p);
   } catch {
     /* build without routes.json */
   }
