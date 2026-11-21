@@ -140,7 +140,7 @@ test("admin on phones: own top bar, tabs and More sheet; no public header, foote
 });
 
 // Every route at four phone widths: the page itself never scrolls sideways.
-const ALL_ROUTES = ["/", "/products", "/compare", "/enquiry", "/learn", "/learn/how-solar-cells-work", "/solar-tools/consumption", "/solar-tools/sizing", "/solar-tools/roof", "/solar-tools/kit-builder", "/solar-tools/battery", "/solar-tools/losses", "/solar-tools/orientation", "/solar-tools/system-explorer", "/solar-tools/datasheet-decoder", "/in-the-field", "/contact", "/account", "/privacy", "/terms", "/solar-panels-chennai", "/no-such-page", "/admin", "/admin/prices", "/admin/products", "/admin/products/new", "/admin/catalogue", "/admin/field-photos", "/admin/enquiries", "/admin/quotations", "/admin/quotations/new", "/admin/customers", "/admin/settings", "/admin/users"];
+const ALL_ROUTES = ["/", "/products", "/compare", "/enquiry", "/learn", "/learn/how-solar-cells-work", "/solar-tools/consumption", "/solar-tools/sizing", "/solar-tools/roof", "/solar-tools/kit-builder", "/solar-tools/battery", "/solar-tools/losses", "/solar-tools/orientation", "/solar-tools/system-explorer", "/solar-tools/datasheet-decoder", "/in-the-field", "/contact", "/account", "/privacy", "/terms", "/solar-panels-chennai", "/no-such-page", "/admin", "/admin/prices", "/admin/products", "/admin/products/new", "/admin/catalogue", "/admin/field-photos", "/admin/enquiries", "/admin/quotations", "/admin/quotations/new", "/admin/customers", "/admin/settings", "/admin/users", "/admin/performance"];
 for (const width of [280, 360, 390, 430]) {
   test.describe(`${width} px, every route`, () => {
     test.use({ viewport: { width, height: 800 } });
@@ -314,4 +314,22 @@ test("admin product editor on phones: section tabs and a sticky save bar with un
   await tabs.getByTestId("editor-tab-specs").click();
   await expect(page.getByRole("heading", { name: "Specifications" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Product details" })).toBeHidden();
+});
+
+test("staff log an enquiry from the phone dashboard in a full-screen sheet", async ({ page }) => {
+  await page.goto("/admin");
+  await page.getByTestId("m-log-enquiry").click();
+  const sheet = page.getByTestId("log-enquiry");
+  await expect(sheet).toBeVisible();
+  expect((await sheet.boundingBox())!.height).toBeGreaterThanOrEqual(page.viewportSize()!.height - 2);
+  await expect(sheet.locator("#le-mobile")).toHaveAttribute("inputmode", "tel");
+  await sheet.locator("#le-name").fill("Phone Sheet Test");
+  await sheet.locator("#le-mobile").fill("9876505678");
+  await sheet.locator("#le-location").fill("Madurai");
+  await sheet.getByTestId("le-save").click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByTestId("admin-enquiry").filter({ hasText: "Phone Sheet Test" })).toBeVisible();
+  await page.goto("/admin/performance");
+  await expect(page.getByTestId("leaderboard")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
 });

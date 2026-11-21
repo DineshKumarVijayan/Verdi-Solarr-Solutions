@@ -1,4 +1,5 @@
-import { ClipboardList, FileText, Images, LayoutDashboard, Layers, Package, Settings, ShieldCheck, Tags, Users } from "lucide-react";
+import type { AdminRole } from "../../../shared/types";
+import { BarChart3, ClipboardList, FileText, Images, LayoutDashboard, Layers, Package, Settings, ShieldCheck, Tags, Users } from "lucide-react";
 
 /**
  * The one list of admin sections. The desktop admin bar shows all of them; on phones the first
@@ -13,6 +14,7 @@ export const ADMIN_NAV = [
   { to: "/admin/field-photos", label: "Photos", sheetLabel: "Field photos", icon: Images },
   { to: "/admin/enquiries", label: "Enquiries", icon: ClipboardList, tab: true },
   { to: "/admin/quotations", label: "Quotations", tabLabel: "Quotes", icon: FileText, tab: true },
+  { to: "/admin/performance", label: "Performance", icon: BarChart3, roles: ["owner", "admin"] },
   { to: "/admin/customers", label: "Customers", icon: Users },
   { to: "/admin/settings", label: "Settings", icon: Settings },
   { to: "/admin/users", label: "Staff", icon: ShieldCheck, owner: true },
@@ -25,4 +27,9 @@ export const ADMIN_NAV = [
   end?: boolean;
   tab?: boolean;
   owner?: boolean;
+  /** only these roles see the section */
+  roles?: AdminRole[];
 }[];
+
+/** Whether a staff role sees this section in the menus. */
+export const navAllowed = (n: (typeof ADMIN_NAV)[number], role: AdminRole) => (!n.owner || role === "owner") && (!n.roles || n.roles.includes(role));

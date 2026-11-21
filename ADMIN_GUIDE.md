@@ -69,6 +69,14 @@ Every enquiry sent from the basket is saved with a reference number (e.g. `VS-26
 - Open an enquiry to see the items, call or WhatsApp the customer, set the **status** (Received â†’ Contacted â†’ Quoted â†’ Order confirmed / Closed / Cancelled) and keep **internal notes**. Customers never see the notes.
 - For registered customers you can credit **reward points** right there.
 
+### Logging enquiries from calls, WhatsApp and visits
+- Tap **Log enquiry** (on a phone it is the green button at the top of the Dashboard). Choose how the customer reached you, enter their name, mobile and location, what they need, optionally pick products and quantities, and the status after the call.
+- It is saved under **your** staff account in the same Enquiries list (marked *Phone*, *WhatsApp* or *Visit* with your name), so it can be followed up and turned into a quotation like any other enquiry. Every staff role can log enquiries.
+- Filter the list with **Logged by staff** to see only these.
+
+### Staff performance (owner and admins)
+**Performance** shows how many enquiries each staff member logged, per day, month or year (India time), with how many were quoted and won. Pick a date range or one staff member; **Show as a table** gives the exact numbers, and **See these enquiries** opens the matching list.
+
 ## Quotations
 Any admin (every role) can prepare quotations under **Quotations**. On an enquiry you can also click **Create quotation**, which fills in the customer details and products.
 1. **New quotation**: enter the customer name. Mobile number, email, company and address are optional.

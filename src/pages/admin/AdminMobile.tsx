@@ -1,5 +1,5 @@
 import { Ellipsis, ExternalLink, KeyRound, LogOut } from "lucide-react";
-import { ADMIN_NAV } from "./nav";
+import { ADMIN_NAV, navAllowed } from "./nav";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import type { AdminDashboard, AdminIdentity } from "../../../shared/types";
@@ -20,6 +20,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/admin\/enquiries/, "Enquiries"],
   [/^\/admin\/quotations\/.+/, "Quotation"],
   [/^\/admin\/quotations/, "Quotations"],
+  [/^\/admin\/performance/, "Staff performance"],
   [/^\/admin\/customers/, "Customers"],
   [/^\/admin\/settings/, "Settings"],
   [/^\/admin\/users/, "Staff"],
@@ -79,7 +80,7 @@ export function AdminTabBar({ admin, onPassword, onSignOut }: { admin: AdminIden
     return () => void (live = false);
   }, [pathname]);
   const cls = ({ isActive }: { isActive: boolean }) => `tabbar-item ${isActive ? "!text-verdi-700" : ""}`;
-  const allowed = ADMIN_NAV.filter((n) => !n.owner || admin.role === "owner");
+  const allowed = ADMIN_NAV.filter((n) => navAllowed(n, admin.role));
   const tabs = allowed.filter((n) => n.tab);
   const sections = allowed.filter((n) => !n.tab);
   const moreActive = sections.some((n) => pathname.startsWith(n.to));

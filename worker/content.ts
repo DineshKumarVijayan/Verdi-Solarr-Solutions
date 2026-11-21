@@ -20,7 +20,9 @@ import {
   normaliseMobile,
   PointsAdjustSchema,
   ProductInputSchema,
+  StaffEnquirySchema,
 } from "../shared/admin-schemas";
+import { lineTotalPaise } from "../shared/money";
 import {
   type AdminBrand,
   type AdminCategory,
@@ -33,13 +35,15 @@ import {
   type AdminProductListRow,
   type AdminRole,
   type AdminUserRow,
+  type EnquirySource,
+  type EnquiryStats,
   SITE_SETTING_KEYS,
   type SiteSettingKey,
 } from "../shared/types";
 import { mediaUrl, publishCatalogue, purgeCatalogueEdgeCache } from "./catalogue";
 import { isPlaceholderEmail, PLACEHOLDER_EMAIL_DOMAIN } from "../shared/session";
 import { hashPassword, randomToken } from "./crypto";
-import { issueResetLink, loadEnquiries, rewardLedger, toEnquiryView } from "./customers";
+import { issueResetLink, loadEnquiries, reference, rewardLedger, toEnquiryView } from "./customers";
 import type { Env } from "./env";
 import { HttpError, nowIso } from "./http";
 
@@ -840,13 +844,17 @@ export async function customerResetLink(env: Env, admin: AdminIdentity, id: numb
 // ------------------------------------------------------------------ enquiries (admin view)
 
 const ENQ_SELECT = `SELECT e.EnquiryId, e.Reference, e.Status, e.CreatedAt, e.UpdatedAt, e.UpdatedBy, e.IndicativeTotalPaise, e.PricesVerified, e.Location, e.Comments,
-       e.CustomerId, c.FullName AS CustomerName, e.ContactName, e.BusinessName, e.Mobile, e.AdminNotes
-  FROM Enquiries e LEFT JOIN Customers c ON c.CustomerId = e.CustomerId`;
+       e.CustomerId, c.FullName AS CustomerName, e.ContactName, e.BusinessName, e.Mobile, e.AdminNotes,
+       e.Source, e.CreatedByAdminId, COALESCE(a.DisplayName, a.Email) AS CreatedByName
+  FROM Enquiries e LEFT JOIN Customers c ON c.CustomerId = e.CustomerId
+  LEFT JOIN AdminUsers a ON a.AdminId = e.CreatedByAdminId`;
 
 type EnqRow = Parameters<typeof toEnquiryView>[0] & Record<string, unknown>;
 function toAdminEnquiry(r: EnqRow): AdminEnquiryRow {
   return {
     ...toEnquiryView(r),
+    source: ((r.Source as string) ?? "website") as EnquirySource,
+    createdBy: r.CreatedByAdminId ? { id: r.CreatedByAdminId as number, name: (r.CreatedByName as string) ?? "Staff" } : null,
     customerId: (r.CustomerId as number) ?? null,
     customerName: (r.CustomerName as string) ?? null,
     contactName: r.ContactName as string,
@@ -872,9 +880,110 @@ export async function listEnquiries(env: Env, url: URL): Promise<{ rows: AdminEn
     const n = binds.length;
     where.push(`(e.Reference LIKE ?${n} ESCAPE '\\' OR e.ContactName LIKE ?${n} ESCAPE '\\' OR e.Mobile LIKE ?${n} ESCAPE '\\' OR e.BusinessName LIKE ?${n} ESCAPE '\\')`);
   }
+  const source = url.searchParams.get("source") ?? "";
+  if (source === "website" || source === "phone" || source === "whatsapp" || source === "visit") {
+    binds.push(source);
+    where.push(`e.Source = ?${binds.length}`);
+  } else if (source === "staff") where.push("e.CreatedByAdminId IS NOT NULL");
+  const staff = url.searchParams.get("staff") ?? "";
+  if (/^\d{1,9}$/.test(staff)) {
+    binds.push(Number(staff));
+    where.push(`e.CreatedByAdminId = ?${binds.length}`);
+  }
   const rows = await loadEnquiries<EnqRow>(env, `${ENQ_SELECT} ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY e.CreatedAt DESC, e.EnquiryId DESC LIMIT 300`, binds);
   const c = await env.DB.prepare("SELECT Status, COUNT(*) AS n FROM Enquiries GROUP BY Status").all<{ Status: string; n: number }>();
   return { rows: rows.map(toAdminEnquiry), counts: Object.fromEntries(c.results.map((x) => [x.Status, x.n])) };
+}
+
+/**
+ * Staff log an enquiry they handled themselves (phone call, WhatsApp, visit). Any active staff role may
+ * log; the enquiry is recorded against their AdminId for the performance report. Product lines are a
+ * snapshot of the catalogue at that moment (listed prices only, as on the website).
+ */
+export async function createStaffEnquiry(env: Env, admin: AdminIdentity, body: unknown): Promise<{ enquiry: AdminEnquiryRow }> {
+  const v = parse(StaffEnquirySchema, body);
+  const me = await env.DB.prepare("SELECT AdminId FROM AdminUsers WHERE Email = ?1 COLLATE NOCASE AND IsActive = 1").bind(admin.email).first<{ AdminId: number }>();
+  if (!me) throw new HttpError(403, "forbidden", "Your staff account is not active.");
+  const ids = [...new Set(v.items.map((i) => i.productId))];
+  const products = ids.length
+    ? await env.DB.prepare(
+        `SELECT p.ProductId, p.ProductName, p.ModelNumber, p.IsActive, b.BrandName, pp.SellingPricePaise, pp.PriceUnit, pp.GSTRate, pp.GSTIncluded
+         FROM Products p JOIN Brands b ON b.BrandId = p.BrandId LEFT JOIN ProductPrices pp ON pp.ProductId = p.ProductId
+         WHERE p.ProductId IN (${ids.map((_, i) => `?${i + 1}`).join(",")})`,
+      )
+        .bind(...ids)
+        .all<{ ProductId: number; ProductName: string; ModelNumber: string | null; IsActive: number; BrandName: string; SellingPricePaise: number | null; PriceUnit: string | null; GSTRate: number | null; GSTIncluded: number | null }>()
+    : { results: [] };
+  const byId = new Map(products.results.map((r) => [r.ProductId, r]));
+  if (ids.some((x) => !byId.has(x))) throw new HttpError(422, "validation", "One of the products no longer exists. Refresh and try again.");
+  let total = 0;
+  let priced = 0;
+  const items = v.items.map((i) => {
+    const r = byId.get(i.productId)!;
+    const unit = r.IsActive ? r.SellingPricePaise : null;
+    if (unit !== null) {
+      total += lineTotalPaise(unit, i.quantity);
+      priced++;
+    }
+    return { ...i, r, unit };
+  });
+  const ref = reference();
+  const now = nowIso();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO Enquiries (Reference, ContactName, BusinessName, Mobile, Location, Comments, Status, PricesVerified, IndicativeTotalPaise, Source, CreatedByAdminId, CreatedAt, UpdatedAt, UpdatedBy)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13)`,
+    ).bind(ref, v.name, v.business || null, v.mobile, v.location, v.need || null, v.status, priced > 0 ? 1 : 0, priced > 0 ? total : null, v.source, me.AdminId, now, admin.email),
+    ...items.map((i) =>
+      env.DB.prepare(
+        `INSERT INTO EnquiryItems (EnquiryId, ProductId, ProductName, BrandName, ModelNumber, Quantity, UnitPricePaise, PriceUnit, GSTRate, GSTIncluded)
+         SELECT EnquiryId, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10 FROM Enquiries WHERE Reference = ?1`,
+      ).bind(ref, i.productId, i.r.ProductName, i.r.BrandName, i.r.ModelNumber, i.quantity, i.unit, i.r.PriceUnit ?? "per piece", i.r.GSTRate, i.r.GSTIncluded ?? 0),
+    ),
+    audit(env, admin, "enquiry.log", "Enquiry", ref, null, { source: v.source, status: v.status, items: v.items.length }, now),
+  ]);
+  const rows = await loadEnquiries<EnqRow>(env, `${ENQ_SELECT} WHERE e.Reference = ?1`, [ref]);
+  return { enquiry: toAdminEnquiry(rows[0]) };
+}
+
+const IST = "'+5 hours', '+30 minutes'";
+const ymd = (v: string | null, fallback: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fallback);
+
+/** Owner/admin: enquiries logged per staff member by day, month or year (India time), with outcomes. */
+export async function enquiryStats(env: Env, admin: AdminIdentity, url: URL): Promise<EnquiryStats> {
+  requireRole(admin, CONTENT_ROLES, "see staff performance");
+  const period = (["day", "month", "year"] as const).find((x) => x === url.searchParams.get("period")) ?? "day";
+  const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+  const defaultFrom = period === "day" ? new Date(Date.now() + 5.5 * 3600_000 - 29 * 86400_000).toISOString().slice(0, 10) : period === "month" ? `${today.slice(0, 4)}-01-01` : `${Number(today.slice(0, 4)) - 4}-01-01`;
+  const from = ymd(url.searchParams.get("from"), defaultFrom);
+  const to = ymd(url.searchParams.get("to"), today);
+  const fmt = period === "day" ? "%Y-%m-%d" : period === "month" ? "%Y-%m" : "%Y";
+  // day boundaries in India time; "to" is inclusive
+  const range = `date(e.CreatedAt, ${IST}) BETWEEN ?1 AND ?2`;
+  const [staffRows, bucketRows, web] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT a.AdminId AS id, COALESCE(a.DisplayName, a.Email) AS name,
+              COUNT(e.EnquiryId) AS total, COALESCE(SUM(e.Status = 'won'), 0) AS won,
+              COALESCE(SUM(e.Status IN ('quoted', 'won')), 0) AS quoted, COALESCE(SUM(e.Status = 'lost'), 0) AS lost
+       FROM AdminUsers a LEFT JOIN Enquiries e ON e.CreatedByAdminId = a.AdminId AND ${range}
+       WHERE a.IsActive = 1 OR e.EnquiryId IS NOT NULL
+       GROUP BY a.AdminId ORDER BY total DESC, name`,
+    ).bind(from, to),
+    env.DB.prepare(
+      `SELECT strftime(?3, e.CreatedAt, ${IST}) AS bucket, e.CreatedByAdminId AS staffId, COUNT(*) AS total, COALESCE(SUM(e.Status = 'won'), 0) AS won
+       FROM Enquiries e WHERE e.CreatedByAdminId IS NOT NULL AND ${range}
+       GROUP BY bucket, e.CreatedByAdminId ORDER BY bucket`,
+    ).bind(from, to, fmt),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM Enquiries e WHERE e.Source = 'website' AND ${range}`).bind(from, to),
+  ]);
+  return {
+    period,
+    from,
+    to,
+    staff: staffRows.results as EnquiryStats["staff"],
+    buckets: bucketRows.results as EnquiryStats["buckets"],
+    websiteTotal: (web.results[0] as { n: number } | undefined)?.n ?? 0,
+  };
 }
 
 export async function updateEnquiry(env: Env, admin: AdminIdentity, id: number, body: unknown) {

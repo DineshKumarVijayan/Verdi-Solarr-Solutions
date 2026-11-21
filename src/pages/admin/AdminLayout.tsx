@@ -1,5 +1,5 @@
 import { KeyRound, LogOut, ShieldAlert } from "lucide-react";
-import { ADMIN_NAV } from "./nav";
+import { ADMIN_NAV, navAllowed } from "./nav";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import type { AdminIdentity } from "../../../shared/types";
@@ -86,7 +86,7 @@ export default function AdminLayout() {
         <div className="container-x flex flex-wrap items-center gap-3 py-3">
           <span className="rounded-full bg-sun-400 px-2.5 py-0.5 font-mono text-[10px] font-semibold tracking-widest text-ink uppercase">Admin</span>
           <nav aria-label="Admin" className="scrollbar-none -mx-1 order-last flex min-w-0 basis-full gap-1 overflow-x-auto px-1 max-lg:[mask-image:linear-gradient(90deg,black_90%,transparent)] lg:flex-wrap lg:overflow-visible">
-            {NAV.filter((n) => !n.owner || admin.role === "owner").map((n) => (
+            {NAV.filter((n) => navAllowed(n, admin.role)).map((n) => (
               <NavLink key={n.to} end={n.end} to={n.to} className={({ isActive }) => `inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm whitespace-nowrap lg:px-2.5 xl:px-3 ${isActive ? "bg-white/10 text-paper" : "text-paper/70 hover:text-paper"}`}>
                 <n.icon className="size-4" /> {n.label}
               </NavLink>

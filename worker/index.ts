@@ -227,6 +227,8 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
       break;
     case "enquiries":
       if (seg.length === 1 && method === "GET") return json(await content.listEnquiries(env, url));
+      if (seg.length === 1 && method === "POST") return json(await content.createStaffEnquiry(env, admin, await body(64 * 1024)), { status: 201 });
+      if (seg[1] === "stats" && seg.length === 2 && method === "GET") return json(await content.enquiryStats(env, admin, url));
       if (id && seg.length === 2 && method === "PUT") return json(await content.updateEnquiry(env, admin, id, await body()));
       break;
   }

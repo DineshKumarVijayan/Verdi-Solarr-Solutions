@@ -168,6 +168,9 @@ function PhoneDashboard({ d, canAdd, name }: { d: AdminDashboard; canAdd: boolea
   return (
     <div className="px-4 pt-3 pb-6 lg:hidden" data-testid="phone-dashboard">
       <h1 className="text-lg font-semibold">Welcome{name ? `, ${name}` : ""}</h1>
+      <Link to="/admin/enquiries?log=1" className="btn-primary tap mt-3 w-full" data-testid="m-log-enquiry">
+        <Plus className="size-4" /> Log an enquiry
+      </Link>
       <section aria-labelledby="att-h" className="mt-3">
         <h2 id="att-h" className="text-base font-semibold">
           Needs attention

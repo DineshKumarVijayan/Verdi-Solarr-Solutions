@@ -314,6 +314,24 @@ export const EnquiryCreateSchema = z
   .strict();
 export type EnquiryCreate = z.infer<typeof EnquiryCreateSchema>;
 
+/** An enquiry a staff member logs from a phone call, WhatsApp chat or visit. Products are optional. */
+export const StaffEnquirySchema = z
+  .object({
+    source: z.enum(["phone", "whatsapp", "visit"]),
+    name: z.string().trim().min(2, "Enter the customer's name").max(80),
+    mobile: z.string().trim().regex(/^\+?\d[\d\s-]{8,15}\d$/, "Enter a valid mobile number"),
+    business: z.string().trim().max(120).optional().default(""),
+    location: z.string().trim().min(2, "Enter the customer's location").max(120),
+    need: z.string().trim().max(1000).optional().default(""),
+    status: z.enum(["new", "contacted", "quoted", "won", "lost", "cancelled"]).default("contacted"),
+    items: z
+      .array(z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(100000) }).strict())
+      .max(50)
+      .default([]),
+  })
+  .strict();
+export type StaffEnquiry = z.infer<typeof StaffEnquirySchema>;
+
 export const EnquiryAdminUpdateSchema = z
   .object({
     status: z.enum(["new", "contacted", "quoted", "won", "lost", "cancelled"]).optional(),

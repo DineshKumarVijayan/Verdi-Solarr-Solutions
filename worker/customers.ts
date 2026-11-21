@@ -296,7 +296,7 @@ export async function issueResetLink(env: Env, origin: string, customerId: numbe
 // ------------------------------------------------------------------ enquiries
 
 const REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-function reference(): string {
+export function reference(): string {
   const d = new Date();
   const ymd = `${String(d.getUTCFullYear()).slice(2)}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
   const r = crypto.getRandomValues(new Uint8Array(5));

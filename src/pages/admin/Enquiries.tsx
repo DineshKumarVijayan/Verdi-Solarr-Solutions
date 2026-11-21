@@ -1,4 +1,5 @@
-import { Award, ChevronDown, FileText, Phone, Search, UserRound } from "lucide-react";
+import { Award, ChevronDown, FileText, Phone, Plus, Search, UserRound } from "lucide-react";
+import { LogEnquiry } from "./LogEnquiry";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { formatMobile, normaliseMobile } from "../../../shared/admin-schemas";
@@ -19,7 +20,13 @@ export default function Enquiries() {
   const [q, setQ] = useState(params.get("q") ?? "");
   const [open, setOpen] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [logging, setLogging] = useState(params.get("log") === "1");
+  // opened from the dashboard shortcut: drop ?log=1 so Back does not reopen the form
+  useEffect(() => {
+    if (params.get("log") === "1") setParams((pr) => { const n = new URLSearchParams(pr); n.delete("log"); return n; }, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const status = params.get("status") ?? "";
+  const source = params.get("source") ?? "";
 
   const load = useCallback(() => {
     api<{ rows: AdminEnquiryRow[]; counts: Record<string, number> }>(`/api/admin/enquiries?${params}`)
@@ -45,11 +52,31 @@ export default function Enquiries() {
 
   return (
     <div className="container-x py-10 max-lg:pt-3 max-lg:pb-24">
-      <PageHead title="Enquiries" intro="Every enquiry sent from the website basket, including guests. Update the status as you follow up — signed-in customers see it in their account." />
+      <PageHead
+        title="Enquiries"
+        intro="Every enquiry from the website basket, plus the ones staff log from calls, WhatsApp and visits. Update the status as you follow up — signed-in customers see it in their account."
+        actions={
+          <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => setLogging(true)} data-testid="log-enquiry-open">
+            <Plus className="size-4" /> Log enquiry
+          </button>
+        }
+      />
+      <LogEnquiry open={logging} onClose={() => setLogging(false)} onSaved={(e) => setRows((rs) => [e, ...(rs ?? [])])} />
 
       <div className="mt-6 flex flex-wrap gap-2 max-lg:scrollbar-none max-lg:-mx-4 max-lg:mt-3 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-4">
         {[["", `All (${total})`] as const, ...ENQUIRY_STATUSES.map((s) => [s, `${STATUS_LABEL[s]} (${counts[s] ?? 0})`] as const)].map(([k, l]) => (
           <button key={k} type="button" className={`${status === k ? "chip-on chip" : "chip"} max-lg:tap max-lg:shrink-0 max-lg:whitespace-nowrap`} onClick={() => set("status", k)}>
+            {l}
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2 max-lg:scrollbar-none max-lg:-mx-4 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-4" role="group" aria-label="Who logged it">
+        {[
+          ["", "All sources"],
+          ["website", "Website"],
+          ["staff", "Logged by staff"],
+        ].map(([k, l]) => (
+          <button key={k} type="button" className={`${source === k && !params.get("staff") ? "chip-on chip" : "chip"} max-lg:tap max-lg:shrink-0 max-lg:whitespace-nowrap`} onClick={() => setParams((pr) => { const n = new URLSearchParams(pr); if (k) n.set("source", k); else n.delete("source"); n.delete("staff"); return n; }, { replace: true })}>
             {l}
           </button>
         ))}
@@ -123,6 +150,12 @@ function EnquiryRow({ e, open, onToggle, onSaved }: { e: AdminEnquiryRow; open: 
           {e.contactName}
           {e.business ? ` · ${e.business}` : ""} <span className="text-muted">· {e.location}</span>
         </span>
+        {e.source !== "website" && (
+          <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-600" data-testid="enquiry-source">
+            {e.source === "phone" ? "Phone" : e.source === "whatsapp" ? "WhatsApp" : "Visit"}
+            {e.createdBy ? ` · ${e.createdBy.name}` : ""}
+          </span>
+        )}
         {e.customerId && <UserRound className="size-4 text-verdi-600" aria-label="Registered customer" />}
         <span className="num text-sm">{e.totalPaise != null ? formatPaise(e.totalPaise) : "—"}</span>
         <span className="text-xs text-muted">{dt(e.createdAt)}</span>

@@ -3,5 +3,6 @@
   "0002_dynamic_content_and_customers.sql": "09304efdeae531bb33d56fe0015448744d9610caed9d7b3779105f0d14f12e7a",
   "0003_admin_password_login.sql": "8fa126ad412df775131bf784eb60cef76ee974db3290e653daffedee8102467a",
   "0004_quotations.sql": "e122b02ae2c66fe55e45ce4bd8504dcae2ca9b66a0246c6d1a453e5221fdaa6b",
-  "0005_staff_password_policy.sql": "8a2eeda2d60ff06a6ab668449d4ed8e935b87b95aac1fd9a2cddbc35892344ee"
+  "0005_staff_password_policy.sql": "8a2eeda2d60ff06a6ab668449d4ed8e935b87b95aac1fd9a2cddbc35892344ee",
+  "0006_staff_logged_enquiries.sql": "64dc96693df9274cbfe8f72b74e1dd55e707c04092275714e6de2f3f0fb43daa"
 }

@@ -318,7 +318,12 @@ export interface RewardEntry {
   createdAt: string;
 }
 
+export type EnquirySource = "website" | "phone" | "whatsapp" | "visit";
+
 export interface AdminEnquiryRow extends EnquiryView {
+  source: EnquirySource;
+  /** staff member who logged it (null for website enquiries) */
+  createdBy: { id: number; name: string } | null;
   customerId: number | null;
   customerName: string | null;
   contactName: string;
@@ -341,4 +346,14 @@ export interface AdminCustomerRow {
   enquiries: number;
   createdAt: string;
   lastLoginAt: string | null;
+}
+
+/** Enquiries logged per staff member, bucketed by day / month / year (India time). */
+export interface EnquiryStats {
+  period: "day" | "month" | "year";
+  from: string;
+  to: string;
+  staff: { id: number; name: string; total: number; won: number; quoted: number; lost: number }[];
+  buckets: { bucket: string; staffId: number; total: number; won: number }[];
+  websiteTotal: number;
 }
