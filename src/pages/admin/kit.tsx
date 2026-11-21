@@ -1,6 +1,6 @@
 import { UploadCloud } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { AdminIdentity } from "../../../shared/types";
+import { ROLE_LABEL, type AdminIdentity } from "../../../shared/types";
 import { Spinner } from "../../components/ui";
 import { api, ApiError } from "../../lib/api";
 
@@ -138,7 +138,7 @@ export function PageHead({ title, intro, actions }: { title: string; intro?: Rea
 
 export function ReadOnlyNote({ admin }: { admin: AdminIdentity }) {
   if (canManage(admin)) return null;
-  return <p className="mt-4 rounded-xl bg-sun-100 px-3 py-2 text-sm">Your role ({admin.role.replace("_", " ")}) can view this page but not change it.</p>;
+  return <p className="mt-4 rounded-xl bg-sun-100 px-3 py-2 text-sm">Your role ({ROLE_LABEL[admin.role]}) can view this page but not change it.</p>;
 }
 
 export const dt = (s: string | null) => (s ? new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");

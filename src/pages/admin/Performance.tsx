@@ -100,8 +100,8 @@ export default function Performance() {
   const staff = data?.staff ?? [];
   const shown = staffId ? staff.filter((s) => s.id === staffId) : staff;
   const sum = shown.reduce(
-    (a, s) => ({ total: a.total + s.total, quoted: a.quoted + s.quoted, won: a.won + s.won, lost: a.lost + s.lost + s.cancelled, sale: a.sale + s.salePaise }),
-    { total: 0, quoted: 0, won: 0, lost: 0, sale: 0 },
+    (a, s) => ({ total: a.total + s.total, quoted: a.quoted + s.quoted, won: a.won + s.won, lost: a.lost + s.lost, sale: a.sale + s.salePaise, overdue: a.overdue + s.overdue }),
+    { total: 0, quoted: 0, won: 0, lost: 0, sale: 0, overdue: 0 },
   );
 
   const series = useMemo(() => {
@@ -130,7 +130,7 @@ export default function Performance() {
 
   return (
     <div className="container-x py-10 max-lg:pt-3">
-      <PageHead title="Staff performance" intro="Enquiries each staff member is responsible for, from first contact to quotation and final sale, with reasons for lost or cancelled enquiries. Counts enquiries created in the chosen dates (India time)." />
+      <PageHead title="Staff performance" intro="Enquiries each staff member is responsible for, from first contact to quotation and final sale, with reasons when an enquiry is not won (duplicates and wrong entries do not count for or against anyone), and overdue follow-ups. Counts enquiries created in the chosen dates (India time)." />
 
       {/* filters: one row above the charts */}
       <div className="mt-5 flex flex-wrap items-end gap-2" data-testid="performance-filters">
@@ -181,13 +181,14 @@ export default function Performance() {
 
       {data && (
         <>
-          <dl className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6" data-testid="performance-totals">
+          <dl className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7" data-testid="performance-totals">
             {[
               ["Enquiries", String(sum.total)],
               ["Reached quotation", `${sum.quoted} · ${pct(sum.quoted, sum.total)}`],
               ["Won (sales)", `${sum.won} · ${pct(sum.won, sum.total)}`],
               ["Sales value", rupees(sum.sale)],
-              ["Lost or cancelled", String(sum.lost)],
+              ["Not won", String(sum.lost)],
+              ["Overdue follow-ups", String(sum.overdue)],
               ["Unassigned", staffId ? "—" : String(data.unassigned)],
             ].map(([k, v]) => (
               <div key={k} className="card p-3 sm:p-4">
@@ -210,7 +211,7 @@ export default function Performance() {
                   <table className="w-full text-sm" data-testid="leaderboard">
                     <thead className="text-left text-xs text-muted">
                       <tr className="border-b border-line">
-                        {["Staff member", "Enquiries", "Contacted", "Quoted", "Won", "Lost", "Cancelled", "Open", "Win rate", "Sales", "Days to quote", "Days to close"].map((h, i) => (
+                        {["Staff member", "Enquiries", "Contacted", "Quoted", "Won", "Not won", "Open", "Overdue", "Win rate", "Sales", "Days to quote", "Days to close"].map((h, i) => (
                           <th key={h} className={`py-2 pr-3 font-medium ${i ? "text-right" : ""}`}>
                             {h}
                           </th>
@@ -225,8 +226,8 @@ export default function Performance() {
                               {s.name}
                             </button>
                           </td>
-                          {[s.total, s.contacted, s.quoted, s.won, s.lost, s.cancelled, s.open].map((n, i) => (
-                            <td key={i} className="num py-2 pr-3 text-right">
+                          {[s.total, s.contacted, s.quoted, s.won, s.lost, s.open, s.overdue].map((n, i) => (
+                            <td key={i} className={`num py-2 pr-3 text-right ${i === 6 && n > 0 ? "font-semibold text-danger" : ""}`}>
                               {n}
                             </td>
                           ))}
@@ -264,7 +265,7 @@ export default function Performance() {
                         ))}
                       </div>
                       <p className="num mt-2 text-xs text-muted">
-                        Win rate {pct(s.won, s.total)} · lost {s.lost} · cancelled {s.cancelled} · open {s.open} · quote in {days(s.avgDaysToQuote)} · close in {days(s.avgDaysToClose)}
+                        Win rate {pct(s.won, s.total)} · not won {s.lost} · open {s.open} · <span className={s.overdue > 0 ? "font-semibold text-danger" : ""}>overdue {s.overdue}</span> · quote in {days(s.avgDaysToQuote)} · close in {days(s.avgDaysToClose)}
                       </p>
                     </li>
                   ))}
@@ -332,10 +333,10 @@ export default function Performance() {
 
             <section className="card p-4 sm:p-5" aria-labelledby="rs-h">
               <h2 id="rs-h" className="font-semibold">
-                Why enquiries were lost or cancelled
+                Why enquiries were not won
               </h2>
               {reasons.length === 0 ? (
-                <p className="mt-3 text-sm text-muted">No lost or cancelled enquiries with a reason in this period.</p>
+                <p className="mt-3 text-sm text-muted">No enquiries closed as Not won in this period.</p>
               ) : (
                 <ol className="mt-3 grid gap-3" data-testid="lost-reasons">
                   {reasons.map(([r, n]) => (
@@ -352,7 +353,7 @@ export default function Performance() {
                 </ol>
               )}
               <Link to="/admin/enquiries?status=lost" className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-verdi-700 hover:underline">
-                See lost enquiries <ArrowRight className="size-4" />
+                See Not won enquiries <ArrowRight className="size-4" />
               </Link>
             </section>
           </div>

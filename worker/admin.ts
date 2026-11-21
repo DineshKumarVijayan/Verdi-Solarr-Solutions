@@ -184,7 +184,9 @@ export async function updatePrice(env: Env, admin: AdminIdentity, productId: num
   return { row: toAdminRow(saved!), catalogueVersion };
 }
 
-export async function dashboard(env: Env): Promise<AdminDashboard> {
+export async function dashboard(env: Env, admin: AdminIdentity): Promise<AdminDashboard> {
+  // new enquiries: everything for owner/admin; for other staff, their own and unassigned ones
+  const mgr = admin.role === "owner" || admin.role === "admin";
   const r = await env.DB.batch([
     env.DB.prepare("SELECT SUM(IsActive = 1) AS active, SUM(IsActive = 0) AS inactive FROM Products"),
     env.DB.prepare("SELECT COUNT(*) AS n FROM Brands WHERE IsActive = 1"),
@@ -203,7 +205,9 @@ export async function dashboard(env: Env): Promise<AdminDashboard> {
     ),
     env.DB.prepare("SELECT AuditId, AdminIdentity, Action, EntityType, EntityId, CreatedAt FROM AuditLogs ORDER BY CreatedAt DESC, AuditId DESC LIMIT 10"),
     env.DB.prepare("SELECT Version, PublishedAt FROM PublishedCatalogue WHERE Id = 1"),
-    env.DB.prepare("SELECT (SELECT COUNT(*) FROM Enquiries WHERE Status = 'new') AS enq, (SELECT COUNT(*) FROM Customers) AS cust"),
+    env.DB.prepare(
+      `SELECT (SELECT COUNT(*) FROM Enquiries WHERE Status = 'new' ${mgr ? "" : "AND (AssignedAdminId = ?1 OR AssignedAdminId IS NULL)"}) AS enq, (SELECT COUNT(*) FROM Customers) AS cust`,
+    ).bind(...(mgr ? [] : [admin.id])),
   ]);
   const one = (i: number) => r[i].results[0] as Record<string, number> | undefined;
   const pub = r[8].results[0] as { Version: number; PublishedAt: string } | undefined;

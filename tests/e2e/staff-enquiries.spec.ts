@@ -16,7 +16,7 @@ test("staff log a phone enquiry with products; it shows in Enquiries and in the 
   await form.getByTestId("le-product-hit").first().click();
   await form.getByRole("button", { name: "Increase quantity" }).click();
   await expect(form.getByTestId("le-items").getByRole("textbox")).toHaveValue("2");
-  await form.getByRole("button", { name: "Quoted" }).click();
+  await form.getByRole("button", { name: "Contacted" }).click(); // Quoted comes from making a quotation
   await page.getByTestId("le-save").click();
   const row = page.getByTestId("admin-enquiry").filter({ hasText: name });
   await expect(row).toBeVisible();

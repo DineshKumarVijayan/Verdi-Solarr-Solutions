@@ -41,6 +41,7 @@ import {
   type EnquirySource,
   type EnquiryStatus,
   type EnquiryStats,
+  type MyDay,
   SITE_SETTING_KEYS,
   type SiteSettingKey,
 } from "../shared/types";
@@ -858,13 +859,18 @@ export async function customerResetLink(env: Env, admin: AdminIdentity, id: numb
 // Responsible staff member (staff-logged enquiries are assigned to their creator when logged).
 const OWNER = "e.AssignedAdminId";
 const CLOSED_STATUSES = ["won", "lost", "cancelled"];
+const OPEN = "('new', 'contacted', 'quoted')";
+const isManager = (admin: AdminIdentity) => CONTENT_ROLES.includes(admin.role);
+/** Today's date in India (YYYY-MM-DD). */
+const istToday = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 
 const ENQ_SELECT = `SELECT e.EnquiryId, e.Reference, e.Status, e.CreatedAt, e.UpdatedAt, e.UpdatedBy, e.IndicativeTotalPaise, e.PricesVerified, e.Location, e.Comments,
        e.CustomerId, c.FullName AS CustomerName, e.ContactName, e.BusinessName, e.Mobile, e.AdminNotes,
        e.Source, e.CreatedByAdminId, COALESCE(a.DisplayName, a.Email) AS CreatedByName,
        ${OWNER} AS OwnerId, COALESCE(o.DisplayName, o.Email) AS OwnerName,
-       e.ClosedReason, e.ClosedNote, e.ClosedAt, e.SalePaise,
+       e.NotWonReason AS ClosedReason, e.ClosedNote, e.ClosedAt, e.SalePaise, e.FollowUpOn,
        (SELECT q.TotalPaise FROM Quotations q WHERE q.EnquiryId = e.EnquiryId ORDER BY q.QuotationId DESC LIMIT 1) AS QuotePaise,
+       (SELECT q.QuotationId || '|' || q.Number || '|' || q.Status FROM Quotations q WHERE q.EnquiryId = e.EnquiryId ORDER BY q.QuotationId DESC LIMIT 1) AS LatestQuote,
        (SELECT COUNT(*) FROM Quotations q WHERE q.EnquiryId = e.EnquiryId) AS QuoteCount
   FROM Enquiries e LEFT JOIN Customers c ON c.CustomerId = e.CustomerId
   LEFT JOIN AdminUsers a ON a.AdminId = e.CreatedByAdminId
@@ -880,6 +886,10 @@ function toAdminEnquiry(r: EnqRow): AdminEnquiryRow {
     closedReason: (r.ClosedReason as ClosedReason) ?? null,
     closedNote: (r.ClosedNote as string) ?? null,
     closedAt: (r.ClosedAt as string) ?? null,
+    followUpOn: (r.FollowUpOn as string) ?? null,
+    latestQuote: r.LatestQuote
+      ? (([qid, num, st]) => ({ id: Number(qid), number: num, status: st as NonNullable<AdminEnquiryRow["latestQuote"]>["status"] }))(String(r.LatestQuote).split("|"))
+      : null,
     salePaise: (r.SalePaise as number) ?? null,
     quotePaise: (r.QuotePaise as number) ?? null,
     quoteCount: (r.QuoteCount as number) ?? 0,
@@ -909,9 +919,13 @@ function enquiryEvent(env: Env, admin: AdminIdentity, enquiryId: number, e: { ki
 
 /** Owner/admin may act on any enquiry; other staff only on enquiries they are responsible for. */
 async function requireEnquiryOwner(env: Env, admin: AdminIdentity, id: number) {
-  const row = await env.DB.prepare(`SELECT e.Status, e.AdminNotes, e.SalePaise, ${OWNER} AS OwnerId FROM Enquiries e WHERE e.EnquiryId = ?1`).bind(id).first<{ Status: EnquiryStatus; AdminNotes: string | null; SalePaise: number | null; OwnerId: number | null }>();
+  const row = await env.DB.prepare(
+    `SELECT e.Status, e.AdminNotes, e.SalePaise, ${OWNER} AS OwnerId, (SELECT COUNT(*) FROM Quotations q WHERE q.EnquiryId = e.EnquiryId) AS QuoteCount FROM Enquiries e WHERE e.EnquiryId = ?1`,
+  )
+    .bind(id)
+    .first<{ Status: EnquiryStatus; AdminNotes: string | null; SalePaise: number | null; OwnerId: number | null; QuoteCount: number }>();
   if (!row) throw new HttpError(404, "not_found", "Enquiry not found.");
-  if (!CONTENT_ROLES.includes(admin.role) && row.OwnerId !== admin.id)
+  if (!isManager(admin) && row.OwnerId !== admin.id)
     throw new HttpError(403, "forbidden", row.OwnerId ? "This enquiry is assigned to another staff member." : "Take this enquiry first, then you can update it.");
   return row;
 }
@@ -921,6 +935,11 @@ export async function listEnquiries(env: Env, admin: AdminIdentity, url: URL): P
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
   const where: string[] = [];
   const binds: unknown[] = [];
+  // sales staff see only their own enquiries and unassigned ones they can pick up
+  if (!isManager(admin)) {
+    binds.push(admin.id);
+    where.push(`(${OWNER} = ?${binds.length} OR ${OWNER} IS NULL)`);
+  }
   if (status) {
     binds.push(status);
     where.push(`e.Status = ?${binds.length}`);
@@ -946,7 +965,9 @@ export async function listEnquiries(env: Env, admin: AdminIdentity, url: URL): P
     where.push(`${OWNER} = ?${binds.length}`);
   }
   const rows = await loadEnquiries<EnqRow>(env, `${ENQ_SELECT} ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY e.CreatedAt DESC, e.EnquiryId DESC LIMIT 300`, binds);
-  const c = await env.DB.prepare("SELECT Status, COUNT(*) AS n FROM Enquiries GROUP BY Status").all<{ Status: string; n: number }>();
+  const c = isManager(admin)
+    ? await env.DB.prepare("SELECT Status, COUNT(*) AS n FROM Enquiries GROUP BY Status").all<{ Status: string; n: number }>()
+    : await env.DB.prepare("SELECT Status, COUNT(*) AS n FROM Enquiries WHERE AssignedAdminId = ?1 OR AssignedAdminId IS NULL GROUP BY Status").bind(admin.id).all<{ Status: string; n: number }>();
   return { rows: rows.map(toAdminEnquiry), counts: Object.fromEntries(c.results.map((x) => [x.Status, x.n])) };
 }
 
@@ -984,9 +1005,9 @@ export async function createStaffEnquiry(env: Env, admin: AdminIdentity, body: u
   const closed = CLOSED_STATUSES.includes(v.status);
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO Enquiries (Reference, ContactName, BusinessName, Mobile, Location, Comments, Status, PricesVerified, IndicativeTotalPaise, Source, CreatedByAdminId, AssignedAdminId, ClosedAt, CreatedAt, UpdatedAt, UpdatedBy)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12, ?13, ?13, ?14)`,
-    ).bind(ref, v.name, v.business || null, v.mobile, v.location, v.need || null, v.status, priced > 0 ? 1 : 0, priced > 0 ? total : null, v.source, admin.id, closed ? now : null, now, admin.email),
+      `INSERT INTO Enquiries (Reference, ContactName, BusinessName, Mobile, Location, Comments, Status, PricesVerified, IndicativeTotalPaise, Source, CreatedByAdminId, AssignedAdminId, ClosedAt, CreatedAt, UpdatedAt, UpdatedBy, FollowUpOn)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11, ?12, ?13, ?13, ?14, ?15)`,
+    ).bind(ref, v.name, v.business || null, v.mobile, v.location, v.need || null, v.status, priced > 0 ? 1 : 0, priced > 0 ? total : null, v.source, admin.id, closed ? now : null, now, admin.email, v.followUpOn ?? null),
     ...items.map((i) =>
       env.DB.prepare(
         `INSERT INTO EnquiryItems (EnquiryId, ProductId, ProductName, BrandName, ModelNumber, Quantity, UnitPricePaise, PriceUnit, GSTRate, GSTIncluded)
@@ -1014,15 +1035,24 @@ export async function updateEnquiry(env: Env, admin: AdminIdentity, id: number, 
   const to = v.status ?? before.Status;
   const changed = to !== before.Status;
   const closing = CLOSED_STATUSES.includes(to);
+  // one clear path: closed enquiries are reopened only by the owner or an admin
+  if (changed && CLOSED_STATUSES.includes(before.Status) && !isManager(admin))
+    throw new HttpError(403, "forbidden", "Only the owner or an admin can reopen a closed enquiry.");
+  // with a quotation, the sale is recorded by accepting the quotation (its total is the sale amount)
+  if (changed && to === "won" && before.QuoteCount > 0)
+    throw new HttpError(409, "use_quotation", "This enquiry has a quotation. Open the quotation and mark it Accepted: the sale amount comes from the quotation.");
+  if (!changed && to === "won" && v.salePaise != null && v.salePaise !== before.SalePaise && !isManager(admin))
+    throw new HttpError(403, "forbidden", "Only the owner or an admin can correct the sale amount.");
   const stmts = [
     env.DB.prepare(
       `UPDATE Enquiries SET Status = ?1, AdminNotes = ?2, UpdatedAt = ?3, UpdatedBy = ?4,
-         ClosedReason = CASE WHEN ?1 IN ('lost', 'cancelled') THEN ?5 WHEN ?1 = 'won' THEN NULL ELSE ClosedReason END,
+         NotWonReason = CASE WHEN ?1 IN ('lost', 'cancelled') THEN ?5 WHEN ?1 = 'won' THEN NULL ELSE NotWonReason END,
          ClosedNote   = CASE WHEN ?1 IN ('lost', 'cancelled') THEN ?6 WHEN ?1 = 'won' THEN NULL ELSE ClosedNote END,
-         SalePaise    = CASE WHEN ?1 = 'won' THEN ?7 WHEN ?1 IN ('lost', 'cancelled') THEN NULL ELSE SalePaise END,
-         ClosedAt     = CASE WHEN ?8 = 1 THEN (CASE WHEN ?9 = 1 THEN ?3 ELSE NULL END) ELSE ClosedAt END
+         SalePaise    = CASE WHEN ?1 = 'won' THEN COALESCE(?7, SalePaise) WHEN ?1 IN ('lost', 'cancelled') THEN NULL ELSE SalePaise END,
+         ClosedAt     = CASE WHEN ?8 = 1 THEN (CASE WHEN ?9 = 1 THEN ?3 ELSE NULL END) ELSE ClosedAt END,
+         FollowUpOn   = CASE WHEN ?9 = 1 THEN NULL WHEN ?11 = 1 THEN ?12 ELSE FollowUpOn END
        WHERE EnquiryId = ?10`,
-    ).bind(to, v.adminNotes, now, admin.email, v.closedReason ?? null, v.closedNote?.trim() || null, v.salePaise ?? null, changed ? 1 : 0, closing ? 1 : 0, id),
+    ).bind(to, v.adminNotes, now, admin.email, v.closedReason ?? null, v.closedNote?.trim() || null, v.salePaise ?? null, changed ? 1 : 0, closing ? 1 : 0, id, v.followUpOn !== undefined ? 1 : 0, v.followUpOn ?? null),
     audit(env, admin, "enquiry.update", "Enquiry", id, { status: before.Status, adminNotes: before.AdminNotes }, v, now),
   ];
   if (changed) stmts.push(enquiryEvent(env, admin, id, { kind: "status", from: before.Status, to, reason: v.closedReason, note: v.closedNote, salePaise: to === "won" ? v.salePaise : null }, now));
@@ -1071,7 +1101,12 @@ export async function assignEnquiry(env: Env, admin: AdminIdentity, id: number, 
 }
 
 /** Stage changes and assignments of one enquiry, oldest first. */
-export async function enquiryHistory(env: Env, id: number): Promise<{ events: EnquiryEvent[] }> {
+export async function enquiryHistory(env: Env, admin: AdminIdentity, id: number): Promise<{ events: EnquiryEvent[] }> {
+  if (!isManager(admin)) {
+    const own = await env.DB.prepare("SELECT AssignedAdminId FROM Enquiries WHERE EnquiryId = ?1").bind(id).first<{ AssignedAdminId: number | null }>();
+    if (!own) throw new HttpError(404, "not_found", "Enquiry not found.");
+    if (own.AssignedAdminId !== null && own.AssignedAdminId !== admin.id) throw new HttpError(403, "forbidden", "This enquiry is assigned to another staff member.");
+  }
   const r = await env.DB.prepare(
     `SELECT ev.EventId, ev.Kind, ev.FromStatus, ev.ToStatus, COALESCE(t.DisplayName, t.Email) AS AssignedName, ev.Reason, ev.Note, ev.SalePaise,
             COALESCE(b.DisplayName, b.Email, ev.ByIdentity) AS ByName, ev.CreatedAt
@@ -1114,7 +1149,9 @@ export async function enquiryStats(env: Env, admin: AdminIdentity, url: URL): Pr
   const from = ymd(url.searchParams.get("from"), defaultFrom);
   const to = ymd(url.searchParams.get("to"), today);
   const fmt = period === "day" ? "%Y-%m-%d" : period === "month" ? "%Y-%m" : "%Y";
-  const scope = `date(e.CreatedAt, ${IST}) BETWEEN ?1 AND ?2${source === "website" ? " AND e.Source = 'website'" : source === "staff" ? " AND e.CreatedByAdminId IS NOT NULL" : ""}`;
+  const scopeAll = `date(e.CreatedAt, ${IST}) BETWEEN ?1 AND ?2${source === "website" ? " AND e.Source = 'website'" : source === "staff" ? " AND e.CreatedByAdminId IS NOT NULL" : ""}`;
+  // duplicates / wrong entries do not count for or against anyone
+  const scope = `${scopeAll} AND COALESCE(e.NotWonReason, '') <> 'duplicate'`;
   // reached the quotation stage: status quoted/won now, a recorded move to quoted, or a linked quotation
   const quoted = `(e.Status IN ('quoted', 'won') OR EXISTS (SELECT 1 FROM EnquiryEvents x WHERE x.EnquiryId = e.EnquiryId AND x.ToStatus = 'quoted') OR EXISTS (SELECT 1 FROM Quotations q WHERE q.EnquiryId = e.EnquiryId))`;
   const firstQuote = `(SELECT MIN(t) FROM (SELECT x.CreatedAt AS t FROM EnquiryEvents x WHERE x.EnquiryId = e.EnquiryId AND x.ToStatus = 'quoted' UNION ALL SELECT q.CreatedAt FROM Quotations q WHERE q.EnquiryId = e.EnquiryId))`;
@@ -1125,16 +1162,16 @@ export async function enquiryStats(env: Env, admin: AdminIdentity, url: URL): Pr
               COALESCE(SUM(e.Status <> 'new'), 0) AS contacted,
               COALESCE(SUM(${quoted}), 0) AS quoted,
               COALESCE(SUM(e.Status = 'won'), 0) AS won,
-              COALESCE(SUM(e.Status = 'lost'), 0) AS lost,
-              COALESCE(SUM(e.Status = 'cancelled'), 0) AS cancelled,
-              COALESCE(SUM(e.Status IN ('new', 'contacted', 'quoted')), 0) AS open,
+              COALESCE(SUM(e.Status IN ('lost', 'cancelled')), 0) AS lost,
+              COALESCE(SUM(e.Status IN ${OPEN}), 0) AS open,
+              (SELECT COUNT(*) FROM Enquiries f WHERE f.AssignedAdminId = a.AdminId AND f.Status IN ${OPEN} AND f.FollowUpOn < ?3) AS overdue,
               COALESCE(SUM(CASE WHEN e.Status = 'won' THEN e.SalePaise END), 0) AS salePaise,
               ROUND(AVG(julianday(${firstQuote}) - julianday(e.CreatedAt)), 1) AS avgDaysToQuote,
               ROUND(AVG(CASE WHEN e.Status = 'won' THEN julianday(e.ClosedAt) - julianday(e.CreatedAt) END), 1) AS avgDaysToClose
        FROM AdminUsers a LEFT JOIN Enquiries e ON ${OWNER} = a.AdminId AND ${scope}
        WHERE a.IsActive = 1 OR e.EnquiryId IS NOT NULL
        GROUP BY a.AdminId ORDER BY won DESC, total DESC, name`,
-    ).bind(from, to),
+    ).bind(from, to, today),
     env.DB.prepare(`SELECT COUNT(*) AS n FROM Enquiries e WHERE ${OWNER} IS NULL AND ${scope}`).bind(from, to),
     env.DB.prepare(
       `SELECT strftime(?3, e.CreatedAt, ${IST}) AS bucket, ${OWNER} AS staffId, COUNT(*) AS total,
@@ -1143,9 +1180,9 @@ export async function enquiryStats(env: Env, admin: AdminIdentity, url: URL): Pr
        GROUP BY bucket, staffId ORDER BY bucket`,
     ).bind(from, to, fmt),
     env.DB.prepare(
-      `SELECT e.ClosedReason AS reason, e.Status AS status, COUNT(*) AS count, ${OWNER} AS staffId
-       FROM Enquiries e WHERE e.Status IN ('lost', 'cancelled') AND e.ClosedReason IS NOT NULL AND ${scope}
-       GROUP BY e.ClosedReason, e.Status, staffId ORDER BY count DESC`,
+      `SELECT e.NotWonReason AS reason, COUNT(*) AS count, ${OWNER} AS staffId
+       FROM Enquiries e WHERE e.Status IN ('lost', 'cancelled') AND e.NotWonReason IS NOT NULL AND ${scopeAll}
+       GROUP BY e.NotWonReason, staffId ORDER BY count DESC`,
     ).bind(from, to),
     env.DB.prepare(`SELECT COUNT(*) AS n FROM Enquiries e WHERE e.Source = 'website' AND date(e.CreatedAt, ${IST}) BETWEEN ?1 AND ?2`).bind(from, to),
   ]);
@@ -1159,5 +1196,37 @@ export async function enquiryStats(env: Env, admin: AdminIdentity, url: URL): Pr
     buckets: bucketRows.results as EnquiryStats["buckets"],
     reasons: reasonRows.results as EnquiryStats["reasons"],
     websiteTotal: (web.results[0] as { n: number } | undefined)?.n ?? 0,
+  };
+}
+
+// ------------------------------------------------------------------ my day
+
+/** The signed-in staff member's day: follow-ups due (overdue first), new unassigned enquiries, quotations waiting. */
+export async function myDay(env: Env, admin: AdminIdentity): Promise<MyDay> {
+  const today = istToday();
+  const soon = new Date(Date.parse(today) + 3 * 86400_000).toISOString().slice(0, 10);
+  const [fu, nd, un, qs] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT EnquiryId AS id, Reference AS reference, ContactName AS name, Status AS status, FollowUpOn AS followUpOn
+       FROM Enquiries WHERE AssignedAdminId = ?1 AND Status IN ${OPEN} AND FollowUpOn <= ?2 ORDER BY FollowUpOn, EnquiryId LIMIT 50`,
+    ).bind(admin.id, today),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM Enquiries WHERE AssignedAdminId = ?1 AND Status IN ${OPEN} AND FollowUpOn IS NULL`).bind(admin.id),
+    env.DB.prepare(
+      "SELECT EnquiryId AS id, Reference AS reference, ContactName AS name, Source AS source, CreatedAt AS createdAt FROM Enquiries WHERE AssignedAdminId IS NULL AND Status = 'new' ORDER BY CreatedAt DESC LIMIT 20",
+    ),
+    // my open quotations that expire within 3 days or already have (validity counted from the creation date)
+    env.DB.prepare(
+      `SELECT QuotationId AS id, Number AS number, CustomerName AS customerName, TotalPaise AS totalPaise, Status AS status,
+              date(CreatedAt, '+' || ValidDays || ' days') AS validUntil
+       FROM Quotations WHERE OwnerAdminId = ?1 AND Status IN ('draft', 'sent') AND date(CreatedAt, '+' || ValidDays || ' days') <= ?2
+       ORDER BY validUntil LIMIT 20`,
+    ).bind(admin.id, soon),
+  ]);
+  return {
+    today,
+    followUps: fu.results as MyDay["followUps"],
+    noDate: (nd.results[0] as { n: number } | undefined)?.n ?? 0,
+    unassigned: (un.results as MyDay["unassigned"]).map((x) => ({ ...x, source: (x.source ?? "website") as EnquirySource })),
+    quotes: qs.results as MyDay["quotes"],
   };
 }

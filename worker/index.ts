@@ -140,7 +140,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
       res.headers.append("Set-Cookie", staffHintCookie(url)); // lets the public header show the staff name
       return res;
     }
-    if (path === "/api/admin/dashboard" && method === "GET") return json(await dashboard(env));
+    if (path === "/api/admin/dashboard" && method === "GET") return json(await dashboard(env, admin));
+    if (path === "/api/admin/my-day" && method === "GET") return json(await content.myDay(env, admin));
     if (path === "/api/admin/prices" && method === "GET") return json(await listPrices(env, url));
 
     const m = path.match(/^\/api\/admin\/prices\/(\d{1,9})(\/history)?$/);
@@ -232,9 +233,9 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
     case "quotations":
       if (seg[1] === "settings" && seg.length === 2 && method === "GET") return json({ settings: await quotes.getQuoteSettings(env) });
       if (seg[1] === "settings" && seg.length === 2 && method === "PUT") return json({ settings: await quotes.saveQuoteSettings(env, admin, await body()) });
-      if (seg.length === 1 && method === "GET") return json(await quotes.listQuotations(env, url));
+      if (seg.length === 1 && method === "GET") return json(await quotes.listQuotations(env, admin, url));
       if (seg.length === 1 && method === "POST") return json({ quote: await quotes.createQuotation(env, admin, await body(128 * 1024)) }, { status: 201 });
-      if (id && seg.length === 2 && method === "GET") return json({ quote: await quotes.getQuotation(env, id) });
+      if (id && seg.length === 2 && method === "GET") return json({ quote: await quotes.viewQuotation(env, admin, id) });
       if (id && seg.length === 2 && method === "PUT") return json({ quote: await quotes.updateQuotation(env, admin, id, await body(128 * 1024)) });
       if (id && seg.length === 2 && method === "DELETE") return json(await quotes.deleteQuotation(env, admin, id));
       if (id && sub === "status" && seg.length === 3 && method === "PUT") return json({ quote: await quotes.setQuotationStatus(env, admin, id, await body()) });
@@ -246,7 +247,7 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
       if (seg[1] === "stats" && seg.length === 2 && method === "GET") return json(await content.enquiryStats(env, admin, url));
       if (id && seg.length === 2 && method === "PUT") return json(await content.updateEnquiry(env, admin, id, await body()));
       if (id && sub === "assign" && seg.length === 3 && method === "POST") return json(await content.assignEnquiry(env, admin, id, await body()));
-      if (id && sub === "history" && seg.length === 3 && method === "GET") return json(await content.enquiryHistory(env, id));
+      if (id && sub === "history" && seg.length === 3 && method === "GET") return json(await content.enquiryHistory(env, admin, id));
       break;
   }
   return null;

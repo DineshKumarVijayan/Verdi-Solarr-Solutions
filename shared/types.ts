@@ -106,6 +106,8 @@ export interface RevalidatedItem {
 }
 
 export type AdminRole = "owner" | "admin" | "price_editor" | "viewer";
+/** What each role is called in the admin ("viewer" is the stored value for sales staff). */
+export const ROLE_LABEL: Record<AdminRole, string> = { owner: "Owner", admin: "Admin", price_editor: "Price editor", viewer: "Sales staff" };
 
 export interface AdminIdentity {
   /** AdminUsers.AdminId of the signed-in staff member */
@@ -276,6 +278,8 @@ export interface AdminUserRow {
 
 export type EnquiryStatus = "new" | "contacted" | "quoted" | "won" | "lost" | "cancelled";
 export const ENQUIRY_STATUSES: EnquiryStatus[] = ["new", "contacted", "quoted", "won", "lost", "cancelled"];
+/** The pipeline staff work with: New -> Contacted -> Quoted -> Won | Not won ('lost'). 'cancelled' is legacy (merged into Not won). */
+export const PIPELINE_STATUSES = ["new", "contacted", "quoted", "won", "lost"] as const satisfies readonly EnquiryStatus[];
 
 export interface CustomerProfile {
   id: number;
@@ -328,9 +332,14 @@ export interface AdminEnquiryRow extends EnquiryView {
   createdBy: { id: number; name: string } | null;
   /** staff member responsible for it (assigned / picked up; the creator for staff-logged enquiries) */
   owner: { id: number; name: string } | null;
+  /** why it was not won */
   closedReason: ClosedReason | null;
   closedNote: string | null;
   closedAt: string | null;
+  /** next follow-up date (YYYY-MM-DD), open enquiries only */
+  followUpOn: string | null;
+  /** the most recent quotation made from this enquiry */
+  latestQuote: { id: number; number: string; status: "draft" | "sent" | "accepted" | "declined" } | null;
   /** final sale value in paise when won */
   salePaise: number | null;
   /** total of the latest quotation made from this enquiry (pre-fills the sale value) */
@@ -361,8 +370,8 @@ export interface AdminCustomerRow {
 }
 
 /** Enquiries logged per staff member, bucketed by day / month / year (India time). */
-/** Why an enquiry was lost or cancelled. */
-export const CLOSED_REASONS = ["price", "bought_elsewhere", "postponed", "unavailable", "delivery_time", "no_response", "budget", "other"] as const;
+/** Why an enquiry was not won. 'duplicate' does not count against the staff member in Performance. */
+export const CLOSED_REASONS = ["price", "bought_elsewhere", "postponed", "unavailable", "delivery_time", "no_response", "budget", "order_cancelled", "duplicate", "other"] as const;
 export type ClosedReason = (typeof CLOSED_REASONS)[number];
 export const CLOSED_REASON_LABEL: Record<ClosedReason, string> = {
   price: "Price too high",
@@ -372,6 +381,8 @@ export const CLOSED_REASON_LABEL: Record<ClosedReason, string> = {
   delivery_time: "Delivery time too long",
   no_response: "No response from customer",
   budget: "Budget / financing",
+  order_cancelled: "Order cancelled by customer",
+  duplicate: "Duplicate / wrong entry",
   other: "Other",
 };
 
@@ -402,9 +413,11 @@ export interface EnquiryStats {
     contacted: number;
     quoted: number;
     won: number;
+    /** not won (excluding duplicates) */
     lost: number;
-    cancelled: number;
     open: number;
+    /** open enquiries whose follow-up date has passed (right now, whatever the date range) */
+    overdue: number;
     salePaise: number;
     avgDaysToQuote: number | null;
     avgDaysToClose: number | null;
@@ -412,6 +425,16 @@ export interface EnquiryStats {
   /** enquiries in the range nobody is responsible for yet */
   unassigned: number;
   buckets: { bucket: string; staffId: number | null; total: number; won: number; salePaise: number }[];
-  reasons: { reason: ClosedReason; status: "lost" | "cancelled"; count: number; staffId: number | null }[];
+  reasons: { reason: ClosedReason; count: number; staffId: number | null }[];
   websiteTotal: number;
+}
+
+/** The signed-in staff member's day: follow-ups due, new enquiries to pick up, quotations waiting. */
+export interface MyDay {
+  today: string;
+  followUps: { id: number; reference: string; name: string; status: EnquiryStatus; followUpOn: string }[];
+  /** open enquiries of mine without a follow-up date */
+  noDate: number;
+  unassigned: { id: number; reference: string; name: string; source: EnquirySource; createdAt: string }[];
+  quotes: { id: number; number: string; customerName: string; totalPaise: number; status: "draft" | "sent"; validUntil: string }[];
 }

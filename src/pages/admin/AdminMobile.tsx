@@ -2,7 +2,7 @@ import { Ellipsis, ExternalLink, KeyRound, LogOut } from "lucide-react";
 import { ADMIN_NAV, navAllowed } from "./nav";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router";
-import type { AdminDashboard, AdminIdentity } from "../../../shared/types";
+import { ROLE_LABEL, type AdminDashboard, type AdminIdentity } from "../../../shared/types";
 import { BottomSheet, SheetGroup } from "../../components/mobile/kit";
 import { api } from "../../lib/api";
 
@@ -110,7 +110,7 @@ export function AdminTabBar({ admin, onPassword, onSignOut }: { admin: AdminIden
       </nav>
       <BottomSheet open={more} onClose={() => setMore(false)} title="Admin" testId="admin-more-sheet">
         <p className="mb-1 truncate text-sm text-muted">
-          {admin.displayName || admin.email.split("@")[0]} · <span className="font-medium text-ink">{admin.role.replace("_", " ")}</span>
+          {admin.displayName || admin.email.split("@")[0]} · <span className="font-medium text-ink">{ROLE_LABEL[admin.role]}</span>
         </p>
         <SheetGroup title="Sections">
           {sections.map((n) => (

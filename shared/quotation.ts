@@ -83,6 +83,11 @@ export interface Quote {
   createdAt: string;
   updatedAt: string;
   sentAt: string | null;
+  /** staff member the quotation belongs to */
+  owner: { id: number; name: string } | null;
+  /** the enquiry it answers */
+  enquiryId: number | null;
+  enquiryReference: string | null;
   items: QuoteItem[];
 }
 
@@ -111,4 +116,9 @@ export function validUntil(createdAt: string, days: number): Date {
   const d = new Date(createdAt);
   d.setDate(d.getDate() + days);
   return d;
+}
+
+/** A sent (or draft) quotation past its validity date. Shown as "Expired"; not a stored status. */
+export function isExpired(q: { status: QuoteStatus; createdAt: string; validDays: number }, now = new Date()): boolean {
+  return (q.status === "sent" || q.status === "draft") && validUntil(q.createdAt, q.validDays).getTime() < now.getTime();
 }

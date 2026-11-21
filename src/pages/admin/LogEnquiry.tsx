@@ -3,11 +3,11 @@ import { useMemo, useState } from "react";
 import { issues, StaffEnquirySchema } from "../../../shared/admin-schemas";
 import { formatPaise } from "../../../shared/money";
 import { search } from "../../../shared/search";
-import { ENQUIRY_STATUSES, type AdminEnquiryRow, type EnquiryStatus } from "../../../shared/types";
+import { type AdminEnquiryRow, type EnquiryStatus } from "../../../shared/types";
 import { BottomSheet, useIsPhone } from "../../components/mobile/kit";
 import { Modal, Spinner, useToast } from "../../components/ui";
 import { useCatalogue } from "../../lib/catalogue";
-import { STATUS_LABEL } from "../../lib/enquiry-status";
+import { ADMIN_STATUS_LABEL as STATUS_LABEL } from "../../lib/enquiry-status";
 import { errorText, fieldErrors, send } from "./kit";
 
 type Source = "phone" | "whatsapp" | "visit";
@@ -26,7 +26,7 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
   const isPhone = useIsPhone();
   const toast = useToast();
   const { index, data, brand } = useCatalogue();
-  const blank = { source: "phone" as Source, name: "", mobile: "", business: "", location: "", need: "", status: "contacted" as EnquiryStatus };
+  const blank = { source: "phone" as Source, name: "", mobile: "", business: "", location: "", need: "", status: "contacted" as EnquiryStatus, followUpOn: "" };
   const [f, setF] = useState(blank);
   const [items, setItems] = useState<{ productId: number; quantity: number }[]>([]);
   const [q, setQ] = useState("");
@@ -45,7 +45,8 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
   const save = async () => {
     // Same rules as the server, checked here first: mistakes show next to the field straight away
     // and nothing invalid is sent (no failed request).
-    const check = StaffEnquirySchema.safeParse({ ...f, items });
+    const payload = { ...f, followUpOn: f.followUpOn || null, items };
+    const check = StaffEnquirySchema.safeParse(payload);
     if (!check.success) {
       const e: Record<string, string> = {};
       for (const i of issues(check.error)) e[i.path.split(".")[0]] ??= i.message;
@@ -56,7 +57,7 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
     setBusy(true);
     setErrs({});
     try {
-      const r = await send<{ enquiry: AdminEnquiryRow }>("/api/admin/enquiries", "POST", { ...f, items });
+      const r = await send<{ enquiry: AdminEnquiryRow }>("/api/admin/enquiries", "POST", payload);
       toast(`Logged ${r.enquiry.reference} for ${r.enquiry.contactName}.`, "success");
       onSaved(r.enquiry);
       reset();
@@ -188,13 +189,19 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
       <fieldset>
         <legend className="label">Status after the call</legend>
         <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1">
-          {ENQUIRY_STATUSES.filter((s) => s === "new" || s === "contacted" || s === "quoted").map((s) => (
+          {(["new", "contacted"] as const).map((s) => (
             <button key={s} type="button" className={chip(f.status === s)} aria-pressed={f.status === s} onClick={() => set("status", s)}>
-              {STATUS_LABEL[s]}
+              {s === "new" ? "Not reached yet" : STATUS_LABEL[s]}
             </button>
           ))}
         </div>
+        <p className="mt-1 text-xs text-subtle">Making a quotation moves it to Quoted automatically.</p>
       </fieldset>
+
+      <label className="block">
+        <span className="label">Next follow-up (optional)</span>
+        <input id="le-followUpOn" type="date" className="field !w-auto" value={f.followUpOn} onChange={(e) => set("followUpOn", e.target.value)} data-testid="le-followup" />
+      </label>
     </form>
   );
 

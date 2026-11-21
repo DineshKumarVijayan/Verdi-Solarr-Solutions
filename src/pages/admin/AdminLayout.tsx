@@ -2,7 +2,7 @@ import { KeyRound, LogOut, ShieldAlert } from "lucide-react";
 import { ADMIN_NAV, navAllowed } from "./nav";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router";
-import type { AdminIdentity } from "../../../shared/types";
+import { ROLE_LABEL, type AdminIdentity } from "../../../shared/types";
 import { Modal, Spinner } from "../../components/ui";
 import { markActive } from "../../lib/idle";
 import { IDLE_MINUTES } from "../../../shared/session";
@@ -94,7 +94,7 @@ export default function AdminLayout() {
           </nav>
           <div className="ml-auto flex items-center gap-3 text-xs text-paper/60">
             <span className="hidden sm:inline">
-              {admin.displayName || admin.email.split("@")[0]} · <span className="text-paper/90">{admin.role.replace("_", " ")}</span>
+              {admin.displayName || admin.email.split("@")[0]} · <span className="text-paper/90">{ROLE_LABEL[admin.role]}</span>
             </span>
             <button type="button" onClick={() => setPwOpen(true)} className="inline-flex items-center gap-1 hover:text-paper" data-testid="admin-change-password">
               <KeyRound className="size-3.5" /> Password

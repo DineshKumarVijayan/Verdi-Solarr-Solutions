@@ -29,7 +29,7 @@ test("desktop baseline", async ({ page, baseURL }) => {
       await settle(p);
       try {
         // the dashboard activity feed lists every sign-in (including this test's own): live data, so it is masked (its box size is still compared)
-        await expect(p).toHaveScreenshot(`${r.name}.png`, { fullPage: true, timeout: 20_000, mask: [p.locator('section:has(> h2:has-text("Recent activity")) ul')] });
+        await expect(p).toHaveScreenshot(`${r.name}.png`, { fullPage: true, timeout: 20_000, mask: [p.locator('section:has(> h2:has-text("Recent activity")) ul'), p.locator('[data-testid="my-day"]')] });
       } catch (e) {
         const msg = (e as Error).message.split("\n").find((l) => /pixels|size|missing|writing/i.test(l)) ?? "";
         failures.push(`${r.name}: ${msg.trim()}`);

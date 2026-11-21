@@ -11,8 +11,8 @@ import { dt, errorText, fieldErrors, PageHead, send, Toggle } from "./kit";
 const ROLES: { v: AdminRole; label: string; d: string }[] = [
   { v: "owner", label: "Owner", d: "Everything, including managing admin users." },
   { v: "admin", label: "Admin", d: "Products, brands, prices, photos, settings, enquiries and customers." },
-  { v: "price_editor", label: "Price editor", d: "Can change prices only. Can view everything else." },
-  { v: "viewer", label: "Viewer", d: "Read-only access to the admin area." },
+  { v: "price_editor", label: "Price editor", d: "Sales staff who can also change prices." },
+  { v: "viewer", label: "Sales staff", d: "Logs and follows up their own enquiries, makes quotations, sees products and prices and their own bonus. Cannot change products, prices or settings." },
 ];
 
 export default function Users() {

@@ -2,7 +2,8 @@ import { ArrowRight, Building2, ClipboardList, FileWarning, History, ImageOff, I
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { formatPaise } from "../../../shared/money";
-import type { AdminDashboard } from "../../../shared/types";
+import type { AdminDashboard, MyDay } from "../../../shared/types";
+import { MyDayCard } from "./MyDay";
 import { Spinner } from "../../components/ui";
 import { api, ApiError } from "../../lib/api";
 import { useAdmin } from "./AdminLayout";
@@ -13,10 +14,14 @@ export default function Dashboard() {
   const admin = useAdmin();
   const [d, setD] = useState<AdminDashboard | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [day, setDay] = useState<MyDay | null>(null);
   useEffect(() => {
     api<AdminDashboard>("/api/admin/dashboard")
       .then(setD)
       .catch((e: ApiError) => setErr(e.message));
+    api<MyDay>("/api/admin/my-day")
+      .then(setDay)
+      .catch(() => undefined);
   }, []);
 
   if (err) return <p className="container-x py-10 text-danger">{err}</p>;
@@ -40,7 +45,7 @@ export default function Dashboard() {
 
   return (
     <>
-    <PhoneDashboard d={d} canAdd={admin.role === "owner" || admin.role === "admin"} name={admin.displayName} />
+    <PhoneDashboard d={d} canAdd={admin.role === "owner" || admin.role === "admin"} name={admin.displayName} day={day} />
     <div className="container-x py-10 max-lg:hidden">
       <h1 className="text-3xl font-semibold">Welcome{admin.displayName ? `, ${admin.displayName}` : ""}</h1>
       <p className="mt-1 text-sm text-muted">
@@ -64,6 +69,8 @@ export default function Dashboard() {
           </Link>
         </div>
       )}
+
+      {day && <MyDayCard day={day} className="mt-6" />}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => {
@@ -152,7 +159,7 @@ export default function Dashboard() {
 }
 
 /** Phones: what needs attention first, then counts, quick actions and recent activity (about one screen). */
-function PhoneDashboard({ d, canAdd, name }: { d: AdminDashboard; canAdd: boolean; name: string | null }) {
+function PhoneDashboard({ d, canAdd, name, day }: { d: AdminDashboard; canAdd: boolean; name: string | null; day: MyDay | null }) {
   const attention = [
     { label: "Products without a price", n: d.missingPrices, to: "/admin/prices?missing=1", icon: Tags },
     { label: "New enquiries", n: d.newEnquiries, to: "/admin/enquiries?status=new", icon: ClipboardList },
@@ -171,6 +178,7 @@ function PhoneDashboard({ d, canAdd, name }: { d: AdminDashboard; canAdd: boolea
       <Link to="/admin/enquiries?log=1" className="btn-primary tap mt-3 w-full" data-testid="m-log-enquiry">
         <Plus className="size-4" /> Log an enquiry
       </Link>
+      {day && <MyDayCard day={day} className="mt-3" />}
       <section aria-labelledby="att-h" className="mt-3">
         <h2 id="att-h" className="text-base font-semibold">
           Needs attention

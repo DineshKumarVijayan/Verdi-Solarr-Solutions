@@ -5,7 +5,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { formatMobile } from "../../../shared/admin-schemas";
 import { formatPaise } from "../../../shared/money";
-import { DEFAULT_TERMS, lineAmounts, mediaPath, QUOTE_STATUSES, quoteTotals, validUntil, type DiscountType, type Quote, type QuoteRow, type QuoteSettings, type QuoteStatus } from "../../../shared/quotation";
+import { DEFAULT_TERMS, isExpired, lineAmounts, mediaPath, QUOTE_STATUSES, quoteTotals, validUntil, type DiscountType, type Quote, type QuoteRow, type QuoteSettings, type QuoteStatus } from "../../../shared/quotation";
 import { paiseToRupeeInput, rupeesToPaise } from "../../../shared/schemas";
 import type { AdminEnquiryRow } from "../../../shared/types";
 import { Modal, Spinner, useToast } from "../../components/ui";
@@ -19,6 +19,13 @@ import { canManage, dt, errorText, PageHead, send, uploadFile, useUnsavedWarning
 const PdfViewer = lazy(() => import("../../components/PdfViewer"));
 
 const STATUS_LABEL: Record<QuoteStatus, string> = { draft: "Draft", sent: "Sent", accepted: "Accepted", declined: "Declined" };
+/** One line telling staff what each quotation status means and what to do next. */
+const STATUS_HINT: Record<QuoteStatus, string> = {
+  draft: "Not sent yet. Download it or send it on WhatsApp; it then becomes Sent.",
+  sent: "Waiting for the customer's answer. When they agree, mark it Accepted: the enquiry becomes Won with this total as the sale.",
+  accepted: "The customer agreed. The sale is recorded on the enquiry; staff bonus and customer points were added.",
+  declined: "The customer said no. Revise this quotation and send it again, or close the enquiry as Not won.",
+};
 const STATUS_STYLE: Record<QuoteStatus, string> = {
   draft: "bg-paper-2 text-muted",
   sent: "bg-sky-100 text-sky-800",
@@ -44,6 +51,7 @@ function List() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const status = params.get("status") ?? "";
   const admin = useAdmin();
+  const owner = params.get("owner") ?? "";
 
   useEffect(() => {
     api<{ rows: QuoteRow[] }>(`/api/admin/quotations?${params}`)
@@ -66,7 +74,7 @@ function List() {
     <div className="container-x py-10">
       <PageHead
         title="Quotations"
-        intro="Prepare a quotation from the catalogue, add discounts, preview the PDF, then download it or send it on WhatsApp."
+        intro="Draft → Sent → Accepted or Declined. Accepting a quotation records the sale on its enquiry. Quotations past their validity date show as Expired."
         actions={
           <>
             {canManage(admin) && (
@@ -87,6 +95,18 @@ function List() {
           </button>
         ))}
       </div>
+      {canManage(admin) && (
+        <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Whose quotations">
+          {[
+            ["", "Everyone"],
+            ["me", "Mine"],
+          ].map(([k, l]) => (
+            <button key={k} type="button" className={owner === k ? "chip-on chip" : "chip"} onClick={() => set("owner", k)} data-testid={`quote-owner-${k || "all"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="relative mt-3 max-w-md">
         <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-subtle" />
         <input aria-label="Search quotations" className="field !rounded-full pl-10" placeholder="Number, customer, company or mobile" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && set("q", q.trim())} onBlur={() => set("q", q.trim())} />
@@ -108,13 +128,15 @@ function List() {
               <Link to={`/admin/quotations/${r.id}`} className="card flex flex-wrap items-center gap-x-4 gap-y-1 p-4 transition hover:border-verdi-300">
                 <span className="font-mono text-sm font-semibold">{r.number}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[r.status]}`}>{STATUS_LABEL[r.status]}</span>
+                {isExpired(r) && <ExpiredChip />}
                 <span className="min-w-0 flex-1 truncate">
                   {r.customerName}
                   {r.customerCompany ? <span className="text-muted"> · {r.customerCompany}</span> : null}
                 </span>
                 <span className="num font-semibold">{formatPaise(r.totalPaise)}</span>
                 <span className="w-full text-xs [overflow-wrap:anywhere] text-muted sm:w-auto">
-                  {r.itemCount} item{r.itemCount === 1 ? "" : "s"} · {dt(r.createdAt)} · {r.createdBy}
+                  {r.itemCount} item{r.itemCount === 1 ? "" : "s"} · {dt(r.createdAt)} · {r.owner?.name ?? r.createdBy}
+                  {r.enquiryReference ? ` · enquiry ${r.enquiryReference}` : ""}
                 </span>
               </Link>
             </li>
@@ -322,6 +344,7 @@ function Editor({ id }: { id: number | null }) {
   const loc = useLocation();
   const toast = useToast();
   const SITE = useSite();
+  const admin = useAdmin();
   const cat = useCatalogue();
   const [quote, setQuote] = useState<Quote | null>(null);
   const [settings, setSettings] = useState<QuoteSettings>({});
@@ -582,24 +605,56 @@ function Editor({ id }: { id: number | null }) {
       </Link>
       <PageHead
         title={quote ? `Quotation ${quote.number}` : "New quotation"}
-        intro={quote ? `Created ${dt(quote.createdAt)} by ${quote.createdBy}${quote.sentAt ? ` · last sent ${dt(quote.sentAt)}` : ""}` : "Prices come from the catalogue. Add a discount on any line if needed."}
+        intro={quote ? `Created ${dt(quote.createdAt)} by ${quote.owner?.name ?? quote.createdBy}${quote.sentAt ? ` · last sent ${dt(quote.sentAt)}` : ""}${quote.enquiryReference ? ` · for enquiry ${quote.enquiryReference}` : ""}` : "Prices come from the catalogue. Add a discount on any line if needed."}
         actions={
           quote && (
             <div className="flex items-center gap-2">
-              <select aria-label="Status" className={`field !w-auto !py-1.5 text-sm ${STATUS_STYLE[quote.status]}`} value={quote.status} onChange={(e) => setStatus(e.target.value as QuoteStatus)}>
+              {isExpired(quote) && <ExpiredChip />}
+              <select
+                aria-label="Status"
+                className={`field !w-auto !py-1.5 text-sm ${STATUS_STYLE[quote.status]}`}
+                value={quote.status}
+                disabled={quote.status === "accepted" && !canManage(admin)}
+                onChange={(e) => setStatus(e.target.value as QuoteStatus)}
+                data-testid="q-status"
+              >
                 {QUOTE_STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {STATUS_LABEL[s]}
                   </option>
                 ))}
               </select>
-              <button type="button" className="btn-ghost btn-sm text-danger" onClick={remove} aria-label="Delete quotation">
-                <Trash2 className="size-4" />
-              </button>
+              {canManage(admin) && (
+                <button type="button" className="btn-ghost btn-sm text-danger" onClick={remove} aria-label="Delete quotation">
+                  <Trash2 className="size-4" />
+                </button>
+              )}
             </div>
           )
         }
       />
+
+      {quote && (
+        <div className="mt-4 grid gap-2" data-testid="q-status-hint">
+          <p className="text-sm text-muted">
+            <b className="font-semibold text-ink">{STATUS_LABEL[quote.status]}:</b> {STATUS_HINT[quote.status]}
+            {isExpired(quote) && ` It expired on ${validUntil(quote.createdAt, quote.validDays).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}: change "Valid for" and send it again.`}
+          </p>
+          {quote.status === "declined" && (
+            <div className="flex flex-wrap gap-2" data-testid="q-declined-next">
+              <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => void setStatus("draft")} data-testid="q-revise">
+                Revise and send again
+              </button>
+              {quote.enquiryReference && (
+                <Link className="btn-ghost btn-sm max-lg:tap" to={`/admin/enquiries?q=${encodeURIComponent(quote.enquiryReference)}`} data-testid="q-close-enquiry">
+                  Close enquiry {quote.enquiryReference} as Not won
+                </Link>
+              )}
+            </div>
+          )}
+          {quote.status === "accepted" && <p className="text-xs text-subtle">Accepted quotations cannot be edited. {canManage(admin) ? "To change it, set the status back first (this also undoes the sale)." : "Ask the owner or an admin if it needs to change."}</p>}
+        </div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="grid min-w-0 grid-cols-1 gap-6">
@@ -872,5 +927,13 @@ function ProductPicker({ onPick }: { onPick: (id: number) => void }) {
         </ul>
       )}
     </div>
+  );
+}
+
+function ExpiredChip() {
+  return (
+    <span className="rounded-full bg-sun-100 px-2 py-0.5 text-xs font-medium text-ink" data-testid="q-expired">
+      Expired
+    </span>
   );
 }

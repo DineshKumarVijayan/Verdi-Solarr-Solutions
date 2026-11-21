@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type PlaywrightWorkerArgs } from "@playwright/test";
 
 // Sales pipeline: each enquiry has a responsible staff member; staff move their own enquiries through
-// New -> Contacted -> Quoted -> Won / Lost / Cancelled with their own login; lost/cancelled need a reason,
+// New -> Contacted -> Quoted -> Won / Not won with their own login; Not won needs a reason,
 // won needs the sale value; a quotation made from an enquiry is linked to it. Owner/admin see the stats.
 
 const BASE = process.env.BASE_URL ?? "http://localhost:5173";
@@ -10,7 +10,7 @@ const MOBILE = `7${String(Date.now()).slice(-9)}`;
 const TEMP = "Temp@12345";
 const MINE = "Sales#Pass2026";
 
-/** A Viewer-role staff member with their own password, signed in on their own request context. */
+/** A sales staff member (role 'viewer') with their own password, signed in on their own request context. */
 async function staffSession(owner: APIRequestContext, playwright: PlaywrightWorkerArgs["playwright"]) {
   const created = await owner.post("/api/admin/users", { headers: H, data: { email: "", mobile: MOBILE, password: TEMP, displayName: "Sales Person", role: "viewer", isActive: true } });
   expect(created.ok()).toBeTruthy();
@@ -115,11 +115,11 @@ test("lost enquiry in the admin screen asks for a reason; the performance page s
   await page.getByTestId("le-save").click();
   const row = page.getByTestId("admin-enquiry").filter({ hasText: name });
   await row.locator("button[aria-expanded]").first().click();
-  await row.getByTestId("enquiry-status-select").selectOption("lost");
-  await row.getByTestId("save-enquiry").click();
-  await expect(row.getByText("Choose why it was lost or cancelled")).toBeVisible();
+  await row.getByTestId("next-notwon").click();
+  await row.getByTestId("confirm-notwon").click();
+  await expect(row.getByText("Choose why it was not won")).toBeVisible();
   await row.getByTestId("reason-picker").getByRole("button", { name: "Delivery time too long" }).click();
-  await row.getByTestId("save-enquiry").click();
+  await row.getByTestId("confirm-notwon").click();
   await expect(row.getByTestId("closed-reason")).toContainText("Delivery time too long");
   await page.goto("/admin/performance");
   await expect(page.getByTestId("leaderboard")).toBeVisible();

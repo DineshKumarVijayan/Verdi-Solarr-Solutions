@@ -65,7 +65,7 @@ test("quotation prices come from the database, not the browser", async ({ reques
   const p = cat.products.find((x: { price: { sellingPaise: number | null } }) => x.price.sellingPaise !== null);
   const r = await request.post("/api/admin/quotations", {
     headers: H,
-    data: { customerName: NAME, validDays: 15, items: [{ productId: p.id, qty: 1, unitPaise: 1, discountType: "none", discountValue: 0 }] },
+    data: { customerName: NAME, customerMobile: "9000000003", validDays: 15, items: [{ productId: p.id, qty: 1, unitPaise: 1, discountType: "none", discountValue: 0 }] },
   });
   expect(r.status()).toBe(201);
   const { quote } = await r.json();
@@ -89,7 +89,7 @@ test("PDF details: upload a UPI QR code and UPI ID; deleting uses the in-app con
   await request.put("/api/admin/quotations/settings", { headers: H, data: { quoteUpiQr: before.quoteUpiQr ?? "", quoteUpiId: before.quoteUpiId ?? "" } });
 
   // delete -> styled confirmation dialog (Cancel keeps it, Delete removes it)
-  const r = await request.post("/api/admin/quotations", { headers: H, data: { customerName: NAME, validDays: 15, items: [{ productId: null, name: "Transport", unit: "per trip", qty: 1, unitPaise: 100000, discountType: "none", discountValue: 0 }] } });
+  const r = await request.post("/api/admin/quotations", { headers: H, data: { customerName: NAME, customerMobile: "9000000004", validDays: 15, items: [{ productId: null, name: "Transport", unit: "per trip", qty: 1, unitPaise: 100000, discountType: "none", discountValue: 0 }] } });
   const { quote } = await r.json();
   await page.goto(`/admin/quotations/${quote.id}`);
   await page.getByRole("button", { name: "Delete quotation" }).click();

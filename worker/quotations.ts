@@ -60,6 +60,24 @@ interface QuoteDbRow {
   CreatedAt: string;
   UpdatedAt: string;
   SentAt: string | null;
+  OwnerAdminId: number | null;
+  OwnerName?: string | null;
+  EnquiryId: number | null;
+  EnquiryReference?: string | null;
+}
+
+/** Quotation with its owner's name and the enquiry it answers. */
+const Q_SELECT = `SELECT q.*, COALESCE(o.DisplayName, o.Email) AS OwnerName, e.Reference AS EnquiryReference
+  FROM Quotations q LEFT JOIN AdminUsers o ON o.AdminId = q.OwnerAdminId LEFT JOIN Enquiries e ON e.EnquiryId = q.EnquiryId`;
+const MANAGERS = ["owner", "admin"];
+const isManager = (admin: AdminIdentity) => MANAGERS.includes(admin.role);
+
+/** Owner/admin: any quotation. Other staff: only quotations that belong to them. */
+async function requireQuoteAccess(env: Env, admin: AdminIdentity, id: number): Promise<QuoteDbRow> {
+  const row = await env.DB.prepare("SELECT * FROM Quotations WHERE QuotationId = ?1").bind(id).first<QuoteDbRow>();
+  if (!row) throw new HttpError(404, "not_found", "Quotation not found.");
+  if (!isManager(admin) && row.OwnerAdminId !== admin.id) throw new HttpError(403, "forbidden", "This quotation belongs to another staff member.");
+  return row;
 }
 
 function toRow(r: QuoteDbRow) {
@@ -80,16 +98,24 @@ function toRow(r: QuoteDbRow) {
     createdAt: r.CreatedAt,
     updatedAt: r.UpdatedAt,
     sentAt: r.SentAt,
+    owner: r.OwnerAdminId ? { id: r.OwnerAdminId, name: r.OwnerName ?? "Staff" } : null,
+    enquiryId: r.EnquiryId ?? null,
+    enquiryReference: r.EnquiryReference ?? null,
   };
 }
 
 // ------------------------------------------------------------------ read
 
-export async function listQuotations(env: Env, url: URL): Promise<{ rows: QuoteRow[] }> {
+export async function listQuotations(env: Env, admin: AdminIdentity, url: URL): Promise<{ rows: QuoteRow[] }> {
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
   const status = url.searchParams.get("status") ?? "";
   const where: string[] = [];
   const args: unknown[] = [];
+  // sales staff see their own quotations; owner/admin see all (or only theirs with owner=me)
+  if (!isManager(admin) || url.searchParams.get("owner") === "me") {
+    args.push(admin.id);
+    where.push(`q.OwnerAdminId = ?${args.length}`);
+  }
   if (q) {
     args.push(`%${q.replace(/[%_]/g, "")}%`);
     where.push(`(q.Number LIKE ?${args.length} OR q.CustomerName LIKE ?${args.length} OR q.CustomerCompany LIKE ?${args.length} OR q.CustomerMobile LIKE ?${args.length})`);
@@ -99,17 +125,23 @@ export async function listQuotations(env: Env, url: URL): Promise<{ rows: QuoteR
     where.push(`q.Status = ?${args.length}`);
   }
   const r = await env.DB.prepare(
-    `SELECT q.*, (SELECT COUNT(*) FROM QuotationItems i WHERE i.QuotationId = q.QuotationId) AS ItemCount
-     FROM Quotations q ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY q.CreatedAt DESC LIMIT 200`,
+    `SELECT q.*, COALESCE(o.DisplayName, o.Email) AS OwnerName, e.Reference AS EnquiryReference, (SELECT COUNT(*) FROM QuotationItems i WHERE i.QuotationId = q.QuotationId) AS ItemCount
+     FROM Quotations q LEFT JOIN AdminUsers o ON o.AdminId = q.OwnerAdminId LEFT JOIN Enquiries e ON e.EnquiryId = q.EnquiryId ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY q.CreatedAt DESC LIMIT 200`,
   )
     .bind(...args)
     .all<QuoteDbRow & { ItemCount: number }>();
   return { rows: r.results.map((x) => ({ ...toRow(x), itemCount: x.ItemCount })) };
 }
 
+/** Read a quotation as a staff member (sales staff: only their own). */
+export async function viewQuotation(env: Env, admin: AdminIdentity, id: number): Promise<Quote> {
+  await requireQuoteAccess(env, admin, id);
+  return getQuotation(env, id);
+}
+
 export async function getQuotation(env: Env, id: number): Promise<Quote> {
   const [head, items] = await env.DB.batch([
-    env.DB.prepare("SELECT * FROM Quotations WHERE QuotationId = ?1").bind(id),
+    env.DB.prepare(`${Q_SELECT} WHERE q.QuotationId = ?1`).bind(id),
     env.DB.prepare("SELECT * FROM QuotationItems WHERE QuotationId = ?1 ORDER BY SortOrder, ItemId").bind(id),
   ]);
   const h = head.results[0] as QuoteDbRow | undefined;
@@ -257,6 +289,10 @@ async function enquiryLinkStatements(env: Env, admin: AdminIdentity, enquiryId: 
 
 export async function createQuotation(env: Env, admin: AdminIdentity, body: unknown): Promise<Quote> {
   const v = parseInput(body);
+  if (v.enquiryId && !isManager(admin)) {
+    const e = await env.DB.prepare("SELECT AssignedAdminId FROM Enquiries WHERE EnquiryId = ?1").bind(v.enquiryId).first<{ AssignedAdminId: number | null }>();
+    if (e && e.AssignedAdminId !== null && e.AssignedAdminId !== admin.id) throw new HttpError(403, "forbidden", "This enquiry is assigned to another staff member.");
+  }
   const items = await resolveItems(env, v, new Map());
   const t = sums(items);
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -265,9 +301,9 @@ export async function createQuotation(env: Env, admin: AdminIdentity, body: unkn
     try {
       await env.DB.batch([
         env.DB.prepare(
-          `INSERT INTO Quotations (Number, CustomerName, CustomerCompany, CustomerMobile, CustomerEmail, CustomerAddress, Notes, ValidDays, SubtotalPaise, DiscountPaise, TotalPaise, CreatedBy, CreatedAt, UpdatedBy, UpdatedAt)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?12, ?13)`,
-        ).bind(number, v.customerName, v.customerCompany || null, v.mobile, v.customerEmail || null, v.customerAddress || null, v.notes || null, v.validDays, t.subtotal, t.discount, t.total, admin.email, now),
+          `INSERT INTO Quotations (Number, CustomerName, CustomerCompany, CustomerMobile, CustomerEmail, CustomerAddress, Notes, ValidDays, SubtotalPaise, DiscountPaise, TotalPaise, CreatedBy, CreatedAt, UpdatedBy, UpdatedAt, OwnerAdminId)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?12, ?13, ?14)`,
+        ).bind(number, v.customerName, v.customerCompany || null, v.mobile, v.customerEmail || null, v.customerAddress || null, v.notes || null, v.validDays, t.subtotal, t.discount, t.total, admin.email, now, admin.id),
         ...itemStatements(env, number, items),
         ...(v.enquiryId ? await enquiryLinkStatements(env, admin, v.enquiryId, number, now) : []),
         audit(env, admin, "quotation.create", number, null, { customer: v.customerName, items: items.length, totalPaise: t.total, enquiryId: v.enquiryId ?? null }, now),
@@ -282,7 +318,9 @@ export async function createQuotation(env: Env, admin: AdminIdentity, body: unkn
 }
 
 export async function updateQuotation(env: Env, admin: AdminIdentity, id: number, body: unknown): Promise<Quote> {
+  await requireQuoteAccess(env, admin, id);
   const before = await getQuotation(env, id);
+  if (before.status === "accepted") throw new HttpError(409, "accepted", "This quotation was accepted, so its sale is recorded. To change it, the owner or an admin must first undo the acceptance.");
   const v = parseInput(body);
   // Keep the price already quoted for products that stay on the quotation.
   const keep = new Map(before.items.filter((i) => i.productId !== null).map((i) => [i.productId as number, i.unitPaise]));
@@ -304,7 +342,11 @@ export async function updateQuotation(env: Env, admin: AdminIdentity, id: number
 export async function setQuotationStatus(env: Env, admin: AdminIdentity, id: number, body: unknown): Promise<Quote> {
   const r = z.object({ status: z.enum(QUOTE_STATUSES) }).strict().safeParse(body);
   if (!r.success) throw new HttpError(422, "validation", "Unknown status.");
+  await requireQuoteAccess(env, admin, id);
   const before = await getQuotation(env, id);
+  // undoing an accepted quotation (= undoing a sale) is for the owner or an admin
+  if (before.status === "accepted" && r.data.status !== "accepted" && !isManager(admin))
+    throw new HttpError(403, "forbidden", "Only the owner or an admin can undo an accepted quotation.");
   const now = nowIso();
   const stmts: D1PreparedStatement[] = [
     env.DB.prepare("UPDATE Quotations SET Status = ?2, UpdatedBy = ?3, UpdatedAt = ?4 WHERE QuotationId = ?1").bind(id, r.data.status, admin.email, now),
@@ -332,11 +374,30 @@ export async function setQuotationStatus(env: Env, admin: AdminIdentity, id: num
       );
     }
   }
+  // Undoing an acceptance undoes the sale it recorded: the enquiry goes back to Quoted, bonus and points are reversed.
+  if (before.status === "accepted" && r.data.status !== "accepted" && before.enquiryId) {
+    const e = await env.DB.prepare("SELECT Status FROM Enquiries WHERE EnquiryId = ?1").bind(before.enquiryId).first<{ Status: string }>();
+    if (e?.Status === "won") {
+      stmts.push(
+        env.DB.prepare("UPDATE Enquiries SET Status = 'quoted', SalePaise = NULL, ClosedAt = NULL, UpdatedAt = ?1, UpdatedBy = ?2 WHERE EnquiryId = ?3").bind(now, admin.email, before.enquiryId),
+        env.DB.prepare("INSERT INTO EnquiryEvents (EnquiryId, Kind, FromStatus, ToStatus, Note, ByAdminId, ByIdentity, CreatedAt) VALUES (?1, 'status', 'won', 'quoted', ?2, ?3, ?4, ?5)").bind(
+          before.enquiryId,
+          `Acceptance of quotation ${before.number} undone`,
+          admin.id,
+          admin.email,
+          now,
+        ),
+        ...(await bonusStatementsForSale(env, admin, before.enquiryId, { status: "quoted", salePaise: null, ownerId: null }, now)),
+        ...(await loyaltyStatementsForSale(env, admin, before.enquiryId, { status: "quoted", salePaise: null }, now)),
+      );
+    }
+  }
   await env.DB.batch(stmts);
   return getQuotation(env, id);
 }
 
 export async function deleteQuotation(env: Env, admin: AdminIdentity, id: number) {
+  if (!isManager(admin)) throw new HttpError(403, "forbidden", "Only the owner or an admin can delete quotations.");
   const before = await env.DB.prepare("SELECT * FROM Quotations WHERE QuotationId = ?1").bind(id).first<QuoteDbRow>();
   if (!before) throw new HttpError(404, "not_found", "Quotation not found.");
   await env.DB.batch([env.DB.prepare("DELETE FROM Quotations WHERE QuotationId = ?1").bind(id), audit(env, admin, "quotation.delete", before.Number, toRow(before), null, nowIso())]);
@@ -346,6 +407,7 @@ export async function deleteQuotation(env: Env, admin: AdminIdentity, id: number
 
 /** Store the PDF the admin just generated, so it can be linked from WhatsApp. Marks a draft as sent. */
 export async function shareQuotationPdf(env: Env, admin: AdminIdentity, id: number, request: Request) {
+  await requireQuoteAccess(env, admin, id);
   if (!env.MEDIA) throw new HttpError(503, "storage_not_configured", "File storage (R2) is not configured for this deployment.");
   const before = await env.DB.prepare("SELECT * FROM Quotations WHERE QuotationId = ?1").bind(id).first<QuoteDbRow>();
   if (!before) throw new HttpError(404, "not_found", "Quotation not found.");

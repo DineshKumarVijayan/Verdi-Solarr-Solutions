@@ -23,7 +23,7 @@ test("won sale earns loyalty points; corrections and cancellations reverse them;
   expect(await balance(request, cust.id)).toBe(1000); // 0.5 % = ₹1,000 = 1,000 points
   await request.put(`/api/admin/enquiries/${enq.id}`, { headers: H, data: { status: "won", adminNotes: null, salePaise: 10_000_000 } }); // corrected to ₹1,00,000
   expect(await balance(request, cust.id)).toBe(500);
-  await request.put(`/api/admin/enquiries/${enq.id}`, { headers: H, data: { status: "cancelled", adminNotes: null, closedReason: "budget" } });
+  await request.put(`/api/admin/enquiries/${enq.id}`, { headers: H, data: { status: "lost", adminNotes: null, closedReason: "order_cancelled" } });
   expect(await balance(request, cust.id)).toBe(0);
   const ledger = (await (await request.get(`/api/admin/customers/${cust.id}`)).json()).rewards as { points: number }[];
   expect(ledger.map((r) => r.points).sort((a, b) => a - b)).toEqual([-1000, -500, 500, 1000]); // nothing edited, only added

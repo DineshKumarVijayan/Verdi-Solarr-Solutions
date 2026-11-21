@@ -323,7 +323,8 @@ export const StaffEnquirySchema = z
     business: z.string().trim().max(120).optional().default(""),
     location: z.string().trim().min(2, "Enter the customer's location").max(120),
     need: z.string().trim().max(1000).optional().default(""),
-    status: z.enum(["new", "contacted", "quoted"]).default("contacted"),
+    status: z.enum(["new", "contacted"]).default("contacted"),
+    followUpOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date").nullish(),
     items: z
       .array(z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(100000) }).strict())
       .max(50)
@@ -332,11 +333,12 @@ export const StaffEnquirySchema = z
   .strict();
 export type StaffEnquiry = z.infer<typeof StaffEnquirySchema>;
 
-const CLOSED = ["price", "bought_elsewhere", "postponed", "unavailable", "delivery_time", "no_response", "budget", "other"] as const;
-/** Moving an enquiry along the pipeline. Lost / cancelled need a reason ('other' needs a note); won needs the sale value. */
+const CLOSED = ["price", "bought_elsewhere", "postponed", "unavailable", "delivery_time", "no_response", "budget", "order_cancelled", "duplicate", "other"] as const;
+/** Moving an enquiry along the pipeline. Not won ('lost') needs a reason ('other' needs a note); won needs the sale value. */
 export const EnquiryAdminUpdateSchema = z
   .object({
-    status: z.enum(["new", "contacted", "quoted", "won", "lost", "cancelled"]).optional(),
+    status: z.enum(["new", "contacted", "quoted", "won", "lost"]).optional(),
+    followUpOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date").nullable().optional(),
     adminNotes: optText(2000),
     closedReason: z.enum(CLOSED).nullable().optional(),
     closedNote: z.string().trim().max(500).nullable().optional(),
@@ -344,8 +346,8 @@ export const EnquiryAdminUpdateSchema = z
   })
   .strict()
   .superRefine((v, ctx) => {
-    if ((v.status === "lost" || v.status === "cancelled") && !v.closedReason) ctx.addIssue({ code: "custom", path: ["closedReason"], message: "Choose why it was lost or cancelled" });
-    if ((v.status === "lost" || v.status === "cancelled") && v.closedReason === "other" && !v.closedNote?.trim()) ctx.addIssue({ code: "custom", path: ["closedNote"], message: "Describe the reason" });
+    if (v.status === "lost" && !v.closedReason) ctx.addIssue({ code: "custom", path: ["closedReason"], message: "Choose why it was not won" });
+    if (v.status === "lost" && v.closedReason === "other" && !v.closedNote?.trim()) ctx.addIssue({ code: "custom", path: ["closedNote"], message: "Describe the reason" });
     if (v.status === "won" && !v.salePaise) ctx.addIssue({ code: "custom", path: ["salePaise"], message: "Enter the final sale amount" });
   });
 

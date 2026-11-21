@@ -1,4 +1,4 @@
-import { Award, ChevronDown, FileText, Phone, Plus, Search, UserRound } from "lucide-react";
+import { Award, CalendarClock, Check, ChevronDown, FileText, Phone, Plus, RotateCcw, Search, UserRound, X } from "lucide-react";
 import { usePaged } from "../../components/Pager";
 import { LogEnquiry } from "./LogEnquiry";
 import { useCallback, useEffect, useState } from "react";
@@ -6,11 +6,11 @@ import { Link, useSearchParams } from "react-router";
 import { EnquiryAdminUpdateSchema, formatMobile, issues, normaliseMobile } from "../../../shared/admin-schemas";
 import { formatPaise } from "../../../shared/money";
 import { paiseToRupeeInput, rupeesToPaise } from "../../../shared/schemas";
-import { CLOSED_REASON_LABEL, CLOSED_REASONS, ENQUIRY_STATUSES, type AdminEnquiryRow, type ClosedReason, type EnquiryEvent, type EnquiryStats, type EnquiryStatus } from "../../../shared/types";
+import { CLOSED_REASON_LABEL, CLOSED_REASONS, PIPELINE_STATUSES, type AdminEnquiryRow, type ClosedReason, type EnquiryEvent, type EnquiryStats, type EnquiryStatus } from "../../../shared/types";
 import { Spinner, useToast } from "../../components/ui";
 import { WhatsAppIcon } from "../../components/WhatsAppIcon";
 import { api } from "../../lib/api";
-import { STATUS_LABEL, STATUS_STYLE } from "../../lib/enquiry-status";
+import { ADMIN_STATUS_LABEL as STATUS_LABEL, STATUS_HINT, STATUS_STYLE } from "../../lib/enquiry-status";
 import { Accordion, ActionBar, ClampText } from "../../components/mobile/kit";
 import { useAdmin } from "./AdminLayout";
 import { canManage, dt, errorText, PageHead, send } from "./kit";
@@ -67,7 +67,7 @@ export default function Enquiries() {
     <div className="container-x py-10 max-lg:pt-3 max-lg:pb-24">
       <PageHead
         title="Enquiries"
-        intro="Every enquiry in one place: from customers using the website, and from staff reaching out by phone, WhatsApp or visits. Update the status as you follow up — signed-in customers see it in their account."
+        intro="Every enquiry goes New → Contacted → Quoted → Won or Not won. Open one to see the next step. Signed-in customers see the progress in their account."
         actions={
           <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => setLogging(true)} data-testid="log-enquiry-open">
             <Plus className="size-4" /> Log enquiry
@@ -77,7 +77,7 @@ export default function Enquiries() {
       <LogEnquiry open={logging} onClose={() => setLogging(false)} onSaved={(e) => setRows((rs) => [e, ...(rs ?? [])])} />
 
       <div className="mt-6 flex flex-wrap gap-2 max-lg:scrollbar-none max-lg:-mx-4 max-lg:mt-3 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-4">
-        {[["", `All (${total})`] as const, ...ENQUIRY_STATUSES.map((s) => [s, `${STATUS_LABEL[s]} (${counts[s] ?? 0})`] as const)].map(([k, l]) => (
+        {[["", `All (${total})`] as const, ...PIPELINE_STATUSES.map((s) => [s, `${STATUS_LABEL[s]} (${(counts[s] ?? 0) + (s === "lost" ? (counts.cancelled ?? 0) : 0)})`] as const)].map(([k, l]) => (
           <button key={k} type="button" className={`${status === k ? "chip-on chip" : "chip"} max-lg:tap max-lg:shrink-0 max-lg:whitespace-nowrap`} onClick={() => set("status", k)}>
             {l}
           </button>
@@ -96,7 +96,7 @@ export default function Enquiries() {
       </div>
       <div className="mt-2 flex flex-wrap gap-2 max-lg:scrollbar-none max-lg:-mx-4 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-4" role="group" aria-label="Who is responsible">
         {[
-          ["", "Everyone"],
+          ["", canManage(adminMe) ? "Everyone" : "Mine & unassigned"],
           ["me", "Mine"],
           ["none", "Unassigned"],
         ].map(([k, l]) => (
@@ -136,7 +136,7 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
   const editable = isAdmin || e.owner?.id === admin.id;
   const [reason, setReason] = useState<ClosedReason | "">(e.closedReason ?? "");
   const [reasonNote, setReasonNote] = useState(e.closedNote ?? "");
-  const [sale, setSale] = useState(paiseToRupeeInput(e.salePaise ?? e.quotePaise ?? e.totalPaise ?? null));
+  const [sale, setSale] = useState(paiseToRupeeInput(e.salePaise ?? e.totalPaise ?? null));
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [events, setEvents] = useState<EnquiryEvent[] | null>(null);
   useEffect(() => {
@@ -145,6 +145,7 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
       .then((r) => setEvents(r.events))
       .catch(() => setEvents([]));
   }, [open, e.id, e.updatedAt]);
+  const toast = useToast();
   const assign = async (body: { adminId: number | null } | { take: true }) => {
     try {
       const r = await send<{ enquiry: AdminEnquiryRow }>(`/api/admin/enquiries/${e.id}/assign`, "POST", body);
@@ -154,29 +155,24 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
       toast(errorText(err), "error");
     }
   };
-  const toast = useToast();
-  const [status, setStatus] = useState<EnquiryStatus>(e.status);
   const [notes, setNotes] = useState(e.adminNotes ?? "");
+  const [followUp, setFollowUp] = useState(e.followUpOn ?? "");
+  // which step form is open: record a sale without a quotation, close as Not won, or reopen (owner/admin)
+  const [action, setAction] = useState<null | "won" | "lost" | "reopen">(null);
   const [pts, setPts] = useState("");
   const [busy, setBusy] = useState(false);
   const mobile = normaliseMobile(e.mobile);
-
-  const closing = status === "lost" || status === "cancelled";
+  const isOpenStage = e.status === "new" || e.status === "contacted" || e.status === "quoted";
   const salePaise = rupeesToPaise(sale);
-  const dirty = status !== e.status || notes !== (e.adminNotes ?? "") || (closing && (reason !== (e.closedReason ?? "") || reasonNote !== (e.closedNote ?? ""))) || (status === "won" && salePaise !== e.salePaise);
-  const save = async () => {
-    const body = {
-      status,
-      adminNotes: notes.trim() || null,
-      closedReason: closing ? reason || null : null,
-      closedNote: closing ? reasonNote.trim() || null : null,
-      salePaise: status === "won" ? (Number.isNaN(salePaise) ? null : salePaise) : null,
-    };
-    // same rules as the server, checked first so mistakes show next to the field
+  const detailsDirty = notes !== (e.adminNotes ?? "") || followUp !== (e.followUpOn ?? "");
+
+  /** Sends one update (same rules as the server, checked first so mistakes show next to the field). */
+  const submit = async (extra: Record<string, unknown>, done: string) => {
+    const body = { adminNotes: notes.trim() || null, ...(isOpenStage && !extra.status ? { followUpOn: followUp || null } : {}), ...extra };
     const check = EnquiryAdminUpdateSchema.safeParse(body);
-    if (!check.success || (status === "won" && Number.isNaN(salePaise))) {
+    if (!check.success || (extra.status === "won" && Number.isNaN(salePaise))) {
       const er: Record<string, string> = {};
-      if (status === "won" && Number.isNaN(salePaise)) er.salePaise = "Enter a valid amount, e.g. 125000 or 125000.50";
+      if (extra.status === "won" && Number.isNaN(salePaise)) er.salePaise = "Enter a valid amount, e.g. 125000 or 125000.50";
       if (!check.success) for (const i of issues(check.error)) er[i.path] ??= i.message;
       setErrs(er);
       return;
@@ -186,7 +182,9 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
     try {
       const r = await send<{ enquiry: AdminEnquiryRow }>(`/api/admin/enquiries/${e.id}`, "PUT", body);
       onSaved(r.enquiry);
-      toast("Enquiry updated.", "success");
+      setAction(null);
+      setFollowUp(r.enquiry.followUpOn ?? "");
+      toast(done, "success");
     } catch (err) {
       toast(errorText(err), "error");
     } finally {
@@ -207,12 +205,14 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
       setBusy(false);
     }
   };
+  const quoteLink = e.latestQuote ? `/admin/quotations/${e.latestQuote.id}` : null;
 
   return (
     <li className="card overflow-hidden" data-testid="admin-enquiry">
       <button type="button" className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 p-4 text-left hover:bg-paper" onClick={onToggle} aria-expanded={open}>
         <span className="num font-semibold">{e.reference}</span>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[e.status]}`}>{STATUS_LABEL[e.status]}</span>
+        {e.followUpOn && <FollowUpChip date={e.followUpOn} />}
         <span className="min-w-0 flex-1 truncate text-sm">
           {e.contactName}
           {e.business ? ` · ${e.business}` : ""} <span className="text-muted">· {e.location}</span>
@@ -317,39 +317,73 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
               )}
               {e.owner && !editable && <span className="basis-full text-xs text-muted">Only {e.owner.name} or an admin can update this enquiry.</span>}
             </div>
+            <StepBar status={e.status} />
+            <p className="-mt-1 text-xs text-muted" data-testid="status-hint">
+              {STATUS_HINT[e.status]}
+            </p>
             {(e.status === "lost" || e.status === "cancelled") && e.closedReason && (
               <p className="rounded-xl bg-danger-bg px-3 py-2 text-xs text-danger" data-testid="closed-reason">
-                {STATUS_LABEL[e.status]}: {CLOSED_REASON_LABEL[e.closedReason]}
+                Not won: {CLOSED_REASON_LABEL[e.closedReason]}
                 {e.closedNote ? ` — ${e.closedNote}` : ""}
               </p>
             )}
             {e.status === "won" && e.salePaise != null && (
               <p className="num rounded-xl bg-verdi-50 px-3 py-2 text-xs text-verdi-700" data-testid="sale-value">
                 Sale: {formatPaise(e.salePaise)}
+                {e.latestQuote?.status === "accepted" ? ` (quotation ${e.latestQuote.number})` : ""}
               </p>
             )}
-            <div>
-              <label htmlFor={`st-${e.id}`} className="label">
-                Status
-              </label>
-              <div className="flex flex-wrap gap-1.5 lg:hidden" role="radiogroup" aria-label="Status" data-testid="status-segments">
-                {ENQUIRY_STATUSES.map((s) => (
-                  <button key={s} type="button" role="radio" aria-checked={status === s} disabled={!editable} className={`tap rounded-full border px-3 text-sm font-medium ${status === s ? "border-ink bg-ink text-paper" : "border-line bg-card"}`} onClick={() => setStatus(s)}>
-                    {STATUS_LABEL[s]}
+
+            {/* the next step: one main button per stage */}
+            {editable && isOpenStage && action === null && (
+              <div className="flex flex-wrap gap-2" data-testid="next-step">
+                {e.status === "new" && (
+                  <button type="button" className="btn-primary btn-sm max-lg:tap" disabled={busy} onClick={() => void submit({ status: "contacted", followUpOn: followUp || null }, "Marked as contacted.")} data-testid="next-contacted">
+                    <Check className="size-4" /> Mark as contacted
                   </button>
-                ))}
+                )}
+                {e.status === "quoted" && quoteLink ? (
+                  <Link className="btn-primary btn-sm max-lg:tap" to={quoteLink} data-testid="next-open-quote">
+                    <FileText className="size-4" /> Open quotation {e.latestQuote!.number}
+                  </Link>
+                ) : (
+                  <Link className={`${e.status === "contacted" ? "btn-primary" : "btn-ghost"} btn-sm max-lg:tap`} to="/admin/quotations/new" state={{ enquiry: e }} data-testid="next-quote">
+                    <FileText className="size-4" /> Create quotation
+                  </Link>
+                )}
+                {e.quoteCount === 0 && e.status !== "new" && (
+                  <button type="button" className="btn-ghost btn-sm max-lg:tap" onClick={() => setAction("won")} data-testid="next-won">
+                    Won without a quotation
+                  </button>
+                )}
+                <button type="button" className="btn-ghost btn-sm text-danger max-lg:tap" onClick={() => setAction("lost")} data-testid="next-notwon">
+                  <X className="size-4" /> Not won
+                </button>
               </div>
-              <select id={`st-${e.id}`} className="field max-lg:hidden" value={status} disabled={!editable} onChange={(x) => setStatus(x.target.value as EnquiryStatus)} data-testid="enquiry-status-select">
-                {ENQUIRY_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_LABEL[s]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {editable && closing && (
-              <fieldset data-testid="reason-picker">
-                <legend className="label">Why was it {status === "lost" ? "lost" : "cancelled"}? <span className="text-danger">*</span></legend>
+            )}
+            {editable && action === "won" && (
+              <div className="grid gap-2 rounded-2xl border border-line p-3">
+                <label htmlFor={`sale-${e.id}`} className="label !mb-0">
+                  Final sale amount (₹) <span className="text-danger">*</span>
+                </label>
+                <input id={`sale-${e.id}`} className={`field num ${errs.salePaise ? "!border-danger" : ""}`} inputMode="decimal" value={sale} onChange={(x) => setSale(x.target.value)} placeholder="e.g. 125000" data-testid="sale-input" />
+                {errs.salePaise && <p className="text-xs text-danger">{errs.salePaise}</p>}
+                <p className="text-xs text-subtle">Only for sales without a quotation. Staff bonus and customer points are added from this amount.</p>
+                <div className="flex gap-2">
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => (setAction(null), setErrs({}))}>
+                    Back
+                  </button>
+                  <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={() => void submit({ status: "won", salePaise: Number.isNaN(salePaise) ? null : salePaise }, "Marked as won.")} data-testid="confirm-won">
+                    Mark as won
+                  </button>
+                </div>
+              </div>
+            )}
+            {editable && action === "lost" && (
+              <fieldset className="rounded-2xl border border-line p-3" data-testid="reason-picker">
+                <legend className="label px-1">
+                  Why was it not won? <span className="text-danger">*</span>
+                </legend>
                 <div className="flex flex-wrap gap-1.5">
                   {CLOSED_REASONS.map((r) => (
                     <button key={r} type="button" aria-pressed={reason === r} className={`rounded-full border px-3 py-1.5 text-xs font-medium max-lg:tap ${reason === r ? "border-ink bg-ink text-paper" : "border-line bg-card"}`} onClick={() => setReason(r)}>
@@ -360,15 +394,62 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
                 {errs.closedReason && <p className="mt-1 text-xs text-danger">{errs.closedReason}</p>}
                 <input className={`field mt-2 ${errs.closedNote ? "!border-danger" : ""}`} placeholder={reason === "other" ? "Describe the reason (required)" : "Details (optional)"} maxLength={500} value={reasonNote} onChange={(x) => setReasonNote(x.target.value)} aria-label="Reason details" data-testid="reason-note" />
                 {errs.closedNote && <p className="mt-1 text-xs text-danger">{errs.closedNote}</p>}
+                <div className="mt-2 flex gap-2">
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => (setAction(null), setErrs({}))}>
+                    Back
+                  </button>
+                  <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={() => void submit({ status: "lost", closedReason: reason || null, closedNote: reasonNote.trim() || null }, "Closed as Not won.")} data-testid="confirm-notwon">
+                    Close as Not won
+                  </button>
+                </div>
               </fieldset>
             )}
-            {editable && status === "won" && (
+            {/* closed: only the owner or an admin can reopen */}
+            {isAdmin && !isOpenStage && action === null && (
+              <button type="button" className="btn-ghost btn-sm justify-self-start max-lg:tap" onClick={() => setAction("reopen")} data-testid="reopen-enquiry">
+                <RotateCcw className="size-4" /> Reopen
+              </button>
+            )}
+            {isAdmin && action === "reopen" && (
+              <div className="grid gap-2 rounded-2xl border border-line p-3 text-sm">
+                <p>
+                  Reopen as{e.status === "won" ? " (removes the sale, its staff bonus and customer points)" : ""}:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(["contacted", "quoted"] as const).map((st) => (
+                    <button key={st} type="button" className="btn-ghost btn-sm" disabled={busy} onClick={() => void submit({ status: st }, `Reopened as ${STATUS_LABEL[st]}.`)} data-testid={`reopen-${st}`}>
+                      {STATUS_LABEL[st]}
+                    </button>
+                  ))}
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => setAction(null)}>
+                    Back
+                  </button>
+                </div>
+                {e.latestQuote?.status === "accepted" && <p className="text-xs text-muted">This sale came from an accepted quotation: undo it on the quotation instead.</p>}
+              </div>
+            )}
+
+            {/* follow-up date + internal notes */}
+            {isOpenStage && (
               <div>
-                <label htmlFor={`sale-${e.id}`} className="label">
-                  Final sale amount (₹) <span className="text-danger">*</span>
+                <label htmlFor={`fu-${e.id}`} className="label">
+                  Next follow-up
                 </label>
-                <input id={`sale-${e.id}`} className={`field num ${errs.salePaise ? "!border-danger" : ""}`} inputMode="decimal" value={sale} onChange={(x) => setSale(x.target.value)} placeholder="e.g. 125000" data-testid="sale-input" />
-                {errs.salePaise ? <p className="mt-1 text-xs text-danger">{errs.salePaise}</p> : e.quotePaise != null && <p className="mt-1 text-xs text-subtle">Latest quotation: {formatPaise(e.quotePaise)}</p>}
+                <div className="flex flex-wrap items-center gap-2">
+                  <input id={`fu-${e.id}`} type="date" className="field !w-auto !py-1.5" value={followUp} disabled={!editable} onChange={(x) => setFollowUp(x.target.value)} data-testid="followup-input" />
+                  {editable &&
+                    (
+                      [
+                        ["Tomorrow", 1],
+                        ["In 3 days", 3],
+                        ["Next week", 7],
+                      ] as const
+                    ).map(([l, d]) => (
+                      <button key={l} type="button" className="chip max-lg:tap" onClick={() => setFollowUp(daysFromToday(d))}>
+                        {l}
+                      </button>
+                    ))}
+                </div>
               </div>
             )}
             <div>
@@ -377,27 +458,23 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
               </label>
               <textarea id={`nt-${e.id}`} rows={3} className="field" value={notes} disabled={!editable} onChange={(x) => setNotes(x.target.value)} />
             </div>
-            {editable && (
+            {editable && detailsDirty && (
               <div className="flex gap-2">
-              <button
-                type="button"
-                className="btn-ghost btn-sm"
-                disabled={busy}
-                onClick={() => {
-                  setStatus(e.status);
-                  setNotes(e.adminNotes ?? "");
-                  setReason(e.closedReason ?? "");
-                  setReasonNote(e.closedNote ?? "");
-                  setErrs({});
-                  onToggle();
-                }}
-                data-testid="cancel-enquiry"
-              >
-                Cancel
-              </button>
-              <button type="button" className="btn-primary btn-sm justify-self-start" onClick={save} disabled={busy || !dirty} data-testid="save-enquiry">
-                Save
-              </button>
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  disabled={busy}
+                  onClick={() => {
+                    setNotes(e.adminNotes ?? "");
+                    setFollowUp(e.followUpOn ?? "");
+                  }}
+                  data-testid="cancel-enquiry"
+                >
+                  Cancel
+                </button>
+                <button type="button" className="btn-primary btn-sm" onClick={() => void submit({}, "Saved.")} disabled={busy} data-testid="save-enquiry">
+                  Save
+                </button>
               </div>
             )}
             <Accordion title={<span className="text-sm">History</span>} className="rounded-2xl border border-line px-3">
@@ -423,7 +500,7 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
                 </ol>
               )}
             </Accordion>
-            {editable && e.customerId && (
+            {isAdmin && e.customerId && (
               <div className="rounded-2xl bg-paper p-3">
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
                   <Award className="size-4 text-sun-500" /> Reward points for {e.customerName}
@@ -445,5 +522,39 @@ function EnquiryRow({ e, staff, open, onToggle, onSaved }: { e: AdminEnquiryRow;
         </div>
       )}
     </li>
+  );
+}
+
+/** YYYY-MM-DD in India, n days from today. */
+function daysFromToday(n: number): string {
+  return new Date(Date.now() + 5.5 * 3600_000 + n * 86400_000).toISOString().slice(0, 10);
+}
+
+/** Follow-up date on the row: red when overdue, amber today. */
+function FollowUpChip({ date }: { date: string }) {
+  const today = daysFromToday(0);
+  const cls = date < today ? "bg-danger-bg text-danger" : date === today ? "bg-sun-100 text-ink" : "bg-paper-2 text-muted";
+  const label = date < today ? "Follow-up overdue" : date === today ? "Follow up today" : `Follow up ${new Date(date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cls}`} data-testid="followup-chip">
+      <CalendarClock className="size-3.5" /> {label}
+    </span>
+  );
+}
+
+/** New → Contacted → Quoted → Won (or Not won). */
+function StepBar({ status }: { status: EnquiryStatus }) {
+  const notWon = status === "lost" || status === "cancelled";
+  const steps: EnquiryStatus[] = ["new", "contacted", "quoted", notWon ? "lost" : "won"];
+  const at = notWon ? 3 : steps.indexOf(status);
+  return (
+    <ol className="grid grid-cols-4 gap-1" aria-label={`Stage: ${STATUS_LABEL[status]}`} data-testid="step-bar">
+      {steps.map((st, i) => (
+        <li key={st} className="min-w-0" aria-current={i === at ? "step" : undefined}>
+          <span className={`block h-1.5 rounded-full ${i <= at ? (notWon && i === 3 ? "bg-danger" : "bg-verdi-600") : "bg-paper-3"}`} />
+          <span className={`mt-1 block truncate text-[11px] ${i === at ? "font-semibold text-ink" : "text-muted"}`}>{STATUS_LABEL[st]}</span>
+        </li>
+      ))}
+    </ol>
   );
 }

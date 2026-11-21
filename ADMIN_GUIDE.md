@@ -15,15 +15,15 @@ Passwords are stored only as salted one-way hashes, so nobody can read them, inc
 | Role | Can do |
 |---|---|
 | Owner | Everything, including managing admin users |
-| Admin | Products, brands, categories, prices, photos, settings, enquiries and customers |
-| Price editor | Change prices only; view everything else |
-| Viewer | Look only |
+| Admin | Everything except managing staff accounts: products, brands, categories, prices, photos, settings, all enquiries and quotations, customers, performance and bonus |
+| Price editor | Same as Sales staff, plus changing prices |
+| Sales staff | Their own enquiries (and unassigned ones they can take) and their own quotations; sees products and prices and their own bonus. Cannot change products, prices or settings |
 
 ### Adding staff (owner)
 **Staff â†’ Add**: enter the mobile number (used to sign in), name, role and a temporary password. Email is optional. Share the temporary password privately. The list shows *Temporary password Â· must set their own* until the person has done so. To remove someone's access, edit the account and switch it to inactive. This signs them out immediately.
 
 ## Dashboard
-Shows new enquiries, customer accounts, products, missing prices, images and datasheets, and recent activity. Each tile is a shortcut.
+Starts with **My day**: your follow-ups that are due or overdue, new enquiries nobody has taken yet, and your quotations that expire within 3 days. Below it: new enquiries, customer accounts, products, missing prices, images and datasheets, and recent activity. Each tile is a shortcut.
 
 ## Products
 **Products â†’ Add product**
@@ -66,26 +66,36 @@ Contact person, phone, WhatsApp number (where enquiries are sent), email, addres
 ## Enquiries
 Every enquiry sent from the basket is saved with a reference number (e.g. `VS-261113-K7QPM`), which also appears in the customerâ€™s WhatsApp message.
 - Filter by status, or search by reference, name or mobile.
-- Open an enquiry to see the items, call or WhatsApp the customer, set the **status** (Received â†’ Contacted â†’ Quoted â†’ Order confirmed / Closed / Cancelled) and keep **internal notes**. Customers never see the notes.
-- For registered customers you can credit **reward points** right there.
+- Open an enquiry to see the items, call or WhatsApp the customer, see its **stage** and the **next step**, set a **follow-up date** and keep **internal notes**. Customers never see the notes.
+- Owner and admins can credit **reward points** to registered customers right there.
 
 ### Logging enquiries from calls, WhatsApp and visits
-- Tap **Log enquiry** (on a phone it is the green button at the top of the Dashboard). Choose how you reached the customer (phone call, WhatsApp or visit), enter their name, mobile and location, what they need, optionally pick products and quantities, and the status after the call.
+- Tap **Log enquiry** (on a phone it is the green button at the top of the Dashboard). Choose how you reached the customer (phone call, WhatsApp or visit), enter their name, mobile and location, what they need, optionally pick products and quantities, whether you have spoken to them yet (*Contacted*) or not (*Not reached yet*), and optionally the next follow-up date.
 - It is saved under **your** staff account in the same Enquiries list (marked *Phone*, *WhatsApp* or *Visit* with your name), so it can be followed up and turned into a quotation like any other enquiry. Every staff role can log enquiries.
 - Each enquiry is labelled **From website** (the customer came to us through the site) or **Staff · Phone · name** (we reached out). Filter with **From customers (website)** or **Staff outreach**.
 
 ### Who is responsible, and moving an enquiry along
 - Every enquiry has a **responsible staff member**. Enquiries a staff member logs are theirs. Website enquiries start **Unassigned**: owner/admin assign them (the *Responsible* box in the enquiry), or any staff member taps **Take this enquiry**.
-- Staff sign in with their own mobile and password and can update **only their own** enquiries; owner and admins can update any. Use the **Mine / Unassigned** chips to find yours.
-- Stages: **Received → Contacted → Quoted → Order confirmed (won)**, or **Lost / Cancelled**. Marking **Lost** or **Cancelled** asks *why* (price too high, bought elsewhere, postponed, product not available, delivery time, no response, budget, or Other with a note). Marking **won** asks for the **final sale amount** (pre-filled from the quotation).
-- **Create quotation** from an enquiry links the two: the enquiry moves to *Quoted*, and when the quotation is marked **Accepted** the enquiry becomes *won* with the quotation total as the sale value.
+- Staff sign in with their own mobile and password. Sales staff see **only their own** enquiries plus unassigned ones they can take, and update only their own; owner and admins see and update all. Use the **Mine / Unassigned** chips.
+- **Stages (one simple path):** **New → Contacted → Quoted → Won**, or **Not won**. Customers see *Received → Contacted → Quoted → Order confirmed* (or *Closed*).
+  | Stage | What it means | How it gets there |
+  |---|---|---|
+  | New | Nobody has spoken to the customer yet | Website enquiry, or logged as *Not reached yet* |
+  | Contacted | You have spoken to the customer | **Mark as contacted** |
+  | Quoted | A quotation was made | Automatic when you **Create quotation** from the enquiry |
+  | Won | The customer is buying | Automatic when its quotation is marked **Accepted** (the quotation total is the sale). Only enquiries without a quotation use **Won without a quotation** and ask for the sale amount |
+  | Not won | Closed without a sale | **Not won** asks why: price too high, bought elsewhere, postponed, not available, delivery time, no response, budget, order cancelled by customer, duplicate / wrong entry, or Other with a note |
+- Each open enquiry shows a **step bar**, a one-line hint and **one main button** for the next step, so nobody has to guess.
+- **Follow-up date:** set it when you update an enquiry (*Tomorrow*, *In 3 days*, *Next week* or any date). It shows on the enquiry (red when overdue) and in **My day** on the Dashboard. Closing an enquiry clears it.
+- **Closed is closed:** only the owner or an admin can **Reopen** a Won or Not won enquiry. Reopening a won sale removes its staff bonus and customer points.
+- *Duplicate / wrong entry* does not count for or against anyone in Performance.
 - Every change is kept under **History** in the enquiry (who, what, when, why).
 
 ### Staff performance (owner and admins)
-**Performance** shows, per staff member and by day, month or year (India time): enquiries, how many were contacted, reached a quotation, were won (with **sales value**), lost or cancelled, the win rate, and the average days to the first quotation and to closing. It also lists **why enquiries were lost or cancelled**. Filter by staff member, dates and source (website or staff outreach); **Show as a table** gives exact numbers.
+**Performance** shows, per staff member and by day, month or year (India time): enquiries, how many were contacted, reached a quotation, were won (with **sales value**) or not won, the win rate, **overdue follow-ups** (right now), and the average days to the first quotation and to closing. It also lists **why enquiries were not won**. Duplicates and wrong entries are left out. Filter by staff member, dates and source (website or staff outreach); **Show as a table** gives exact numbers.
 
 ## Quotations
-Any admin (every role) can prepare quotations under **Quotations**. On an enquiry you can also click **Create quotation**, which fills in the customer details and products.
+Every staff member can prepare quotations under **Quotations**; each quotation belongs to the person who made it. Sales staff see and change only their own; owner and admins see all (filter **Mine / Everyone**) and only they can delete a quotation. On an enquiry, **Create quotation** fills in the customer details and products and links the two.
 1. **New quotation**: enter the customer name. Mobile number, email, company and address are optional.
 2. **Add products**: search the catalogue. Unit prices come from the catalogue and cannot be changed here; change them under Prices. Only products without a listed price, and **Custom lines**, take a typed price.
 3. **Add a discount** to any line if needed: **%** or **â‚¹ off**. Totals update as you type.
@@ -93,7 +103,10 @@ Any admin (every role) can prepare quotations under **Quotations**. On an enquir
    - **Download PDF**, to send it yourself (email, your own WhatsApp, print);
    - **Share PDF** (phones), which attaches the file to WhatsApp, Gmail or any app;
    - **WhatsApp to customer**, which opens a chat with the customer and a ready message containing a private link to the PDF. The quotation is then marked as **Sent**.
-5. Set the status (Draft, Sent, Accepted, Declined) from the dropdown at the top right of the quotation.
+5. **Status:** **Draft → Sent → Accepted** or **Declined**, set from the dropdown at the top right; a line under the title says what the status means and what to do next.
+   - **Accepted** records the sale: the linked enquiry becomes *Won* with the quotation total. Accepted quotations are locked; only the owner or an admin can set one back, which also undoes the sale, its staff bonus and customer points.
+   - **Declined** offers two next steps: **Revise and send again** (back to Draft) or **Close the enquiry as Not won**.
+   - A Draft or Sent quotation past its validity date shows **Expired**: change *Valid for* and send it again.
 
 Prices are copied onto the quotation when it is saved. Later catalogue price changes do not alter an existing quotation.
 
@@ -110,7 +123,7 @@ A staff member earns a **% of each sale** they win (the enquiry they are respons
 ## Customers & reward points
 Customers create their own accounts (mobile number + password) under the person icon â†’ **Create an account**. They see their enquiry history, status and points under **My account**. Customer accounts are completely separate from admin access.
 - **Reward points:** open a customer â†’ enter `+500` (credit) or `-200` (redeem) with a reason. The customer sees the reason in their history. The balance canâ€™t go below zero.
-- **Loyalty points on sales:** when an enquiry is marked **Won** with a sale amount, the customer automatically earns the loyalty percentage of the sale as points (starts at **0.5 %**; 1 point = ₹1, rounded down). Example: ₹2,00,000 sale → 1,000 points. The enquiry must belong to the customer's account, or have the same mobile number as an account. If the sale amount is corrected the points are corrected; if the sale is undone (lost/cancelled) they are taken back. Accepting a quotation that is linked to an enquiry counts as the sale too.
+- **Loyalty points on sales:** when an enquiry is marked **Won** with a sale amount, the customer automatically earns the loyalty percentage of the sale as points (starts at **0.5 %**; 1 point = ₹1, rounded down). Example: ₹2,00,000 sale → 1,000 points. The enquiry must belong to the customer's account, or have the same mobile number as an account. If the sale amount is corrected the points are corrected; if the sale is undone (Not won, reopened, or its quotation acceptance undone) they are taken back. Accepting a quotation that is linked to an enquiry counts as the sale too.
 - **Points for a sale by hand** (e.g. a shop counter sale): open the customer → **For a sale** → enter the sale amount and a reason. The form shows how many points that gives before you apply it.
 - **Change the loyalty %** (owner and admins): **Customers** → **Change** next to "Loyalty points". The new % applies to sales from then on; points already given stay as they are. Every change is recorded.
 - **Forgotten password:** open the customer â†’ **Create reset link** â†’ **Send on WhatsApp**. The link works once, within 48 hours.
