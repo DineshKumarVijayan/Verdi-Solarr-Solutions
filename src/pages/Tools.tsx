@@ -1,4 +1,6 @@
-import { BatteryCharging, BookOpenCheck, Compass, Gauge, GitCompareArrows, Grid3X3, Network, Plug, Sun, TrendingDown, Wrench } from "lucide-react";
+import { BatteryCharging, BookOpenCheck, Compass, Gauge, GitCompareArrows, Grid3X3, Network, Plug, Sun, TrendingDown, Wrench, LayoutGrid } from "lucide-react";
+import { useState } from "react";
+import { BottomSheet } from "../components/mobile/kit";
 import type { ComponentType } from "react";
 import { Link, NavLink, useParams } from "react-router";
 import { usePageMeta } from "../lib/seo";
@@ -22,17 +24,21 @@ const TOOLS: { id: string; label: string; icon: ComponentType<{ className?: stri
 export default function Tools() {
   const { tool = "consumption" } = useParams();
   const t = TOOLS.find((x) => x.id === tool) ?? TOOLS[0];
+  const [picker, setPicker] = useState(false);
   usePageMeta(`${t.title} — Solar tools`, t.intro);
   return (
     <div>
       <section className="relative overflow-hidden bg-ink text-paper">
         <div className="absolute inset-0 grid-bg" aria-hidden="true" />
-        <div className="container-x relative py-12">
+        <div className="container-x relative py-12 max-sm:py-5">
           <p className="eyebrow !text-verdi-300">Solar tools · runs in your browser</p>
-          <h1 className="mt-3 text-4xl font-semibold sm:text-5xl">{t.title}</h1>
-          <p className="mt-3 max-w-2xl text-paper/65">{t.intro}</p>
+          <h1 className="mt-3 text-4xl font-semibold max-sm:mt-1.5 max-sm:text-2xl sm:text-5xl">{t.title}</h1>
+          <p className="mt-3 max-w-2xl text-paper/65 max-lg:mt-1.5 max-lg:line-clamp-2 max-lg:text-sm">{t.intro}</p>
+          <button type="button" className="tap mt-3 inline-flex items-center gap-2 rounded-full bg-sun-400 px-4 text-sm font-semibold text-ink lg:hidden" onClick={() => setPicker(true)} data-testid="tool-picker-open">
+            <LayoutGrid className="size-4" /> All tools
+          </button>
         </div>
-        <nav aria-label="Tools" className="relative border-t border-white/10">
+        <nav aria-label="Tools" className="relative border-t border-white/10 max-lg:hidden">
           <ul className="container-x scrollbar-none flex gap-1 overflow-x-auto py-2">
             {TOOLS.map((x) => (
               <li key={x.id} className="shrink-0">
@@ -53,12 +59,26 @@ export default function Tools() {
           </ul>
         </nav>
       </section>
-      <div className="container-x py-10">
+      <div className="container-x py-10 max-lg:py-4">
         <t.C />
         <p className="mt-10 flex items-center gap-2 text-xs text-muted">
           <Gauge className="size-4" /> All calculations run on your device. Nothing you type here is sent to our servers.
         </p>
       </div>
+      <BottomSheet open={picker} onClose={() => setPicker(false)} title="Solar tools" testId="tool-picker">
+        <div className="grid grid-cols-2 gap-2">
+          {TOOLS.map((x) => (
+            <Link key={x.id} to={`/solar-tools/${x.id}`} onClick={() => setPicker(false)} aria-current={x.id === t.id ? "page" : undefined} className={`sheet-tile !items-start !justify-start !p-3 !text-left ${x.id === t.id ? "!bg-sun-100" : ""}`}>
+              <x.icon className="size-5 text-verdi-700" />
+              <span className="font-semibold">{x.label}</span>
+            </Link>
+          ))}
+          <Link to="/compare" onClick={() => setPicker(false)} className="sheet-tile !items-start !justify-start !p-3 !text-left">
+            <GitCompareArrows className="size-5 text-verdi-700" />
+            <span className="font-semibold">Compare</span>
+          </Link>
+        </div>
+      </BottomSheet>
     </div>
   );
 }

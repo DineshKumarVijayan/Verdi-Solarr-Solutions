@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Accordion } from "../components/mobile/kit";
 import { Link } from "react-router";
 import { useSite } from "../lib/site";
 import { usePageMeta } from "../lib/seo";
@@ -7,12 +8,42 @@ const UPDATED = "14 November 2026";
 
 function Shell({ title, intro, children }: { title: string; intro: string; children: ReactNode }) {
   return (
-    <div className="container-x max-w-3xl py-12 sm:py-16">
+    <div className="container-x max-w-3xl py-12 max-lg:py-5 sm:py-16">
       <p className="font-mono text-xs tracking-[0.16em] text-muted uppercase">Last updated {UPDATED}</p>
-      <h1 className="mt-2 text-4xl font-semibold">{title}</h1>
-      <p className="mt-3 text-muted">{intro}</p>
-      <div className="mt-8 grid gap-7 text-[15px] leading-relaxed [&_h2]:text-lg [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_ul]:mt-2 [&_ul]:grid [&_ul]:gap-1.5">{children}</div>
+      <h1 className="mt-2 text-4xl font-semibold max-sm:text-2xl">{title}</h1>
+      <p className="mt-3 text-muted max-lg:text-sm">{intro}</p>
+      <LegalToc />
+      <div id="legal-body" className="mt-8 grid gap-7 text-[15px] leading-relaxed [&_h2]:text-lg [&_h2]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_ul]:mt-2 [&_ul]:grid [&_ul]:gap-1.5">{children}</div>
     </div>
+  );
+}
+
+/** Phones: "On this page" list of the section headings, in an accordion (built from the page itself). */
+function LegalToc() {
+  const [items, setItems] = useState<{ id: string; text: string }[]>([]);
+  useEffect(() => {
+    const hs = [...document.querySelectorAll<HTMLHeadingElement>("#legal-body h2")];
+    setItems(
+      hs.map((h) => {
+        if (!h.id) h.id = (h.textContent ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        h.classList.add("scroll-mt-20");
+        return { id: h.id, text: h.textContent ?? "" };
+      }),
+    );
+  }, []);
+  if (!items.length) return null;
+  return (
+    <Accordion title="On this page" className="mt-4 rounded-2xl border border-line bg-card px-4 lg:hidden">
+      <ol className="grid gap-0.5" data-testid="legal-toc">
+        {items.map((i) => (
+          <li key={i.id}>
+            <a href={`#${i.id}`} className="tap flex items-center text-sm text-verdi-700">
+              {i.text}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </Accordion>
   );
 }
 
