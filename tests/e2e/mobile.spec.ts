@@ -9,7 +9,7 @@ for (const path of ["/", "/in-the-field", "/products", "/products/anchor-ino-res
   });
 }
 
-test("public bottom tab bar, More sheet and fullscreen datasheet dialog", async ({ page }) => {
+test("public bottom tab bar and More sheet", async ({ page }) => {
   await page.goto("/");
   const tabs = page.getByTestId("tab-bar");
   await expect(tabs).toBeVisible();
@@ -23,24 +23,18 @@ test("public bottom tab bar, More sheet and fullscreen datasheet dialog", async 
   await sheet.getByRole("link", { name: "Compare" }).click();
   await expect(page).toHaveURL(/\/compare/);
   await expect(sheet).toBeHidden();
-  await page.goto("/products/anchor-solar-dc-cable-4-sq-mm");
-  await page.getByTestId("preview-datasheet").first().click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.locator("canvas").first()).toBeVisible({ timeout: 30_000 });
-  const box = await dialog.boundingBox();
-  expect(box!.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 2);
-  await dialog.getByRole("button", { name: "Close dialog" }).click();
-  await expect(dialog).toBeHidden();
 });
 
-test("product page: sticky add-to-enquiry bar appears after scrolling and adds to the basket; gallery swipes", async ({ page }) => {
-  await page.goto("/products/anchor-n-type-topcon-dual-glass-bifacial-module-620-wp");
-  await expect(page.getByTestId("sticky-buy-bar")).toHaveCount(0);
-  await page.locator("#buy-box").evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().bottom + window.scrollY + 200));
+test("product page on phones: bottom bar with quantity stepper adds to the enquiry", async ({ page, request }) => {
+  const cat = await (await request.get("/api/catalogue")).json();
+  await page.goto(`/products/${cat.products[0].slug}`);
   const bar = page.getByTestId("sticky-buy-bar");
   await expect(bar).toBeVisible();
+  await bar.getByRole("button", { name: "Increase quantity" }).click();
+  await expect(bar.getByTestId("bar-qty")).toHaveValue("2");
   await bar.getByRole("button", { name: "Add to enquiry" }).click();
-  await expect(page.getByTestId("tab-basket-count")).toHaveText("1");
+  await expect(page.getByTestId("tab-basket-count")).toHaveText("1"); // badge counts products, not units
+  await expect(bar.getByRole("link", { name: "Enquire on WhatsApp" })).toHaveAttribute("href", /wa.me|whatsapp/);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
@@ -208,4 +202,79 @@ test("search on phones is full screen with recent searches", async ({ page }) =>
   await expect(page.getByTestId("recent-searches")).toContainText("inverter");
   const box = await page.getByRole("dialog").boundingBox();
   expect(box!.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 2);
+});
+
+test("product page tabs on phones: specs, datasheet full screen; all sections stay in the HTML", async ({ page, request }) => {
+  const cat = await (await request.get("/api/catalogue")).json();
+  const p = cat.products.find((x: { datasheet: string | null; specs: unknown[] }) => x.datasheet && x.specs.length);
+  await page.goto(`/products/${p.slug}`);
+  const tabs = page.getByTestId("product-tabs");
+  await expect(page.getByRole("heading", { name: "Technical specifications" })).toBeHidden();
+  expect(await page.getByRole("heading", { name: "Technical specifications", includeHidden: true }).count()).toBe(1);
+  await tabs.getByRole("tab", { name: "Specs" }).click();
+  await expect(page.getByRole("heading", { name: "Technical specifications" })).toBeVisible();
+  await tabs.getByRole("tab", { name: "Datasheet" }).click();
+  await page.getByTestId("m-open-datasheet").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.locator("canvas").first()).toBeVisible({ timeout: 30_000 });
+  expect((await dialog.boundingBox())!.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 2);
+});
+
+test("compare on phones: two products at a time, swipe to the next pair, differences only", async ({ page, request }) => {
+  const cat = await (await request.get("/api/catalogue")).json();
+  const ids = cat.products.slice(0, 3).map((x: { id: number }) => x.id);
+  await page.addInitScript((v) => localStorage.setItem("verdi.compare.v1", JSON.stringify(v)), ids);
+  await page.goto("/compare");
+  const mc = page.getByTestId("mobile-compare");
+  await expect(mc.getByTestId("compare-head")).toHaveCount(2);
+  await expect(mc.getByTestId("compare-position")).toHaveText("1–2 of 3");
+  const box = (await mc.boundingBox())!;
+  const y = box.y + 200;
+  await page.touchscreen.tap(box.x + 5, y); // focus
+  await mc.dispatchEvent("touchstart", { touches: [{ identifier: 1, clientX: 300, clientY: y }] });
+  await mc.dispatchEvent("touchend", { changedTouches: [{ identifier: 1, clientX: 150, clientY: y }] });
+  await expect(mc.getByTestId("compare-position")).toHaveText("2–3 of 3");
+  const all = await mc.getByTestId("compare-row").count();
+  await page.getByLabel("Show differences only").check();
+  expect(await mc.getByTestId("compare-row").count()).toBeLessThanOrEqual(all);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+});
+
+test("enquiry basket on phones: stepper, swipe to remove, WhatsApp message in a bottom sheet", async ({ page, request }) => {
+  const cat = await (await request.get("/api/catalogue")).json();
+  const lines = cat.products.slice(0, 2).map((p: { id: number; price: { sellingPaise: number | null } }) => ({ productId: p.id, quantity: 1, seenSellingPaise: p.price.sellingPaise }));
+  await page.addInitScript((v) => localStorage.setItem("verdi.enquiry.v1", JSON.stringify(v)), lines);
+  await page.goto("/enquiry");
+  const rows = page.getByTestId("basket-line");
+  await expect(rows).toHaveCount(2);
+  await rows.first().getByRole("button", { name: "Increase quantity" }).click();
+  await expect(rows.first().getByRole("textbox")).toHaveValue("2");
+  // swipe the second row left to remove it
+  const box = (await rows.nth(1).boundingBox())!;
+  const y = box.y + box.height / 2;
+  await rows.nth(1).dispatchEvent("touchstart", { touches: [{ identifier: 1, clientX: box.x + box.width - 10, clientY: y }] });
+  await rows.nth(1).dispatchEvent("touchmove", { touches: [{ identifier: 1, clientX: box.x + 20, clientY: y }] });
+  await rows.nth(1).dispatchEvent("touchend", { changedTouches: [{ identifier: 1, clientX: box.x + 20, clientY: y }] });
+  await expect(rows).toHaveCount(1);
+  await page.locator("#f-name").fill("Test Buyer");
+  await page.locator("#f-mobile").fill("9876543210");
+  await page.locator("#f-location").fill("Chennai");
+  await page.getByTestId("m-send").click();
+  const sheet = page.getByTestId("preview-sheet");
+  await expect(sheet.getByTestId("m-message-preview")).toContainText("Test Buyer");
+  await expect(sheet.getByTestId("m-open-whatsapp")).toBeVisible();
+  await expect(sheet.getByTestId("m-copy-message")).toBeVisible();
+});
+
+test("account on phones: profile card with points and Enquiries / Rewards / Profile tabs", async ({ page }) => {
+  const r = await page.request.post("/api/account/login", { headers: { Origin: new URL(page.url() === "about:blank" ? "http://localhost:5173" : page.url()).origin }, data: { login: "9000000002", password: "Customer@12345" } });
+  expect(r.ok()).toBeTruthy();
+  await page.goto("/account");
+  await expect(page.getByTestId("points-chip")).toBeVisible();
+  const tabs = page.getByTestId("account-tabs");
+  await tabs.getByRole("tab", { name: "Profile" }).click();
+  await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Enquiry history" })).toBeHidden();
+  await tabs.getByRole("tab", { name: "Rewards" }).click();
+  await expect(page.getByRole("heading", { name: "Profile" })).toBeHidden();
 });

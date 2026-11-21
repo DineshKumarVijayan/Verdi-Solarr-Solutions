@@ -252,6 +252,41 @@ export function usePullToRefresh(onRefresh: () => unknown) {
   return indicator;
 }
 
+/** True below lg (1024 px). Lets a page pick a bottom sheet on phones and its usual modal on desktop. */
+export function useIsPhone() {
+  const q = "(max-width: 1023.98px)";
+  const [phone, setPhone] = useState(() => typeof window !== "undefined" && window.matchMedia(q).matches);
+  useEffect(() => {
+    const m = window.matchMedia(q);
+    const on = () => setPhone(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return phone;
+}
+
+/** Swipe a list row left to remove it (phones). Spread the returned props onto the row element. */
+export function useSwipeToRemove(onRemove: () => void) {
+  const [dx, setDx] = useState(0);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  return {
+    onTouchStart: (e: React.TouchEvent) => void (start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }),
+    onTouchMove: (e: React.TouchEvent) => {
+      if (!start.current) return;
+      const x = e.touches[0].clientX - start.current.x;
+      const y = e.touches[0].clientY - start.current.y;
+      if (Math.abs(y) > Math.abs(x)) return; // vertical scroll wins
+      setDx(Math.min(0, x));
+    },
+    onTouchEnd: () => {
+      start.current = null;
+      if (dx < -110) onRemove();
+      setDx(0);
+    },
+    style: dx ? { transform: `translateX(${dx}px)`, opacity: Math.max(0.35, 1 + dx / 220) } : undefined,
+  };
+}
+
 /** Intro text clamped to 2 lines on phones with "Show more"; full text on desktop. */
 export function ClampText({ children, className = "" }: { children: ReactNode; className?: string }) {
   const [open, setOpen] = useState(false);

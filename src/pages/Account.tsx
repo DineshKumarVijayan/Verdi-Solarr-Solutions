@@ -79,17 +79,17 @@ function AuthForms() {
       <label htmlFor={`a-${k}`} className="label">
         {label} {req && <span className="text-danger">*</span>}
       </label>
-      <input id={`a-${k}`} type={type} autoComplete={ac} className={`field ${errs[k] ? "!border-danger" : ""}`} value={f[k]} onChange={set(k)} aria-invalid={!!errs[k]} />
+      <input id={`a-${k}`} type={type} autoComplete={ac} autoCapitalize={type === "text" && k !== "name" && k !== "business" && k !== "city" ? "none" : undefined} className={`field ${errs[k] ? "!border-danger" : ""}`} value={f[k]} onChange={set(k)} aria-invalid={!!errs[k]} />
       {errs[k] ? <p className="mt-1 text-xs text-danger">{errs[k]}</p> : hint ? <p className="mt-1 text-xs text-subtle">{hint}</p> : null}
     </div>
   );
 
   return (
-    <div className="container-x grid gap-10 py-14 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+    <div className="container-x grid gap-10 py-14 max-lg:gap-4 max-lg:py-5 lg:grid-cols-[1fr_1.1fr] lg:items-center">
       <div>
         <p className="eyebrow">Customer account</p>
-        <h1 className="mt-2 text-4xl font-semibold sm:text-5xl">Track every enquiry in one place.</h1>
-        <ul className="mt-8 grid gap-4 text-sm">
+        <h1 className="mt-2 text-4xl font-semibold max-sm:text-2xl sm:text-5xl">Track every enquiry in one place.</h1>
+        <ul className="mt-8 grid gap-4 text-sm max-lg:hidden">
           {[
             { icon: ClipboardList, t: "Enquiry history", d: "Every enquiry you send is saved with its reference number, products, quantities and status." },
             { icon: RotateCcw, t: "Re-order in one tap", d: "Put a previous enquiry back into your basket and send it again." },
@@ -105,7 +105,7 @@ function AuthForms() {
         </ul>
       </div>
 
-      <div className="card p-6 sm:p-8">
+      <div className="card p-6 max-sm:p-4 sm:p-8">
         <div className="flex rounded-full bg-paper-2 p-1" role="tablist" aria-label="Account">
           {(["signin", "register"] as const).map((k) => (
             <button
@@ -118,7 +118,7 @@ function AuthForms() {
                 setError(null);
                 setErrs({});
               }}
-              className={`relative flex-1 rounded-full py-2 text-sm font-semibold ${mode === k ? "text-paper" : "text-muted"}`}
+              className={`relative flex-1 rounded-full py-2 text-sm font-semibold max-lg:min-h-11 ${mode === k ? "text-paper" : "text-muted"}`}
             >
               {mode === k && <m.span layoutId="acct-tab" className="absolute inset-0 rounded-full bg-ink" />}
               <span className="relative">{k === "signin" ? "Sign in" : "Create account"}</span>
@@ -192,6 +192,9 @@ function Dashboard() {
   const [enquiries, setEnquiries] = useState<EnquiryView[] | null>(null);
   const [rewards, setRewards] = useState<{ balance: number; entries: RewardEntry[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // phones: Enquiries · Rewards · Profile tabs (desktop shows all three columns as before)
+  const [tab, setTab] = useState<"enquiries" | "rewards" | "profile">("enquiries");
+  const hide = (t: typeof tab) => (tab === t ? "" : "max-lg:hidden");
 
   useEffect(() => {
     Promise.all([api<{ enquiries: EnquiryView[] }>("/api/account/enquiries"), api<{ balance: number; entries: RewardEntry[] }>("/api/account/rewards")])
@@ -205,14 +208,14 @@ function Dashboard() {
   }, []);
 
   return (
-    <div className="container-x py-10">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="container-x py-10 max-lg:pt-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 max-lg:card max-lg:items-center max-lg:gap-3 max-lg:p-4">
         <div className="min-w-0">
           <p className="eyebrow">My account</p>
-          <h1 className="mt-1 text-3xl font-semibold sm:text-4xl" data-testid="account-name">
+          <h1 className="mt-1 text-3xl font-semibold max-sm:text-2xl sm:text-4xl" data-testid="account-name">
             Hello, {c.name.split(" ")[0]}
           </h1>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-sm text-muted max-lg:truncate max-lg:text-xs">
             {[c.business, formatMobile(c.mobile), c.email].filter(Boolean).join(" · ")} · Member since {dateFmt(c.createdAt)}
           </p>
         </div>
@@ -227,12 +230,28 @@ function Dashboard() {
         >
           <LogOut className="size-4" /> Sign out
         </button>
+        <p className="num flex basis-full items-center gap-2 rounded-2xl bg-ink px-3 py-2 text-sm text-paper lg:hidden" data-testid="points-chip">
+          <Award className="size-4 text-sun-400" /> {c.points} reward points
+        </p>
+      </div>
+      <div role="tablist" aria-label="My account" className="m-tabs top-14 mt-4 lg:hidden" data-testid="account-tabs">
+        {(
+          [
+            ["enquiries", "Enquiries"],
+            ["rewards", "Rewards"],
+            ["profile", "Profile"],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} className="m-tab" onClick={() => setTab(id)}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {error && <p className="mt-6 rounded-xl bg-danger-bg p-3 text-sm text-danger">{error}</p>}
 
-      <div className="mt-8 grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
-        <section aria-labelledby="enq-h" className="min-w-0">
+      <div className="mt-8 grid min-w-0 grid-cols-1 gap-6 max-lg:mt-4 lg:grid-cols-[1.6fr_1fr]">
+        <section aria-labelledby="enq-h" className={`min-w-0 ${hide("enquiries")}`}>
           <h2 id="enq-h" className="text-xl font-semibold">
             Enquiry history
           </h2>
@@ -258,10 +277,16 @@ function Dashboard() {
           )}
         </section>
 
-        <aside className="grid min-w-0 content-start gap-6">
-          <RewardsCard rewards={rewards} />
-          <ProfileCard />
-          <PasswordCard />
+        <aside className={`grid min-w-0 content-start gap-6 ${tab === "enquiries" ? "max-lg:hidden" : ""}`}>
+          <div className={hide("rewards")}>
+            <RewardsCard rewards={rewards} />
+          </div>
+          <div className={hide("profile")}>
+            <ProfileCard />
+          </div>
+          <div className={hide("profile")}>
+            <PasswordCard />
+          </div>
         </aside>
       </div>
     </div>
@@ -415,7 +440,7 @@ function ProfileCard() {
         >
           Cancel
         </button>
-        <button type="submit" className="btn-primary btn-sm" disabled={busy || (f.name === c.name && f.email === (c.email ?? "") && f.business === (c.business ?? "") && f.city === (c.city ?? ""))}>
+        <button type="submit" className="btn-primary btn-sm max-lg:tap max-lg:sticky max-lg:bottom-[calc(4.75rem+env(safe-area-inset-bottom))] max-lg:w-full" disabled={busy || (f.name === c.name && f.email === (c.email ?? "") && f.business === (c.business ?? "") && f.city === (c.city ?? ""))}>
           {busy && <Spinner className="size-4" />} Save profile
         </button>
       </div>

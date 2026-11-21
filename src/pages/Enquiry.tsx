@@ -15,6 +15,7 @@ import { usePageMeta } from "../lib/seo";
 import { useAccount } from "../lib/account";
 import { useSite } from "../lib/site";
 import { readStore, writeStore } from "../lib/storage";
+import { ActionBar, BottomSheet, ClampText, useIsPhone, useSwipeToRemove } from "../components/mobile/kit";
 import { formatMobile } from "../../shared/admin-schemas";
 
 const CUSTOMER_KEY = "verdi.customer.v1";
@@ -35,6 +36,7 @@ export default function Enquiry() {
   const [copied, setCopied] = useState(false);
   const { customer: account } = useAccount();
   const SITE = useSite();
+  const isPhone = useIsPhone();
   // The last enquiry saved to our records, so re-opening the same preview doesn't create duplicates.
   const [recorded, setRecorded] = useState<{ key: string; reference: string } | null>(null);
 
@@ -228,11 +230,11 @@ export default function Enquiry() {
   }
 
   return (
-    <div className="container-x py-10">
-      <h1 className="text-4xl font-semibold sm:text-5xl">Enquiry basket</h1>
-      <p className="mt-2 text-muted">This is not a checkout. Nothing is ordered or paid online. We confirm final prices, taxes, availability and delivery with you directly.</p>
+    <div className="container-x py-10 max-lg:pt-4 max-lg:pb-24">
+      <h1 className="text-4xl font-semibold max-sm:text-2xl sm:text-5xl">Enquiry basket</h1>
+      <ClampText className="mt-2 text-muted max-lg:mt-1 max-lg:text-sm">This is not a checkout. Nothing is ordered or paid online. We confirm final prices, taxes, availability and delivery with you directly.</ClampText>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1.5fr_1fr]">
+      <div className="mt-8 grid gap-8 max-lg:mt-4 max-lg:gap-5 lg:grid-cols-[1.5fr_1fr]">
         <section aria-label="Products in your enquiry">
           {loading && <Spinner />}
           <ul className="grid gap-3" data-testid="basket-lines">
@@ -240,13 +242,13 @@ export default function Enquiry() {
               const flagChanged = verifiedItem?.found && verifiedItem.changed;
               const flagGone = verifiedItem && (!verifiedItem.found || !verifiedItem.active);
               return (
-                <li key={line.productId} className={`card flex gap-4 p-3 ${flagChanged || flagGone ? "!border-sun-400" : ""}`}>
-                  <div className="w-20 shrink-0 sm:w-28">{product && <ProductVisual product={product} categorySlug={category(product.categoryId)?.slug ?? ""} size="thumb" />}</div>
+                <SwipeRow key={line.productId} onRemove={() => basket.remove(line.productId)} className={`card flex gap-4 p-3 max-lg:gap-3 ${flagChanged || flagGone ? "!border-sun-400" : ""}`}>
+                  <div className="w-20 shrink-0 max-lg:w-14 sm:w-28">{product && <ProductVisual product={product} categorySlug={category(product.categoryId)?.slug ?? ""} size="thumb" />}</div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         {product ? (
-                          <Link to={`/products/${product.slug}`} className="font-semibold hover:underline">
+                          <Link to={`/products/${product.slug}`} className="font-semibold hover:underline max-lg:line-clamp-2 max-lg:text-sm">
                             {product.name}
                           </Link>
                         ) : (
@@ -257,23 +259,23 @@ export default function Enquiry() {
                           {product?.model ? ` · ${product.model}` : ""}
                         </p>
                       </div>
-                      <button type="button" className="rounded-full p-1.5 text-subtle hover:bg-danger-bg hover:text-danger" onClick={() => basket.remove(line.productId)} aria-label={`Remove ${product?.name ?? "item"}`}>
+                      <button type="button" className="rounded-full p-1.5 text-subtle hover:bg-danger-bg hover:text-danger max-lg:-m-2 max-lg:p-3" onClick={() => basket.remove(line.productId)} aria-label={`Remove ${product?.name ?? "item"}`}>
                         <Trash2 className="size-4" />
                       </button>
                     </div>
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 max-lg:mt-2 max-lg:gap-2">
                       <div className="flex items-center rounded-full border border-line bg-paper" role="group" aria-label="Quantity">
-                        <button type="button" className="p-2 text-muted hover:text-ink" onClick={() => basket.setQty(line.productId, line.quantity - 1)} aria-label="Decrease quantity">
+                        <button type="button" className="p-2 text-muted hover:text-ink max-lg:p-3" onClick={() => basket.setQty(line.productId, line.quantity - 1)} aria-label="Decrease quantity">
                           <Minus className="size-3.5" />
                         </button>
                         <input
                           aria-label={`Quantity for ${product?.name ?? "item"}`}
-                          className="num w-14 bg-transparent text-center text-sm outline-none"
+                          className="num w-14 bg-transparent text-center text-sm outline-none max-lg:w-10"
                           inputMode="numeric"
                           value={line.quantity}
                           onChange={(e) => basket.setQty(line.productId, Number(e.target.value.replace(/\D/g, "")) || 1)}
                         />
-                        <button type="button" className="p-2 text-muted hover:text-ink" onClick={() => basket.setQty(line.productId, line.quantity + 1)} aria-label="Increase quantity">
+                        <button type="button" className="p-2 text-muted hover:text-ink max-lg:p-3" onClick={() => basket.setQty(line.productId, line.quantity + 1)} aria-label="Increase quantity">
                           <Plus className="size-3.5" />
                         </button>
                       </div>
@@ -302,7 +304,7 @@ export default function Enquiry() {
                       </p>
                     )}
                   </div>
-                </li>
+                </SwipeRow>
               );
             })}
           </ul>
@@ -329,6 +331,7 @@ export default function Enquiry() {
             </p>
 
             <form
+              id="enquiry-form"
               className="mt-5 grid gap-3"
               noValidate
               onSubmit={(e) => {
@@ -381,7 +384,7 @@ export default function Enquiry() {
                   </button>
                 </div>
               )}
-              <button type="submit" className="btn-primary mt-1 w-full" disabled={checking} data-testid="check-prices">
+              <button type="submit" className="btn-primary mt-1 w-full max-lg:hidden" disabled={checking} data-testid="check-prices">
                 {checking ? <Spinner className="size-4" /> : <ShieldCheck className="size-4" />}
                 {hasFlags ? "Accept updated prices & preview" : "Check latest prices & preview"}
               </button>
@@ -421,8 +424,46 @@ export default function Enquiry() {
         </section>
       </div>
 
+      <ActionBar testId="enquiry-bar">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] text-muted">Indicative total</p>
+          <p className="num truncate text-sm font-semibold">{formatPaise(totals.total)}</p>
+        </div>
+        <button type="submit" form="enquiry-form" className="btn-primary tap shrink-0" disabled={checking} data-testid="m-send">
+          {checking ? <Spinner className="size-4" /> : <WhatsAppIcon className="size-4" />}
+          {hasFlags ? "Accept & preview" : "Send on WhatsApp"}
+        </button>
+      </ActionBar>
+      <BottomSheet
+        open={!!preview && isPhone}
+        onClose={() => setPreview(null)}
+        title="Your WhatsApp message"
+        testId="preview-sheet"
+        footer={
+          preview && (
+            <div className="grid grid-cols-[auto_1fr] gap-2">
+              <button type="button" className="btn-ghost tap" onClick={copy} data-testid="m-copy-message">
+                {copied ? <Check className="size-4" /> : <ClipboardCopy className="size-4" />} {copied ? "Copied" : "Copy"}
+              </button>
+              <button type="button" onClick={openWhatsApp} disabled={sending} className="btn-primary tap" data-testid="m-open-whatsapp">
+                <WhatsAppIcon className="size-4" /> Send on WhatsApp
+              </button>
+            </div>
+          )
+        }
+      >
+        {preview && (
+          <>
+            <p className="mb-3 text-xs text-muted">WhatsApp opens with this text and a reference number. You still press Send.</p>
+            {!preview.verified && <p className="mb-3 rounded-lg bg-sun-100 px-3 py-2 text-xs">Prices could not be verified just now, so this message lists products and quantities only.</p>}
+            <pre className="rounded-2xl bg-[#e7f5df] p-4 font-sans text-sm leading-relaxed whitespace-pre-wrap text-ink" data-testid="m-message-preview">
+              {preview.message}
+            </pre>
+          </>
+        )}
+      </BottomSheet>
       <Modal
-        open={!!preview}
+        open={!!preview && !isPhone}
         onClose={() => setPreview(null)}
         title="Preview your WhatsApp message"
         description="WhatsApp opens with this text filled in, plus a reference number. You still need to press Send."
@@ -454,5 +495,15 @@ export default function Enquiry() {
         )}
       </Modal>
     </div>
+  );
+}
+
+/** Basket row; on phones it can be swiped left to remove. */
+function SwipeRow({ onRemove, className, children }: { onRemove: () => void; className: string; children: React.ReactNode }) {
+  const swipe = useSwipeToRemove(onRemove);
+  return (
+    <li className={className} {...swipe} data-testid="basket-line">
+      {children}
+    </li>
   );
 }
