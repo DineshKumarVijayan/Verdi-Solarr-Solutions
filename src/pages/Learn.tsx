@@ -1,4 +1,5 @@
 import { ArrowRight, CheckCircle2, Clock, Search } from "lucide-react";
+import { usePaged } from "../components/Pager";
 import { AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
@@ -21,6 +22,8 @@ export default function Learn() {
     () => LESSONS.filter((l) => (group === "all" || l.group === group) && (!q.trim() || `${l.title} ${l.summary}`.toLowerCase().includes(q.trim().toLowerCase()))),
     [group, q],
   );
+  const pg = usePaged(list, "learn.lessons", 20);
+  const grouped = group === "all" && !q.trim();
   const pct = Math.round((done.size / LESSONS.length) * 100);
   const next = LESSONS.find((l) => !done.has(l.slug)) ?? LESSONS[0];
 
@@ -100,10 +103,10 @@ export default function Learn() {
 
       {/* grid */}
       <div className="container-x py-12 max-lg:py-3">
-        <PhoneLessons list={list} grouped={group === "all" && !q.trim()} done={done} />
+        <PhoneLessons list={grouped ? list : pg.items} grouped={grouped} done={done} />
         <m.div layout className="grid gap-4 max-lg:hidden sm:grid-cols-2 lg:grid-cols-3">
           <AnimatePresence mode="popLayout">
-            {list.map((l, i) => {
+            {pg.items.map((l, i) => {
               const Icon = ICONS[l.icon] ?? CheckCircle2;
               const g = GROUPS.find((x) => x.id === l.group)!;
               const n = LESSONS.indexOf(l) + 1;
@@ -138,6 +141,7 @@ export default function Learn() {
             })}
           </AnimatePresence>
         </m.div>
+        <div className={grouped ? "max-lg:hidden" : ""}>{pg.pager}</div>
         {list.length === 0 && <p className="py-16 text-center text-muted">No lessons match “{q}”.</p>}
       </div>
     </div>

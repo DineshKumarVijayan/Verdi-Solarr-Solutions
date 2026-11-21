@@ -160,6 +160,7 @@ test("product gallery shows real image and opens a large preview", async ({ page
 
 test("learning hub: open a lesson, interact, go to next lesson", async ({ page }) => {
   await page.goto("/learn");
+  await page.getByTestId("pager").getByTestId("page-size-all").click(); // lessons are paged (20 per page by default)
   await expect(page.getByTestId("lesson-card")).toHaveCount(24);
   await page.getByRole("tab", { name: "Wiring & safety" }).click();
   await expect(page.getByTestId("lesson-card")).toHaveCount(5);

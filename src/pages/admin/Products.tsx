@@ -1,4 +1,5 @@
 import { Copy, Eye, EyeOff, FileText, ImageIcon, Pencil, Plus, Search, Star } from "lucide-react";
+import { usePaged } from "../../components/Pager";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { formatPaise } from "../../../shared/money";
@@ -14,6 +15,7 @@ export default function AdminProducts() {
   const nav = useNavigate();
   const [params, setParams] = useSearchParams();
   const [rows, setRows] = useState<AdminProductListRow[] | null>(null);
+  const pg = usePaged(rows ?? [], "admin.products");
   const [brands, setBrands] = useState<AdminBrand[]>([]);
   const [cats, setCats] = useState<AdminCategory[]>([]);
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -123,7 +125,7 @@ export default function AdminProducts() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {pg.items.map((r) => (
                   <tr key={r.id} className="border-b border-line/60 last:border-0 hover:bg-paper" data-testid="admin-product-row">
                     <td className="rt-title p-3">
                       <Link to={`/admin/products/${r.id}`} className="font-semibold hover:underline">
@@ -173,6 +175,7 @@ export default function AdminProducts() {
               </tbody>
             </table>
           </div>
+          {pg.pager}
         </>
       )}
     </div>

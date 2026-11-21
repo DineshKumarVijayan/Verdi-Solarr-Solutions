@@ -1,4 +1,5 @@
 import { useConfirm } from "../../components/confirm";
+import { usePaged } from "../../components/Pager";
 import { ArrowDown, ArrowUp, ExternalLink, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AdminFieldPhoto } from "../../../shared/types";
@@ -25,6 +26,7 @@ export default function FieldPhotos() {
   const confirm = useConfirm();
   const { reload } = useCatalogue();
   const [photos, setPhotos] = useState<AdminFieldPhoto[] | null>(null);
+  const pg = usePaged(photos ?? [], "admin.fieldPhotos", 10, { newAtEnd: true });
   const [drafts, setDrafts] = useState<Record<number, AdminFieldPhoto>>({});
   const [uploading, setUploading] = useState(false);
   const [tag, setTag] = useState("Rooftop");
@@ -123,7 +125,7 @@ export default function FieldPhotos() {
         </div>
       ) : (
         <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="admin-field-photos">
-          {photos.map((orig, i) => {
+          {pg.items.map((orig, _j, _a, i = photos.indexOf(orig)) => {
             const p = drafts[orig.id] ?? orig;
             const dirty = !!drafts[orig.id];
             const patch = (x: Partial<AdminFieldPhoto>) => setDrafts((d) => ({ ...d, [orig.id]: { ...p, ...x } }));
@@ -169,6 +171,7 @@ export default function FieldPhotos() {
           })}
         </ul>
       )}
+      {pg.pager}
     </div>
   );
 }

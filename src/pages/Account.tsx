@@ -1,4 +1,5 @@
 import { Award, ClipboardList, KeyRound, LogOut, RotateCcw, ShieldCheck, UserRound } from "lucide-react";
+import { usePaged } from "../components/Pager";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { formatMobile, PASSWORD_MIN } from "../../shared/admin-schemas";
@@ -190,6 +191,7 @@ function Dashboard() {
   const c = customer!;
   const toast = useToast();
   const [enquiries, setEnquiries] = useState<EnquiryView[] | null>(null);
+  const pg = usePaged(enquiries ?? [], "account.enquiries");
   const [rewards, setRewards] = useState<{ balance: number; entries: RewardEntry[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // phones: Enquiries · Rewards · Profile tabs (desktop shows all three columns as before)
@@ -270,11 +272,12 @@ function Dashboard() {
             </div>
           ) : (
             <ul className="mt-4 grid gap-3" data-testid="enquiry-history">
-              {enquiries.map((e) => (
+              {pg.items.map((e) => (
                 <EnquiryCard key={e.id} e={e} />
               ))}
             </ul>
           )}
+          {pg.pager}
         </section>
 
         <aside className={`grid min-w-0 content-start gap-6 ${tab === "enquiries" ? "max-lg:hidden" : ""}`}>

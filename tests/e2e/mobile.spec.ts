@@ -317,19 +317,41 @@ test("admin product editor on phones: section tabs and a sticky save bar with un
 });
 
 test("staff log an enquiry from the phone dashboard in a full-screen sheet", async ({ page }) => {
+  const name = `Phone Sheet ${Date.now().toString().slice(-6)}`;
   await page.goto("/admin");
   await page.getByTestId("m-log-enquiry").click();
   const sheet = page.getByTestId("log-enquiry");
   await expect(sheet).toBeVisible();
   expect((await sheet.boundingBox())!.height).toBeGreaterThanOrEqual(page.viewportSize()!.height - 2);
   await expect(sheet.locator("#le-mobile")).toHaveAttribute("inputmode", "tel");
-  await sheet.locator("#le-name").fill("Phone Sheet Test");
+  await sheet.locator("#le-name").fill(name);
   await sheet.locator("#le-mobile").fill("9876505678");
   await sheet.locator("#le-location").fill("Madurai");
   await sheet.getByTestId("le-save").click();
   await expect(sheet).toBeHidden();
-  await expect(page.getByTestId("admin-enquiry").filter({ hasText: "Phone Sheet Test" })).toBeVisible();
+  await expect(page.getByTestId("admin-enquiry").filter({ hasText: name })).toBeVisible();
   await page.goto("/admin/performance");
   await expect(page.getByTestId("leaderboard")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+});
+
+test("lists are paged on phones: 5 / 10 / 20 / All, remembered, next page", async ({ page }) => {
+  await page.goto("/products");
+  const rows = page.getByTestId("product-rows").getByTestId("product-row");
+  const pager = page.getByTestId("pager");
+  await expect(pager).toBeVisible();
+  await pager.getByTestId("page-size-5").click();
+  await expect(rows).toHaveCount(5);
+  await expect(page.getByTestId("pager-range")).toHaveText(/^1–5 of \d+/);
+  await pager.getByTestId("page-next").click();
+  await expect(page.getByTestId("pager-range")).toHaveText(/^6–10 of/);
+  await page.reload();
+  await expect(rows).toHaveCount(5); // page size remembered
+  await page.getByTestId("pager").getByTestId("page-size-all").click();
+  expect(await rows.count()).toBeGreaterThan(10);
+  for (const s of [{ width: 280 }, { width: 390 }]) {
+    await page.setViewportSize({ width: s.width, height: 800 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(s.width);
+  }
+  await page.getByTestId("pager").getByTestId("page-size-10").click();
 });

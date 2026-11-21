@@ -1,5 +1,6 @@
 import { MessageCircle, Minus, PhoneCall, Plus, Search, Store, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { issues, StaffEnquirySchema } from "../../../shared/admin-schemas";
 import { formatPaise } from "../../../shared/money";
 import { search } from "../../../shared/search";
 import { ENQUIRY_STATUSES, type AdminEnquiryRow, type EnquiryStatus } from "../../../shared/types";
@@ -17,7 +18,7 @@ const SOURCES: [Source, string, typeof PhoneCall][] = [
 ];
 
 /**
- * Staff log an enquiry they handled themselves (from a call, WhatsApp or a visit). It goes into the
+ * Staff log a customer they reached out to themselves (by phone, WhatsApp or a visit). It goes into the
  * normal Enquiries list, recorded against the signed-in staff member for the performance report.
  * Full-screen sheet on phones, dialog on desktop.
  */
@@ -42,6 +43,16 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
     setErrs({});
   };
   const save = async () => {
+    // Same rules as the server, checked here first: mistakes show next to the field straight away
+    // and nothing invalid is sent (no failed request).
+    const check = StaffEnquirySchema.safeParse({ ...f, items });
+    if (!check.success) {
+      const e: Record<string, string> = {};
+      for (const i of issues(check.error)) e[i.path.split(".")[0]] ??= i.message;
+      setErrs(e);
+      document.getElementById(`le-${Object.keys(e)[0]}`)?.focus();
+      return;
+    }
     setBusy(true);
     setErrs({});
     try {
@@ -81,7 +92,7 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
       data-testid="log-enquiry-form"
     >
       <fieldset>
-        <legend className="label">How did they reach you?</legend>
+        <legend className="label">How did you reach them?</legend>
         <div className="flex flex-wrap gap-2">
           {SOURCES.map(([v, l, Icon]) => (
             <button key={v} type="button" className={chip(f.source === v)} aria-pressed={f.source === v} onClick={() => set("source", v)}>
@@ -100,7 +111,7 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
         <label htmlFor="le-need" className="label">
           What do they need?
         </label>
-        <textarea id="le-need" rows={3} className="field" value={f.need} onChange={(e) => set("need", e.target.value)} placeholder="e.g. 5 kW rooftop, needs 10 panels and an inverter by next week" />
+        <textarea id="le-need" rows={3} className={`field ${errs.need ? "!border-danger" : ""}`} value={f.need} onChange={(e) => set("need", e.target.value)} placeholder="e.g. 5 kW rooftop, needs 10 panels and an inverter by next week" />
       </div>
 
       <fieldset>
@@ -199,11 +210,11 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
   );
 
   return isPhone ? (
-    <BottomSheet open={open} onClose={onClose} title="Log an enquiry" full footer={actions} testId="log-enquiry">
+    <BottomSheet open={open} onClose={onClose} title="Log an enquiry you made" full footer={actions} testId="log-enquiry">
       {body}
     </BottomSheet>
   ) : (
-    <Modal open={open} onClose={onClose} title="Log an enquiry" description="From a phone call, WhatsApp chat or visit. It is recorded under your name." size="lg" footer={actions}>
+    <Modal open={open} onClose={onClose} title="Log an enquiry you made" description="A customer you reached by phone, WhatsApp or a visit. It is recorded under your name." size="lg" footer={actions}>
       <div className="p-5">{body}</div>
     </Modal>
   );

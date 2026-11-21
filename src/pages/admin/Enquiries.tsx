@@ -1,4 +1,5 @@
 import { Award, ChevronDown, FileText, Phone, Plus, Search, UserRound } from "lucide-react";
+import { usePaged } from "../../components/Pager";
 import { LogEnquiry } from "./LogEnquiry";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -16,6 +17,7 @@ import { canManage, dt, errorText, PageHead, send } from "./kit";
 export default function Enquiries() {
   const [params, setParams] = useSearchParams();
   const [rows, setRows] = useState<AdminEnquiryRow[] | null>(null);
+  const pg = usePaged(rows ?? [], "admin.enquiries");
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [q, setQ] = useState(params.get("q") ?? "");
   const [open, setOpen] = useState<number | null>(null);
@@ -54,7 +56,7 @@ export default function Enquiries() {
     <div className="container-x py-10 max-lg:pt-3 max-lg:pb-24">
       <PageHead
         title="Enquiries"
-        intro="Every enquiry from the website basket, plus the ones staff log from calls, WhatsApp and visits. Update the status as you follow up — signed-in customers see it in their account."
+        intro="Every enquiry in one place: from customers using the website, and from staff reaching out by phone, WhatsApp or visits. Update the status as you follow up — signed-in customers see it in their account."
         actions={
           <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => setLogging(true)} data-testid="log-enquiry-open">
             <Plus className="size-4" /> Log enquiry
@@ -70,11 +72,11 @@ export default function Enquiries() {
           </button>
         ))}
       </div>
-      <div className="mt-2 flex flex-wrap gap-2 max-lg:scrollbar-none max-lg:-mx-4 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-4" role="group" aria-label="Who logged it">
+      <div className="mt-2 flex flex-wrap gap-2 max-lg:scrollbar-none max-lg:-mx-4 max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-4" role="group" aria-label="Where the enquiry came from">
         {[
-          ["", "All sources"],
-          ["website", "Website"],
-          ["staff", "Logged by staff"],
+          ["", "All enquiries"],
+          ["website", "From customers (website)"],
+          ["staff", "Staff outreach"],
         ].map(([k, l]) => (
           <button key={k} type="button" className={`${source === k && !params.get("staff") ? "chip-on chip" : "chip"} max-lg:tap max-lg:shrink-0 max-lg:whitespace-nowrap`} onClick={() => setParams((pr) => { const n = new URLSearchParams(pr); if (k) n.set("source", k); else n.delete("source"); n.delete("staff"); return n; }, { replace: true })}>
             {l}
@@ -95,11 +97,12 @@ export default function Enquiries() {
         <p className="mt-10 text-center text-muted">No enquiries match.</p>
       ) : (
         <ul className="mt-6 grid gap-3" data-testid="admin-enquiries">
-          {rows.map((e) => (
+          {pg.items.map((e) => (
             <EnquiryRow key={e.id} e={e} open={open === e.id} onToggle={() => setOpen(open === e.id ? null : e.id)} onSaved={(n) => setRows((rs) => rs!.map((r) => (r.id === n.id ? n : r)))} />
           ))}
         </ul>
       )}
+      {pg.pager}
     </div>
   );
 }
@@ -150,9 +153,13 @@ function EnquiryRow({ e, open, onToggle, onSaved }: { e: AdminEnquiryRow; open: 
           {e.contactName}
           {e.business ? ` · ${e.business}` : ""} <span className="text-muted">· {e.location}</span>
         </span>
-        {e.source !== "website" && (
+        {e.source === "website" ? (
+          <span className="rounded-full bg-verdi-50 px-2 py-0.5 text-xs font-medium text-verdi-700" data-testid="enquiry-source">
+            From website
+          </span>
+        ) : (
           <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-600" data-testid="enquiry-source">
-            {e.source === "phone" ? "Phone" : e.source === "whatsapp" ? "WhatsApp" : "Visit"}
+            Staff · {e.source === "phone" ? "Phone" : e.source === "whatsapp" ? "WhatsApp" : "Visit"}
             {e.createdBy ? ` · ${e.createdBy.name}` : ""}
           </span>
         )}

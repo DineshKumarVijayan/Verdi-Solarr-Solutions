@@ -1,4 +1,5 @@
 import { useConfirm, useConfirmDiscard } from "../../components/confirm";
+import { usePaged } from "../../components/Pager";
 import { ArrowLeft, Building2, Download, Eye, FileText, ImagePlus, Plus, QrCode, Save, ScrollText, Search, Settings2, Share2, Trash2, X } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
@@ -37,6 +38,7 @@ export default function Quotations() {
 function List() {
   const [params, setParams] = useSearchParams();
   const [rows, setRows] = useState<QuoteRow[] | null>(null);
+  const pg = usePaged(rows ?? [], "admin.quotations");
   const [q, setQ] = useState(params.get("q") ?? "");
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -101,7 +103,7 @@ function List() {
         </div>
       ) : (
         <ul className="mt-6 grid gap-3" data-testid="quotation-list">
-          {rows.map((r) => (
+          {pg.items.map((r) => (
             <li key={r.id}>
               <Link to={`/admin/quotations/${r.id}`} className="card flex flex-wrap items-center gap-x-4 gap-y-1 p-4 transition hover:border-verdi-300">
                 <span className="font-mono text-sm font-semibold">{r.number}</span>
@@ -119,6 +121,7 @@ function List() {
           ))}
         </ul>
       )}
+      {pg.pager}
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );

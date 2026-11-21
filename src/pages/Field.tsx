@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, Droplets, Flame, Wind } from "lucide-react";
+import { usePaged } from "../components/Pager";
 import { AnimatePresence } from "motion/react";
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router";
@@ -18,6 +19,7 @@ export default function Field() {
   const [open, setOpen] = useState<number | null>(null);
   const touchX = useRef<number | null>(null); // swipe between photos in the full-screen viewer
   const list = photos.filter((f) => tag === "All" || f.tag === tag);
+  const pg = usePaged(list, "field.photos", 20);
 
   useEffect(() => {
     if (open === null) return;
@@ -57,7 +59,7 @@ export default function Field() {
         </div>
         <m.div layout className="mt-8 columns-1 gap-4 max-sm:mt-3 max-sm:columns-2 max-sm:gap-2 sm:columns-2 lg:columns-3">
           <AnimatePresence mode="popLayout">
-            {list.map((f, k) => (
+            {pg.items.map((f, _j, _a, k = list.indexOf(f)) => (
               <m.button
                 layout
                 key={f.src}
@@ -79,6 +81,7 @@ export default function Field() {
             ))}
           </AnimatePresence>
         </m.div>
+        {pg.pager}
       </div>
 
       <Modal open={cur !== null} onClose={() => setOpen(null)} title={cur?.caption ?? ""} size="full" fullscreenOnMobile>

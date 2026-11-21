@@ -70,9 +70,9 @@ Every enquiry sent from the basket is saved with a reference number (e.g. `VS-26
 - For registered customers you can credit **reward points** right there.
 
 ### Logging enquiries from calls, WhatsApp and visits
-- Tap **Log enquiry** (on a phone it is the green button at the top of the Dashboard). Choose how the customer reached you, enter their name, mobile and location, what they need, optionally pick products and quantities, and the status after the call.
+- Tap **Log enquiry** (on a phone it is the green button at the top of the Dashboard). Choose how you reached the customer (phone call, WhatsApp or visit), enter their name, mobile and location, what they need, optionally pick products and quantities, and the status after the call.
 - It is saved under **your** staff account in the same Enquiries list (marked *Phone*, *WhatsApp* or *Visit* with your name), so it can be followed up and turned into a quotation like any other enquiry. Every staff role can log enquiries.
-- Filter the list with **Logged by staff** to see only these.
+- Each enquiry is labelled **From website** (the customer came to us through the site) or **Staff · Phone · name** (we reached out). Filter with **From customers (website)** or **Staff outreach**.
 
 ### Staff performance (owner and admins)
 **Performance** shows how many enquiries each staff member logged, per day, month or year (India time), with how many were quoted and won. Pick a date range or one staff member; **Show as a table** gives the exact numbers, and **See these enquiries** opens the matching list.

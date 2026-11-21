@@ -7,6 +7,7 @@ import { Spinner } from "../../components/ui";
 import { api, ApiError } from "../../lib/api";
 import { usePageMeta } from "../../lib/seo";
 import { PageHead } from "./kit";
+import { usePaged } from "../../components/Pager";
 
 type Period = EnquiryStats["period"];
 const PERIODS: [Period, string][] = [
@@ -89,6 +90,7 @@ export default function Performance() {
     return allBuckets(data.from, data.to, data.period).map((k) => ({ bucket: k, ...(totals.get(k) ?? { total: 0, won: 0 }) }));
   }, [data, staffId]);
 
+  const table = usePaged(useMemo(() => [...series].reverse(), [series]), "performance.table");
   const staff = data?.staff ?? [];
   const shownStaff = staffId ? staff.filter((s) => s.id === staffId) : staff;
   const sum = shownStaff.reduce((a, s) => ({ total: a.total + s.total, quoted: a.quoted + s.quoted, won: a.won + s.won }), { total: 0, quoted: 0, won: 0 });
@@ -97,7 +99,7 @@ export default function Performance() {
 
   return (
     <div className="container-x py-10 max-lg:pt-3">
-      <PageHead title="Staff performance" intro="Enquiries your staff logged from calls, WhatsApp and visits, with how many became quotations and orders. Times are India time." />
+      <PageHead title="Staff performance" intro="Enquiries your staff created by reaching out to customers (phone, WhatsApp, visits), with how many became quotations and orders. Website enquiries from customers are shown for comparison. India time." />
 
       {/* filters: one row above the charts */}
       <div className="mt-5 flex flex-wrap items-end gap-2" data-testid="performance-filters">
@@ -140,10 +142,10 @@ export default function Performance() {
         <>
           <dl className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="performance-totals">
             {[
-              ["Logged by staff", sum.total],
+              ["Staff outreach", sum.total],
               ["Quoted or won", sum.quoted],
               ["Won", sum.won],
-              ["Website enquiries", data.websiteTotal],
+              ["From customers (website)", data.websiteTotal],
             ].map(([k, v]) => (
               <div key={k} className="card p-3 sm:p-4">
                 <dt className="text-xs text-muted">{k}</dt>
@@ -215,7 +217,7 @@ export default function Performance() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[...series].reverse().map((x) => (
+                    {table.items.map((x) => (
                       <tr key={x.bucket} className="border-t border-line/60">
                         <td className="py-1.5">{label(x.bucket, period)}</td>
                         <td className="num py-1.5 text-right">{x.total}</td>
@@ -224,6 +226,7 @@ export default function Performance() {
                     ))}
                   </tbody>
                 </table>
+                {table.pager}
               </Accordion>
             </section>
           </div>

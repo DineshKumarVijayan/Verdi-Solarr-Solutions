@@ -1,4 +1,5 @@
 import { Award, ClipboardCopy, KeyRound, Search } from "lucide-react";
+import { usePaged } from "../../components/Pager";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { formatMobile } from "../../../shared/admin-schemas";
@@ -20,6 +21,7 @@ interface Detail {
 export default function Customers() {
   const [params, setParams] = useSearchParams();
   const [rows, setRows] = useState<AdminCustomerRow[] | null>(null);
+  const pg = usePaged(rows ?? [], "admin.customers");
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
   const openId = Number(params.get("open")) || null;
@@ -70,7 +72,7 @@ export default function Customers() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((c) => (
+              {pg.items.map((c) => (
                 <tr key={c.id} className="cursor-pointer border-b border-line/60 last:border-0 hover:bg-paper" onClick={() => setOpen(c.id)} data-testid="admin-customer-row">
                   <td className="rt-title p-3">
                     <button type="button" className="text-left font-semibold hover:underline">
@@ -93,6 +95,7 @@ export default function Customers() {
           </table>
         </div>
       )}
+      {pg.pager}
       {openId && <CustomerModal id={openId} onClose={() => setOpen(null)} onChanged={() => load(q.trim())} />}
     </div>
   );

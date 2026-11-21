@@ -1,4 +1,5 @@
 import { useConfirm } from "../../components/confirm";
+import { usePaged } from "../../components/Pager";
 import { Eye, EyeOff, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -36,6 +37,8 @@ export default function Catalog() {
   const { reload } = useCatalogue();
   const [brands, setBrands] = useState<AdminBrand[] | null>(null);
   const [cats, setCats] = useState<AdminCategory[] | null>(null);
+  const pgB = usePaged(brands ?? [], "admin.brands", 10, { newAtEnd: true });
+  const pgC = usePaged(cats ?? [], "admin.categories", 10, { newAtEnd: true });
   const [brandEdit, setBrandEdit] = useState<{ id: number | null; f: BrandForm } | null>(null);
   const [catEdit, setCatEdit] = useState<{ id: number | null; f: CatForm } | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
@@ -153,7 +156,7 @@ export default function Catalog() {
             <Spinner />
           ) : (
             <ul className="card mt-3 divide-y divide-line">
-              {brands.map((b) => (
+              {pgB.items.map((b) => (
                 <li key={b.id} className="flex items-center gap-3 p-3">
                   <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-white">{b.logoUrl ? <img src={b.logoUrl} alt="" className="size-full object-contain p-1" /> : <span className="text-sm font-semibold text-subtle">{b.name[0]}</span>}</div>
                   <div className="min-w-0 flex-1">
@@ -189,6 +192,7 @@ export default function Catalog() {
               ))}
             </ul>
           )}
+          {pgB.pager}
         </section>
 
         <section className="min-w-0">
@@ -212,7 +216,7 @@ export default function Catalog() {
             <Spinner />
           ) : (
             <ul className="card mt-3 divide-y divide-line">
-              {cats.map((c) => (
+              {pgC.items.map((c) => (
                 <li key={c.id} className="flex items-center gap-3 p-3">
                   <span className="num w-10 shrink-0 text-xs text-subtle">{c.sortOrder}</span>
                   <div className="min-w-0 flex-1">
@@ -248,6 +252,7 @@ export default function Catalog() {
               ))}
             </ul>
           )}
+          {pgC.pager}
         </section>
       </div>
 

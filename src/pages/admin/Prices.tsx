@@ -1,4 +1,5 @@
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, History, Pencil, RefreshCw, Search } from "lucide-react";
+import { usePaged } from "../../components/Pager";
 import { Accordion, BottomSheet, useIsPhone } from "../../components/mobile/kit";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -20,6 +21,7 @@ export default function Prices() {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
   const [rows, setRows] = useState<AdminPriceRow[] | null>(null);
+  const pg = usePaged(rows ?? [], "admin.prices");
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<AdminPriceRow | null>(null);
@@ -132,7 +134,7 @@ export default function Prices() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {pg.items.map((r) => (
                   <tr key={r.productId} className="border-t border-line/70 align-top" data-testid="admin-price-row">
                     <td className="rt-title p-3">
                       <p className="font-medium">{r.name}</p>
@@ -162,6 +164,7 @@ export default function Prices() {
             </table>
             {rows.length === 0 && <p className="p-8 text-center text-sm text-muted">No products match.</p>}
           </div>
+          {pg.pager}
         </>
       )}
 

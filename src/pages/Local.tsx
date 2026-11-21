@@ -1,4 +1,5 @@
 import { ArrowRight, BadgeCheck, ChevronDown, FileText, MapPin, ShieldCheck } from "lucide-react";
+import { usePaged } from "../components/Pager";
 import { useMemo } from "react";
 import { Link } from "react-router";
 import data from "../../data/local-pages.json";
@@ -23,6 +24,7 @@ export default function Local({ page }: { page: LocalPage }) {
   const products = useMemo(() => (cat?.products ?? []).filter((p) => page.categories.length === 0 || page.categories.includes(category(p.categoryId)?.slug ?? "")), [cat, page, category]);
   const brands = [...new Set(products.map((p) => brand(p.brandId)?.name).filter(Boolean))];
   const shown = page.categories.length === 0 ? products.filter((p) => p.featured).concat(products.filter((p) => !p.featured)).slice(0, 12) : products;
+  const pg = usePaged(shown, `local.${page.slug}`);
 
   return (
     <div>
@@ -74,15 +76,16 @@ export default function Local({ page }: { page: LocalPage }) {
         ) : (
           <>
             <div className="mt-6 grid grid-cols-1 gap-4 max-lg:hidden sm:grid-cols-2 lg:grid-cols-3">
-              {shown.map((p) => (
+              {pg.items.map((p) => (
                 <ProductCard key={p.id} product={p} />
               ))}
             </div>
             <ul className="mt-2 divide-y divide-line/70 lg:hidden" data-testid="product-rows">
-              {shown.map((p) => (
+              {pg.items.map((p) => (
                 <ProductRow key={p.id} product={p} />
               ))}
             </ul>
+            {pg.pager}
           </>
         )}
         <Link to="/products" className="mt-6 inline-flex items-center gap-1.5 font-semibold text-verdi-700 hover:underline">

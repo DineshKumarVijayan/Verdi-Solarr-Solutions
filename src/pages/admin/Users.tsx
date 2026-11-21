@@ -1,4 +1,5 @@
 import { Pencil, Plus, ShieldCheck } from "lucide-react";
+import { usePaged } from "../../components/Pager";
 import { useEffect, useState } from "react";
 import type { AdminRole, AdminUserRow } from "../../../shared/types";
 import { Modal, Spinner, useToast } from "../../components/ui";
@@ -18,6 +19,7 @@ export default function Users() {
   const admin = useAdmin();
   const toast = useToast();
   const [users, setUsers] = useState<AdminUserRow[] | null>(null);
+  const pg = usePaged(users ?? [], "admin.staff");
   const [edit, setEdit] = useState<{ id: number | null; email: string; mobile: string; password: string; displayName: string; role: AdminRole; isActive: boolean } | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -81,7 +83,7 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {pg.items.map((u) => (
                 <tr key={u.id} className="border-b border-line/60 last:border-0" data-testid="admin-user-row">
                   <td className="rt-title p-3">
                     <p className="font-semibold">{u.displayName || (u.mobile ? formatMobile(u.mobile) : u.email)}</p>
@@ -107,6 +109,7 @@ export default function Users() {
           </table>
         </div>
       )}
+      {pg.pager}
       <div className="mt-6 flex max-w-3xl gap-3 rounded-2xl bg-verdi-50 p-4 text-sm">
         <ShieldCheck className="size-5 shrink-0 text-verdi-600" />
         <p>Disabling a user or changing their password signs them out everywhere immediately. Five wrong passwords lock the account for 15 minutes.</p>

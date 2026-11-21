@@ -1,4 +1,5 @@
 import { FilterX, LayoutGrid, List, Search, SlidersHorizontal, X } from "lucide-react";
+import { usePaged } from "../components/Pager";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
@@ -102,6 +103,7 @@ export default function Products() {
   }
 
   const hits = useMemo(() => search(index, filters), [index, JSON.stringify(filters)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pg = usePaged(hits, "products");
 
   const title = routeCategory ? routeCategory.name : "All products";
   usePageMeta(
@@ -261,24 +263,25 @@ export default function Products() {
               </div>
             )}
             <div className={`mt-4 grid gap-4 max-lg:hidden ${view === "list" ? "" : "sm:grid-cols-2 xl:grid-cols-3"}`}>
-              {hits.map((h) => (
+              {pg.items.map((h) => (
                 <ProductCard key={h.item.p.id} product={h.item.p} query={q} layout={view} />
               ))}
             </div>
             {/* phones: compact rows (or a 2-column grid) */}
             {mView === "row" ? (
               <ul className="mt-1 divide-y divide-line/70 lg:hidden" data-testid="product-rows">
-                {hits.map((h) => (
+                {pg.items.map((h) => (
                   <ProductRow key={h.item.p.id} product={h.item.p} query={q} />
                 ))}
               </ul>
             ) : (
               <div className="mt-2 grid grid-cols-2 gap-3 lg:hidden" data-testid="product-tiles">
-                {hits.map((h) => (
+                {pg.items.map((h) => (
                   <ProductRow key={h.item.p.id} product={h.item.p} query={q} mode="tile" />
                 ))}
               </div>
             )}
+            {pg.pager}
           </div>
         </div>
       )}
