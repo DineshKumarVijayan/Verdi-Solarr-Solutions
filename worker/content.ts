@@ -1233,9 +1233,9 @@ export async function enquiryStats(env: Env, admin: AdminIdentity, url: URL): Pr
 export async function myDay(env: Env, admin: AdminIdentity): Promise<MyDay> {
   const today = istToday();
   const soon = new Date(Date.parse(today) + 3 * 86400_000).toISOString().slice(0, 10);
-  const [fu, nd, un, qs] = await env.DB.batch([
+  const [fu, nd, un, qs, done] = await env.DB.batch([
     env.DB.prepare(
-      `SELECT EnquiryId AS id, Reference AS reference, ContactName AS name, Status AS status, FollowUpOn AS followUpOn
+      `SELECT EnquiryId AS id, Reference AS reference, ContactName AS name, Mobile AS mobile, Status AS status, FollowUpOn AS followUpOn
        FROM Enquiries WHERE AssignedAdminId = ?1 AND Status IN ${OPEN} AND FollowUpOn <= ?2 ORDER BY FollowUpOn, EnquiryId LIMIT 50`,
     ).bind(admin.id, today),
     env.DB.prepare(`SELECT COUNT(*) AS n FROM Enquiries WHERE AssignedAdminId = ?1 AND Status IN ${OPEN} AND FollowUpOn IS NULL`).bind(admin.id),
@@ -1244,11 +1244,12 @@ export async function myDay(env: Env, admin: AdminIdentity): Promise<MyDay> {
     ),
     // my open quotations that expire within 3 days or already have (validity counted from the creation date)
     env.DB.prepare(
-      `SELECT QuotationId AS id, Number AS number, CustomerName AS customerName, TotalPaise AS totalPaise, Status AS status,
+      `SELECT QuotationId AS id, Number AS number, CustomerName AS customerName, CustomerMobile AS customerMobile, TotalPaise AS totalPaise, Status AS status,
               date(CreatedAt, '+' || ValidDays || ' days') AS validUntil
        FROM Quotations WHERE OwnerAdminId = ?1 AND Status IN ('draft', 'sent') AND date(CreatedAt, '+' || ValidDays || ' days') <= ?2
        ORDER BY validUntil LIMIT 20`,
     ).bind(admin.id, soon),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM EnquiryEvents WHERE ByAdminId = ?1 AND date(CreatedAt, ${IST}) = ?2`).bind(admin.id, today),
   ]);
   return {
     today,
@@ -1256,6 +1257,7 @@ export async function myDay(env: Env, admin: AdminIdentity): Promise<MyDay> {
     noDate: (nd.results[0] as { n: number } | undefined)?.n ?? 0,
     unassigned: (un.results as MyDay["unassigned"]).map((x) => ({ ...x, source: (x.source ?? "website") as EnquirySource })),
     quotes: qs.results as MyDay["quotes"],
+    doneToday: (done.results[0] as { n: number } | undefined)?.n ?? 0,
   };
 }
 

@@ -10,5 +10,6 @@
   "0009_staff_bonus.sql": "ad8dcaf5ed6cecd8e81ae6e6673b444953d4c3b6f936103224c63ad6fcd9dc23",
   "0010_loyalty_points.sql": "525e00ebdba187fdee1f67e581cf5e38c1adc8782f809dd410fd5e0405f90d99",
   "0011_simple_pipeline.sql": "156651b49f3728155164a02749b6698ed1c31139ff572f1be2fb8448fdd083ea",
-  "0012_pending_rewards.sql": "02a10e48c285226ff3b4e7735087b5ea71bf7e375739aee2f028b568c17a921e"
+  "0012_pending_rewards.sql": "02a10e48c285226ff3b4e7735087b5ea71bf7e375739aee2f028b568c17a921e",
+  "0013_reversal_indexes.sql": "1832cbcf3efb3f884b338ecb40c5c3738dcc40cc2f453eafc0f11abe7bd0b1c3"
 }

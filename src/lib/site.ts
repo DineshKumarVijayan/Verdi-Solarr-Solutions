@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { formatMobile } from "../../shared/admin-schemas";
+import { formatMobile } from "../../shared/mobile";
 import type { PublicFieldPhoto } from "../../shared/types";
 import { FIELD_PHOTOS } from "../pages/field-data";
 import { SITE as DEFAULTS } from "../site";

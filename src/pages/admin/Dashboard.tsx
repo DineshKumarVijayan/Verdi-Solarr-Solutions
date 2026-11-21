@@ -70,7 +70,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {day && <MyDayCard day={day} className="mt-6" />}
+      {day && <MyDayCard day={day} name={admin.displayName} className="mt-6" />}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => {
@@ -174,11 +174,11 @@ function PhoneDashboard({ d, canAdd, name, day }: { d: AdminDashboard; canAdd: b
   ];
   return (
     <div className="px-4 pt-3 pb-6 lg:hidden" data-testid="phone-dashboard">
-      <h1 className="text-lg font-semibold">Welcome{name ? `, ${name}` : ""}</h1>
+      <h1 className={day ? "sr-only" : "text-lg font-semibold"}>Welcome{name ? `, ${name}` : ""}</h1>
       <Link to="/admin/enquiries?log=1" className="btn-primary tap mt-3 w-full" data-testid="m-log-enquiry">
         <Plus className="size-4" /> Log an enquiry
       </Link>
-      {day && <MyDayCard day={day} className="mt-3" />}
+      {day && <MyDayCard day={day} name={name} className="mt-3" />}
       <section aria-labelledby="att-h" className="mt-3">
         <h2 id="att-h" className="text-base font-semibold">
           Needs attention

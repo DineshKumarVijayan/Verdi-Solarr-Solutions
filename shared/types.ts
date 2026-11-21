@@ -434,9 +434,11 @@ export interface EnquiryStats {
 /** The signed-in staff member's day: follow-ups due, new enquiries to pick up, quotations waiting. */
 export interface MyDay {
   today: string;
-  followUps: { id: number; reference: string; name: string; status: EnquiryStatus; followUpOn: string }[];
+  followUps: { id: number; reference: string; name: string; mobile: string; status: EnquiryStatus; followUpOn: string }[];
+  /** stage changes, assignments and logs this person made today (India time) */
+  doneToday: number;
   /** open enquiries of mine without a follow-up date */
   noDate: number;
   unassigned: { id: number; reference: string; name: string; source: EnquirySource; createdAt: string }[];
-  quotes: { id: number; number: string; customerName: string; totalPaise: number; status: "draft" | "sent"; validUntil: string }[];
+  quotes: { id: number; number: string; customerName: string; customerMobile: string | null; totalPaise: number; status: "draft" | "sent"; validUntil: string }[];
 }
