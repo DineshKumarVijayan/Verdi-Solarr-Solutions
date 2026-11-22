@@ -25,7 +25,6 @@ test("admin builds a quotation, previews and downloads the PDF, and shares it on
   await line.getByLabel("Quantity").fill("2");
   await line.getByLabel("Discount type").selectOption("pct");
   await line.getByLabel("Discount", { exact: true }).fill("10");
-  const shown = await page.getByTestId("q-total").textContent();
 
   await page.locator('[data-testid="q-preview-btn"]:visible').click();
   await expect(page.getByTestId("q-preview")).toBeVisible();
@@ -36,7 +35,8 @@ test("admin builds a quotation, previews and downloads the PDF, and shares it on
   const { quote } = await (await request.get(`/api/admin/quotations/${id}`)).json();
   expect(quote.items[0].qty).toBe(2);
   expect(quote.discountPaise).toBe(Math.round(quote.subtotalPaise * 0.1));
-  expect(shown?.replace(/\s/g, "")).toContain((quote.totalPaise / 100).toLocaleString("en-IN").replace(/\s/g, ""));
+  // the editor shows the same total (waits for it to recalculate rather than reading it too early)
+  await expect(page.getByTestId("q-total").first()).toContainText((quote.totalPaise / 100).toLocaleString("en-IN"));
 
   // download
   const [dl] = await Promise.all([page.waitForEvent("download"), page.getByTestId("q-download").click()]);

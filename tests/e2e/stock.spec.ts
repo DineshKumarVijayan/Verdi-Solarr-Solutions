@@ -62,10 +62,12 @@ test("every product starts In stock; owner sets Limited + an offer and Out of st
   const html = await (await request.get(`/products/${a.slug}`)).text();
   expect(html).toContain('"availability":"https://schema.org/LimitedAvailability"');
 
-  // no offers -> the home strip is not shown at all
+  // offer ended -> gone from the strip; with no offers left at all, the strip is not shown
   await request.put(`/api/admin/products/${a.id}/status`, { headers: H, data: { stock: "in_stock", onOffer: false } });
   await page.goto("/");
-  await expect(page.getByTestId("offers-strip")).toHaveCount(0);
+  const others = ((await (await request.get("/api/catalogue")).json()).products as P[]).filter((p) => p.offer);
+  if (others.length === 0) await expect(page.getByTestId("offers-strip")).toHaveCount(0);
+  else await expect(page.getByTestId("offers-strip")).not.toContainText(a.name);
 });
 
 test("owner changes stock from the products list and the product editor", async ({ page, request }) => {

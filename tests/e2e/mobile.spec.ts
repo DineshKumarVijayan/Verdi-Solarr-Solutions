@@ -209,8 +209,9 @@ test("product page tabs on phones: specs, datasheet full screen; all sections st
   const p = cat.products.find((x: { datasheet: string | null; specs: unknown[] }) => x.datasheet && x.specs.length);
   await page.goto(`/products/${p.slug}`);
   const tabs = page.getByTestId("product-tabs");
+  // the specs section is in the page (waits for it to load) but hidden behind its tab
+  await expect(page.getByRole("heading", { name: "Technical specifications", includeHidden: true })).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Technical specifications" })).toBeHidden();
-  expect(await page.getByRole("heading", { name: "Technical specifications", includeHidden: true }).count()).toBe(1);
   await tabs.getByRole("tab", { name: "Specs" }).click();
   await expect(page.getByRole("heading", { name: "Technical specifications" })).toBeVisible();
   await tabs.getByRole("tab", { name: "Datasheet" }).click();
