@@ -89,3 +89,17 @@ test("product cards keep share and compare together on one line, also after 'Add
     expect(Math.abs(a!.y - b!.y)).toBeLessThan(2); // same line
   }
 });
+
+test("the search-engine text is in the page but never shown (no flash of plain text before the app starts)", async ({ browser, request }) => {
+  const html = await (await request.get("/products")).text();
+  expect(html).toContain('id="prerender"');
+  expect(html).toMatch(/id="prerender" style="position:absolute;width:1px;height:1px[^"]*clip:rect\(0 0 0 0\)/);
+  // what a visitor sees before the scripts run
+  const ctx = await browser.newContext({ javaScriptEnabled: false });
+  const page = await ctx.newPage();
+  await page.goto("/products");
+  const box = await page.locator("#prerender").boundingBox();
+  expect(box!.width).toBeLessThanOrEqual(1);
+  expect(box!.height).toBeLessThanOrEqual(1);
+  await ctx.close();
+});

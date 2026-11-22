@@ -60,7 +60,8 @@ function page(route, { title, description, body, jsonld = [], noindex = false, i
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(fullTitle)}</title>`)
     .replace(/<meta name="description"[^>]*>/, "")
     .replace("<!--seo-->", head)
-    .replace("<!--prerender-->", `<div id="prerender" class="container-x" style="padding:2rem 1rem">${body}</div>`);
+    // crawler text: in the HTML for search engines, visually hidden so visitors never see it flash
+    .replace("<!--prerender-->", `<div id="prerender" style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0">${body}</div>`);
   const file = route === "/" ? join(OUT, "index.html") : join(OUT, `${route.slice(1)}.html`);
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, html);

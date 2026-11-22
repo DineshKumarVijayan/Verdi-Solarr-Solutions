@@ -86,6 +86,9 @@ function productJsonLd(p: PublicProduct, cat: PublicCatalogue, origin: string) {
 // so a catalogue rebuilt from scratch in the admin is what search engines and link previews see. A product
 // or category that no longer exists answers 404 (noindex) instead of an old build-time page.
 
+/** Crawler text stays in the HTML but is never shown (no flash of plain text before the app starts). */
+const CRAWLER_TEXT_STYLE = "position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0";
+
 type Live = { title: string; description: string; canonical: string; image?: string; ogType?: string; jsonld: object[]; body: string; status?: number; noindex?: boolean; product?: PublicProduct };
 
 const nav = `<nav aria-label="Site"><a href="/">Home</a> · <a href="/products">Products</a> · <a href="/learn">Learn</a> · <a href="/solar-tools">Solar tools</a> · <a href="/contact">Contact</a></nav>`;
@@ -265,13 +268,15 @@ export async function livePage(request: Request, env: Env, ctx: ExecutionContext
     .on("#prerender", {
       element: (el) => {
         filled = true;
+        el.removeAttribute("class");
+        el.setAttribute("style", CRAWLER_TEXT_STYLE);
         el.setInnerContent(live!.body, { html: true });
       },
     })
     .on("#root", {
       element: (el) => {
         el.onEndTag((end) => {
-          if (!filled) end.before(`<div id="prerender" class="container-x" style="padding:2rem 1rem">${live!.body}</div>`, { html: true });
+          if (!filled) end.before(`<div id="prerender" style="${CRAWLER_TEXT_STYLE}">${live!.body}</div>`, { html: true });
         });
       },
     })
