@@ -36,11 +36,11 @@ export default function Dashboard() {
   const tiles = [
     { icon: ClipboardList, label: "New enquiries", value: d.newEnquiries, sub: "awaiting follow-up", warn: d.newEnquiries > 0, to: "/admin/enquiries?status=new" },
     ...(admin.role === "owner" || admin.role === "admin" ? [{ icon: Users, label: "Customer accounts", value: d.customers, sub: "registered customers", to: "/admin/customers" }] : []),
-    { icon: Package, label: "Active products", value: d.activeProducts, sub: d.inactiveProducts ? `${d.inactiveProducts} hidden` : "none hidden", to: "/admin/products" },
+    { icon: Package, label: "Active products", value: d.activeProducts, sub: d.inactiveProducts ? `${d.inactiveProducts} hidden` : "none hidden", to: "/admin/products?status=active" },
     { icon: Building2, label: "Manufacturers", value: d.brands, sub: "active brands", to: "/admin/catalogue" },
     { icon: Tags, label: "Missing prices", value: d.missingPrices, sub: "shown as “price on request”", warn: d.missingPrices > 0, to: "/admin/prices?missing=1" },
-    { icon: ImageOff, label: "Missing images", value: d.missingImages, sub: "using illustrations", warn: d.missingImages > 0, to: "/admin/products" },
-    { icon: FileWarning, label: "Missing datasheets", value: d.missingDatasheets, sub: "products without PDF", warn: d.missingDatasheets > 0, to: "/admin/products" },
+    { icon: ImageOff, label: "Missing images", value: d.missingImages, sub: "using illustrations", warn: d.missingImages > 0, to: "/admin/products?status=active&missing=images" },
+    { icon: FileWarning, label: "Missing datasheets", value: d.missingDatasheets, sub: "products without PDF", warn: d.missingDatasheets > 0, to: "/admin/products?status=active&missing=datasheets" },
   ];
 
   return (
@@ -163,11 +163,11 @@ function PhoneDashboard({ d, canAdd, name, day }: { d: AdminDashboard; canAdd: b
   const attention = [
     { label: "Products without a price", n: d.missingPrices, to: "/admin/prices?missing=1", icon: Tags },
     { label: "New enquiries", n: d.newEnquiries, to: "/admin/enquiries?status=new", icon: ClipboardList },
-    { label: "Products without photos", n: d.missingImages, to: "/admin/products", icon: ImageOff },
-    { label: "Products without a datasheet", n: d.missingDatasheets, to: "/admin/products", icon: FileWarning },
+    { label: "Products without photos", n: d.missingImages, to: "/admin/products?status=active&missing=images", icon: ImageOff },
+    { label: "Products without a datasheet", n: d.missingDatasheets, to: "/admin/products?status=active&missing=datasheets", icon: FileWarning },
   ].filter((a) => a.n > 0);
   const tiles = [
-    { label: "Active products", n: d.activeProducts, to: "/admin/products" },
+    { label: "Active products", n: d.activeProducts, to: "/admin/products?status=active" },
     ...(canAdd ? [{ label: "Customers", n: d.customers, to: "/admin/customers" }] : []),
     { label: "Brands", n: d.brands, to: "/admin/catalogue" },
     { label: "Categories", n: d.categories.length, to: "/admin/catalogue" },

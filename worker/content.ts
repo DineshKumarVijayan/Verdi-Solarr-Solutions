@@ -211,7 +211,10 @@ export async function listProducts(env: Env, url: URL): Promise<{ rows: AdminPro
   const brand = Number(url.searchParams.get("brand")) || 0;
   const category = Number(url.searchParams.get("category")) || 0;
   const status = url.searchParams.get("status") ?? "all";
+  const missing = url.searchParams.get("missing") ?? "";
   const where: string[] = [];
+  if (missing === "images") where.push("NOT EXISTS (SELECT 1 FROM ProductMedia m WHERE m.ProductId = p.ProductId AND m.MediaType = 'image')");
+  if (missing === "datasheets") where.push("NOT EXISTS (SELECT 1 FROM ProductMedia m WHERE m.ProductId = p.ProductId AND m.MediaType = 'datasheet')");
   const binds: unknown[] = [];
   if (q) {
     binds.push(`%${q.replace(/[%_\\]/g, (m) => "\\" + m)}%`);
@@ -976,6 +979,16 @@ export async function listEnquiries(env: Env, admin: AdminIdentity, url: URL): P
     binds.push(`%${q.replace(/[%_\\]/g, (m) => "\\" + m)}%`);
     const n = binds.length;
     where.push(`(e.Reference LIKE ?${n} ESCAPE '\\' OR e.ContactName LIKE ?${n} ESCAPE '\\' OR e.Mobile LIKE ?${n} ESCAPE '\\' OR e.BusinessName LIKE ?${n} ESCAPE '\\')`);
+  }
+  // follow-up date (open enquiries only, India date): overdue | today | none (no date set)
+  const followup = url.searchParams.get("followup") ?? "";
+  if (followup === "overdue" || followup === "today" || followup === "none") {
+    where.push(`e.Status IN ${OPEN}`);
+    if (followup === "none") where.push("e.FollowUpOn IS NULL");
+    else {
+      binds.push(istToday());
+      where.push(`e.FollowUpOn ${followup === "overdue" ? "<" : "="} ?${binds.length}`);
+    }
   }
   const source = url.searchParams.get("source") ?? "";
   if (source === "website" || source === "phone" || source === "whatsapp" || source === "visit") {

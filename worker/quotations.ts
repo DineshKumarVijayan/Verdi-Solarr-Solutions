@@ -122,6 +122,8 @@ export async function listQuotations(env: Env, admin: AdminIdentity, url: URL): 
     args.push(`%${q.replace(/[%_]/g, "")}%`);
     where.push(`(q.Number LIKE ?${args.length} OR q.CustomerName LIKE ?${args.length} OR q.CustomerCompany LIKE ?${args.length} OR q.CustomerMobile LIKE ?${args.length})`);
   }
+  // draft / sent quotations whose validity ends within 3 days or has ended (India date), as in "My day"
+  if (url.searchParams.get("expiring") === "1") where.push("q.Status IN ('draft', 'sent') AND date(q.CreatedAt, '+' || q.ValidDays || ' days') <= date('now', '+5 hours', '+30 minutes', '+3 days')");
   if ((QUOTE_STATUSES as readonly string[]).includes(status)) {
     args.push(status);
     where.push(`q.Status = ?${args.length}`);

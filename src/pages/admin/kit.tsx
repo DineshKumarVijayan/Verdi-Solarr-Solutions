@@ -177,3 +177,18 @@ export function ExportButton({ name, build, className = "btn-ghost btn-sm max-lg
     </button>
   );
 }
+
+/** A filter that came from a shortcut (e.g. "Overdue follow-ups"): always visible, one tap to clear. */
+export function FilterNote({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <p className="mt-3 flex flex-wrap items-center gap-2 text-sm" data-testid="filter-note">
+      <span className="text-muted">Showing:</span>
+      <span className="inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1 font-medium text-paper">
+        {label}
+        <button type="button" onClick={onClear} className="-mr-1 grid size-6 place-items-center rounded-full hover:bg-white/15 max-lg:size-8" aria-label={`Clear filter: ${label}`} data-testid="filter-note-clear">
+          ×
+        </button>
+      </span>
+    </p>
+  );
+}

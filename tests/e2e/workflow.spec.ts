@@ -287,3 +287,48 @@ test("WhatsApp messages: owner edits the wording (checked), staff pick a ready m
   await page.getByTestId("save-messages").click();
   await expect(page.getByText("Unknown placeholder {oops}")).toBeVisible();
 });
+
+test("dashboard shortcuts open filtered lists (overdue, today, new not taken, quotes expiring, missing photos)", async ({ page, request }) => {
+  const log = async (name: string, followUpOn?: string) => (await (await request.post("/api/admin/enquiries", { headers: H, data: { source: "phone", name, mobile: "9876500123", location: "Vellore", ...(followUpOn ? { followUpOn } : {}) } })).json()).enquiry;
+  const late = await log(`Short Late ${Date.now()}`, day(-3));
+  const now = await log(`Short Today ${Date.now()}`, day(0));
+  const later = await log(`Short Later ${Date.now()}`, day(5));
+  const cat = await (await request.get("/api/catalogue")).json();
+  const p = cat.products.find((x: { price: { sellingPaise: number | null } }) => x.price.sellingPaise !== null);
+  const item = { productId: p.id, name: "", unit: "", qty: 1, unitPaise: null, discountType: "none", discountValue: 0 };
+  const soon = (await (await request.post("/api/admin/quotations", { headers: H, data: { customerName: "Soon Expiring", customerMobile: "9876500124", validDays: 1, items: [item] } })).json()).quote;
+  const far = (await (await request.post("/api/admin/quotations", { headers: H, data: { customerName: "Far Expiring", customerMobile: "9876500125", validDays: 60, items: [item] } })).json()).quote;
+
+  await page.goto("/admin");
+  const md = page.getByTestId("my-day").filter({ visible: true });
+  await md.getByTestId("myday-count-late").click();
+  await expect(page).toHaveURL(/followup=overdue/);
+  await expect(page.getByTestId("filter-note")).toContainText("Overdue follow-ups");
+  const refs = async () => (await page.getByTestId("admin-enquiry").locator("span.num").allTextContents()).join(" ");
+  await expect(page.getByTestId("admin-enquiries")).toContainText(late.reference);
+  expect(await refs()).not.toContain(now.reference);
+  expect(await refs()).not.toContain(later.reference);
+  await page.getByTestId("filter-note-clear").click();
+  await expect(page).not.toHaveURL(/followup=/);
+
+  await page.goto("/admin");
+  await page.getByTestId("my-day").filter({ visible: true }).getByTestId("myday-count-today").click();
+  await expect(page.getByTestId("admin-enquiries")).toContainText(now.reference);
+  expect(await refs()).not.toContain(late.reference);
+
+  await page.goto("/admin");
+  await page.getByTestId("my-day").filter({ visible: true }).getByTestId("myday-count-new").click();
+  await expect(page).toHaveURL(/owner=none.*status=new|status=new.*owner=none/);
+
+  await page.goto("/admin");
+  await page.getByTestId("my-day").filter({ visible: true }).getByTestId("myday-count-quote").click();
+  await expect(page.getByTestId("filter-note")).toContainText("Expiring");
+  await expect(page.getByTestId("quotation-list")).toContainText(soon.number);
+  await expect(page.getByTestId("quotation-list")).not.toContainText(far.number);
+
+  // products without photos: every row listed has no image
+  const rows = (await (await request.get("/api/admin/products?status=active&missing=images")).json()).rows as { images: number; isActive: boolean }[];
+  expect(rows.every((r) => r.images === 0 && r.isActive)).toBeTruthy();
+  const ds = (await (await request.get("/api/admin/products?status=active&missing=datasheets")).json()).rows as { hasDatasheet: boolean }[];
+  expect(ds.every((r) => !r.hasDatasheet)).toBeTruthy();
+});

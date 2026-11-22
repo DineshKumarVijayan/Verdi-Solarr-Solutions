@@ -116,13 +116,13 @@ export function MyDayCard({ day, name, className = "" }: { day: MyDay; name: str
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <Counter n={late} label="Overdue follow-ups" tone="late" icon={<AlertTriangle />} to="/admin/enquiries?owner=me" />
-            <Counter n={today} label="Follow up today" tone="today" icon={<CalendarClock />} to="/admin/enquiries?owner=me" />
-            <Counter n={day.unassigned.length} label="New, not taken" tone="new" icon={<Inbox />} to="/admin/enquiries?owner=none" />
-            <Counter n={day.quotes.length} label="Quotes expiring" tone="quote" icon={<FileText />} to="/admin/quotations?owner=me" />
+            <Counter n={late} label="Overdue follow-ups" tone="late" icon={<AlertTriangle />} to="/admin/enquiries?owner=me&followup=overdue" />
+            <Counter n={today} label="Follow up today" tone="today" icon={<CalendarClock />} to="/admin/enquiries?owner=me&followup=today" />
+            <Counter n={day.unassigned.length} label="New, not taken" tone="new" icon={<Inbox />} to="/admin/enquiries?owner=none&status=new" />
+            <Counter n={day.quotes.length} label="Quotes expiring" tone="quote" icon={<FileText />} to="/admin/quotations?owner=me&expiring=1" />
           </div>
           {day.noDate > 0 && (
-            <Link to="/admin/enquiries?owner=me" className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-verdi-700 hover:underline" data-testid="my-day-nodate">
+            <Link to="/admin/enquiries?owner=me&followup=none" className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-xs font-medium text-verdi-700 hover:underline" data-testid="my-day-nodate">
               <CalendarClock className="size-3.5" /> {day.noDate} open enquir{day.noDate === 1 ? "y has" : "ies have"} no follow-up date. Set one so nothing slips.
             </Link>
           )}

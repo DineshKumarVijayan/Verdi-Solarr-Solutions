@@ -15,7 +15,7 @@ import { api } from "../../lib/api";
 import { ADMIN_STATUS_LABEL as STATUS_LABEL, STATUS_HINT, STATUS_STYLE } from "../../lib/enquiry-status";
 import { Accordion, ActionBar, ClampText } from "../../components/mobile/kit";
 import { useAdmin } from "./AdminLayout";
-import { canManage, dt, errorText, PageHead, send, ExportButton } from "./kit";
+import { canManage, dt, errorText, PageHead, send, ExportButton, FilterNote } from "./kit";
 
 export default function Enquiries() {
   const [params, setParams] = useSearchParams();
@@ -160,6 +160,12 @@ export default function Enquiries() {
           </button>
         ))}
       </div>
+      {params.get("followup") && (
+        <FilterNote
+          label={params.get("followup") === "overdue" ? "Overdue follow-ups" : params.get("followup") === "today" ? "Follow up today" : "Open, no follow-up date"}
+          onClear={() => set("followup", "")}
+        />
+      )}
       <div className="relative mt-3 max-w-md max-lg:sticky max-lg:top-14 max-lg:z-20 max-lg:-mx-4 max-lg:max-w-none max-lg:bg-paper max-lg:px-4 max-lg:py-2">
         <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-subtle max-lg:left-7.5" />
         <input aria-label="Search enquiries" className="field !rounded-full pl-10" placeholder="Reference, name, mobile or business" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && set("q", q.trim())} onBlur={() => set("q", q.trim())} />

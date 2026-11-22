@@ -9,7 +9,7 @@ import type { AdminBrand, AdminCategory, AdminProductDetail, AdminProductListRow
 import { Spinner, useToast } from "../../components/ui";
 import { api } from "../../lib/api";
 import { useAdmin } from "./AdminLayout";
-import { canManage, errorText, PageHead, send, ExportButton } from "./kit";
+import { canManage, errorText, PageHead, send, ExportButton, FilterNote } from "./kit";
 
 export default function AdminProducts() {
   const admin = useAdmin();
@@ -117,6 +117,7 @@ export default function AdminProducts() {
           <option value="inactive">Hidden only</option>
         </select>
       </div>
+      {params.get("missing") && <FilterNote label={params.get("missing") === "images" ? "Without photos" : "Without a datasheet"} onClear={() => set("missing", "")} />}
 
       {error && <p className="mt-6 rounded-xl bg-danger-bg p-3 text-sm text-danger">{error}</p>}
       {!rows ? (

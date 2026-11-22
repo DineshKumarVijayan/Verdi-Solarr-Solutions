@@ -16,7 +16,7 @@ import { useCatalogue } from "../../lib/catalogue";
 import { useSite } from "../../lib/site";
 import { useAdmin } from "./AdminLayout";
 import { WhatsAppMenu } from "./WhatsAppMenu";
-import { canManage, dt, errorText, PageHead, send, uploadFile, useUnsavedWarning, ExportButton } from "./kit";
+import { canManage, dt, errorText, PageHead, send, uploadFile, useUnsavedWarning, ExportButton, FilterNote } from "./kit";
 
 const PdfViewer = lazy(() => import("../../components/PdfViewer"));
 
@@ -122,6 +122,7 @@ function List() {
           ))}
         </div>
       )}
+      {params.get("expiring") === "1" && <FilterNote label="Expiring within 3 days (or expired)" onClear={() => set("expiring", "")} />}
       <div className="relative mt-3 max-w-md">
         <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-subtle" />
         <input aria-label="Search quotations" className="field !rounded-full pl-10" placeholder="Number, customer, company or mobile" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && set("q", q.trim())} onBlur={() => set("q", q.trim())} />
