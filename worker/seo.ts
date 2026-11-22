@@ -18,7 +18,7 @@ const BUSINESS = "VERDI SOLARR SOLUTION";
 type LocalPage = { slug: string; title: string; metaTitle: string; description: string; intro: string; categories: string[]; faqs: [string, string][] };
 const LOCAL_PAGES = (localPages as unknown as { pages: LocalPage[] }).pages;
 /** Paths filled from the live catalogue (also listed in wrangler.jsonc run_worker_first). */
-export const LIVE_PATHS = ["/", "/products", ...LOCAL_PAGES.map((p) => `/${p.slug}`)];
+export const LIVE_PATHS = ["/", "/products", "/faq", ...LOCAL_PAGES.map((p) => `/${p.slug}`)];
 const localProducts = (slugs: string[], cat: PublicCatalogue) => productsForCategorySlugs(slugs, cat.categories, cat.products).slice(0, 60);
 const DEFAULT_IMAGE = "/media/hero-solar-farm-golden-1200.webp";
 
@@ -169,6 +169,19 @@ function liveFor(path: string, cat: PublicCatalogue, origin: string): Live | nul
       canonical: `${origin}/products`,
       jsonld: [crumbs(origin, [["Home", "/"], ["Products", "/products"]])],
       body: `${nav}<h1>All products</h1>${list(cat, cat.products)}`,
+    };
+  }
+  if (path === "/faq") {
+    const faqs = cat.faqs ?? [];
+    return {
+      title: "Questions & answers",
+      description: faqs.length ? `Answers from ${BUSINESS}: ${faqs.slice(0, 3).map((f) => f.q).join(" · ")}`.slice(0, 300) : `Questions about solar products from ${BUSINESS}? Ask us on WhatsApp or by phone.`,
+      canonical: `${origin}/faq`,
+      jsonld: [
+        crumbs(origin, [["Home", "/"], ["Questions & answers", "/faq"]]),
+        ...(faqs.length ? [{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) }] : []),
+      ],
+      body: `${nav}<h1>Questions &amp; answers</h1>${faqs.map((f) => `<h2>${esc(f.q)}</h2><p>${esc(f.a)}</p>`).join("")}${contactHtml(cat)}`,
     };
   }
   const m = path.match(/^\/(category|products)\/([^/]+)\/?$/);

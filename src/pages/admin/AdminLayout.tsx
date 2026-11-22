@@ -10,6 +10,7 @@ import { AdminLogin, ChangePasswordForm } from "./AdminAuth";
 import { AdminTabBar, AdminTopBar } from "./AdminMobile";
 import { api, ApiError } from "../../lib/api";
 import { usePageMeta } from "../../lib/seo";
+import { HelperLauncher } from "../../components/assistant/Launcher";
 
 const NAV = ADMIN_NAV;
 
@@ -107,6 +108,7 @@ export default function AdminLayout() {
       </div>
       <Outlet key={admin.email} />
       <AdminTabBar admin={admin} onPassword={() => setPwOpen(true)} onSignOut={signOut} />
+      <HelperLauncher kind="staff" />
       {state.relogin && (
         <div className="fixed inset-0 z-[80] overflow-auto bg-ink/75 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Sign in again" data-testid="relogin-overlay">
           <AdminLogin onDone={signedIn} notice={state.relogin} />

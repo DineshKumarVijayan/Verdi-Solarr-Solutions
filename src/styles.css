@@ -460,3 +460,29 @@ select::-ms-expand { display: none; }
     text-align: right !important;
   }
 }
+
+/* ---- Helper (website helper / staff helper) ---- */
+/* Phones: above the bottom tabs, and above any bottom action bar; desktop: left of the call/WhatsApp buttons. */
+@utility helper-fab {
+  @apply fixed right-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 lg:right-24 lg:bottom-6 lg:z-30;
+}
+@media (max-width: 1023.98px) {
+  body:has(.action-bar, [data-raise-helper]) .helper-fab {
+    bottom: calc(9rem + env(safe-area-inset-bottom));
+  }
+}
+@media (min-width: 1024px) {
+  body:has([data-raise-helper="all"]) .helper-fab {
+    bottom: 6.5rem;
+  }
+}
+.helper-glow {
+  animation: helper-glow 3.2s ease-in-out infinite;
+}
+@keyframes helper-glow {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .helper-glow { animation: none; }
+}

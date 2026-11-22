@@ -14,7 +14,7 @@
     "html_handling": "auto-trailing-slash",
     // Catalogue pages (home, all products, categories, products, local pages), sitemap and robots also go
     // through the Worker: titles, preview tags, JSON-LD and crawler text come from the LIVE catalogue.
-    "run_worker_first": ["/api/*","/","/products","/products/*","/category/*","/solar-panels-chennai","/solar-inverters-chennai","/solar-cables-chennai","/solar-products-tamil-nadu","/sitemap.xml","/robots.txt"]
+    "run_worker_first": ["/api/*","/","/products","/products/*","/category/*","/faq","/solar-panels-chennai","/solar-inverters-chennai","/solar-cables-chennai","/solar-products-tamil-nadu","/sitemap.xml","/robots.txt"]
   },
   "d1_databases": [
     {

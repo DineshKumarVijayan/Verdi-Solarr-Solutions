@@ -61,6 +61,19 @@ export interface PublicFieldPhoto {
   tall: boolean;
 }
 
+/** A question & answer written by the owner/admin (Admin → Settings → Questions & answers). */
+export interface PublicFaq {
+  id: number;
+  topic: string;
+  q: string;
+  a: string;
+  /** Tamil wording (optional) */
+  qTa: string | null;
+  aTa: string | null;
+  /** extra words people may use when asking (comma separated) */
+  k: string;
+}
+
 export const SITE_SETTING_KEYS = [
   "contactPerson",
   "phone",
@@ -95,6 +108,8 @@ export interface PublicCatalogue {
   products: PublicProduct[];
   /** Admin-managed "In the field" gallery. */
   fieldPhotos?: PublicFieldPhoto[];
+  /** Admin-written questions & answers (FAQ page and the website helper). */
+  faqs?: PublicFaq[];
   /** Admin-managed business details & links (whitelisted keys only). */
   settings?: Partial<Record<SiteSettingKey, string>>;
 }
@@ -259,6 +274,18 @@ export interface AdminProductDetail {
   specs: AdminSpec[];
   media: AdminMedia[];
   price: { sellingPaise: number | null; mrpPaise: number | null; gstRate: number | null; gstIncluded: boolean; unit: string; version: number } | null;
+}
+
+export interface AdminFaq {
+  id: number;
+  topic: string;
+  question: string;
+  answer: string;
+  questionTa: string;
+  answerTa: string;
+  keywords: string;
+  sortOrder: number;
+  isActive: boolean;
 }
 
 export interface AdminFieldPhoto {

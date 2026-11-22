@@ -140,7 +140,7 @@ test("admin on phones: own top bar, tabs and More sheet; no public header, foote
 });
 
 // Every route at four phone widths: the page itself never scrolls sideways.
-const ALL_ROUTES = ["/", "/products", "/compare", "/enquiry", "/learn", "/learn/how-solar-cells-work", "/solar-tools/consumption", "/solar-tools/sizing", "/solar-tools/roof", "/solar-tools/kit-builder", "/solar-tools/battery", "/solar-tools/losses", "/solar-tools/orientation", "/solar-tools/system-explorer", "/solar-tools/datasheet-decoder", "/in-the-field", "/contact", "/account", "/privacy", "/terms", "/solar-panels-chennai", "/no-such-page", "/admin", "/admin/prices", "/admin/products", "/admin/products/new", "/admin/catalogue", "/admin/field-photos", "/admin/enquiries", "/admin/quotations", "/admin/quotations/new", "/admin/customers", "/admin/settings", "/admin/users", "/admin/performance", "/admin/bonus", "/admin/my-bonus"];
+const ALL_ROUTES = ["/", "/products", "/compare", "/enquiry", "/learn", "/learn/how-solar-cells-work", "/solar-tools/consumption", "/solar-tools/sizing", "/solar-tools/roof", "/solar-tools/kit-builder", "/solar-tools/battery", "/solar-tools/losses", "/solar-tools/orientation", "/solar-tools/system-explorer", "/solar-tools/datasheet-decoder", "/in-the-field", "/contact", "/faq", "/account", "/privacy", "/terms", "/solar-panels-chennai", "/no-such-page", "/admin", "/admin/prices", "/admin/products", "/admin/products/new", "/admin/catalogue", "/admin/field-photos", "/admin/enquiries", "/admin/quotations", "/admin/quotations/new", "/admin/customers", "/admin/settings", "/admin/users", "/admin/performance", "/admin/bonus", "/admin/my-bonus"];
 for (const width of [280, 360, 390, 430]) {
   test.describe(`${width} px, every route`, () => {
     test.use({ viewport: { width, height: 800 } });
@@ -355,4 +355,27 @@ test("lists are paged on phones: 5 / 10 / 20 / All, remembered, next page", asyn
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(s.width);
   }
   await page.getByTestId("pager").getByTestId("page-size-10").click();
+});
+
+test("phone: the helper opens as a sheet, fits the screen and sits above the product page's buy bar", async ({ page, request }) => {
+  const cat = await (await request.get("/api/catalogue")).json();
+  const p = cat.products[0];
+  await page.goto(`/products/${p.slug}`);
+  const fab = page.getByTestId("customer-helper-open");
+  const bar = page.getByTestId("sticky-buy-bar");
+  await expect(fab).toBeVisible();
+  await expect(bar).toBeVisible();
+  const f = (await fab.boundingBox())!;
+  const b = (await bar.boundingBox())!;
+  expect(f.y + f.height).toBeLessThanOrEqual(b.y); // never covers the buy bar
+  await fab.click();
+  const panel = page.getByTestId("customer-helper");
+  await expect(panel).toBeVisible();
+  await page.getByTestId("helper-input").fill("offers");
+  await page.keyboard.press("Enter");
+  await expect(panel.getByTestId("helper-bot")).toHaveCount(2);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  await page.getByTestId("helper-close").click();
+  await expect(panel).toBeHidden();
 });

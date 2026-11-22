@@ -21,6 +21,7 @@ const Learn = lazy(() => import("./pages/Learn"));
 const LearnLesson = lazy(() => import("./pages/LearnLesson"));
 const Tools = lazy(() => import("./pages/Tools"));
 const Contact = lazy(() => import("./pages/Contact"));
+const Faq = lazy(() => import("./pages/Faq"));
 const Field = lazy(() => import("./pages/Field"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Privacy = lazy(() => import("./pages/Legal").then((m) => ({ default: m.Privacy })));
@@ -105,6 +106,7 @@ export const router = createBrowserRouter([
           { path: "/solar-tools", element: <Page><Tools /></Page> },
           { path: "/solar-tools/:tool", element: <Page><Tools /></Page> },
           { path: "/contact", element: <Page><Contact /></Page> },
+          { path: "/faq", element: <Page><Faq /></Page> },
           { path: "/in-the-field", element: <Page><Field /></Page> },
           ...localPages.pages.map((p) => ({ path: `/${p.slug}`, element: <Page><Local page={p} /></Page> })),
           { path: "/account", element: <Page><Account /></Page> },

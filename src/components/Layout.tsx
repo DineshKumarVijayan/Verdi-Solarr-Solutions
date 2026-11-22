@@ -3,6 +3,7 @@ import { Accordion } from "./mobile/kit";
 import { AccountMenu } from "./AccountMenu";
 import { Announcement } from "./Announcement";
 import { ContactFabs } from "./ContactFabs";
+import { HelperLauncher } from "./assistant/Launcher";
 import { MobileTabBar } from "./MobileTabBar";
 import { WhatsAppIcon } from "./WhatsAppIcon";
 import { useEffect, useState } from "react";
@@ -147,6 +148,7 @@ export function Layout() {
 
       <Footer />
       {!isAdmin && <MobileFooter />}
+      {!isAdmin && <HelperLauncher kind="customer" />}
       <ContactFabs />
       <MobileTabBar />
       <SearchPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
@@ -206,6 +208,7 @@ function Footer() {
             <li><Link to="/solar-tools/kit-builder" className="hover:text-paper">Kit Builder</Link></li>
             <li><Link to="/compare" className="hover:text-paper">Compare products</Link></li>
             <li><Link to="/enquiry" className="hover:text-paper">Enquiry basket</Link></li>
+            {!!data?.faqs?.length && <li><Link to="/faq" className="hover:text-paper">Questions &amp; answers</Link></li>}
           </ul>
         </div>
         <address className="not-italic md:col-span-3">
@@ -332,6 +335,7 @@ function MobileFooter() {
           <Link to="/solar-tools/kit-builder" className={link}>Kit Builder</Link>
           <Link to="/in-the-field" className={link}>In the field</Link>
           <Link to="/compare" className={link}>Compare products</Link>
+          {!!data?.faqs?.length && <Link to="/faq" className={link}>Questions &amp; answers</Link>}
         </Accordion>
         <Accordion title="Locations">
           {localPages.pages.map((p) => (

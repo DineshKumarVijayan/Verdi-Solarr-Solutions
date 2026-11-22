@@ -195,7 +195,7 @@ export default function Enquiries() {
       )}
       {pg.pager}
       {selecting && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-card/95 p-3 shadow-lg backdrop-blur max-lg:bottom-16" role="region" aria-label="Reassign selected enquiries" data-testid="bulk-bar">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-card/95 p-3 shadow-lg backdrop-blur max-lg:bottom-16" role="region" aria-label="Reassign selected enquiries" data-raise-helper="all" data-testid="bulk-bar">
           <div className="container-x flex flex-wrap items-center gap-2 text-sm">
             <span className="font-semibold" data-testid="bulk-count">
               {picked.size} selected

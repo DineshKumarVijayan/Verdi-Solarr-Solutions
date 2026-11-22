@@ -218,6 +218,12 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
       if (id && seg.length === 2 && method === "PUT") return json(await content.saveFieldPhoto(env, admin, id, await body()));
       if (id && seg.length === 2 && method === "DELETE") return json(await content.deleteFieldPhoto(env, admin, id));
       break;
+    case "faqs":
+      if (seg.length === 1 && method === "GET") return json({ faqs: await content.listFaqs(env) });
+      if (seg.length === 1 && method === "POST") return json(await content.saveFaq(env, admin, null, await body()), { status: 201 });
+      if (id && seg.length === 2 && method === "PUT") return json(await content.saveFaq(env, admin, id, await body()));
+      if (id && seg.length === 2 && method === "DELETE") return json(await content.deleteFaq(env, admin, id));
+      break;
     case "settings":
       if (seg.length === 1 && method === "GET") return json({ settings: await content.getSettings(env) });
       if (seg.length === 1 && method === "PUT") return json(await content.saveSettings(env, admin, await body()));

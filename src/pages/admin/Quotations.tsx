@@ -397,6 +397,16 @@ function Editor({ id }: { id: number | null }) {
 
   // prefill from an enquiry (Enquiries → "Create quotation")
   const fromEnquiry = useRef<number | null>(null);
+  // prefill from the staff helper ("new quote for Ravi 98400 12345" opens /admin/quotations/new?name=…&mobile=…)
+  useEffect(() => {
+    if (id !== null || (loc.state as { enquiry?: unknown } | null)?.enquiry) return;
+    const sp = new URLSearchParams(loc.search);
+    const name = (sp.get("name") ?? "").trim().slice(0, 120);
+    const mobile = (sp.get("mobile") ?? "").replace(/\D/g, "").slice(-10);
+    if (!name && !mobile) return;
+    setCust((c) => ({ ...c, customerName: c.customerName || name, customerMobile: c.customerMobile || mobile }));
+  }, [id, loc.search, loc.state]);
+
   // a new quotation not made from an enquiry: how staff reached the customer (an enquiry is created for it)
   const [reached, setReached] = useState<"phone" | "whatsapp" | "visit">("phone");
   useEffect(() => {
@@ -860,7 +870,7 @@ function Editor({ id }: { id: number | null }) {
       </div>
 
       {/* phones: actions pinned above the tab bar */}
-      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
+      <div data-raise-helper className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-2">
           <div className="min-w-0 flex-1">
             <p className="text-xs text-muted">Total</p>

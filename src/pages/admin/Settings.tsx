@@ -9,6 +9,7 @@ import { useCatalogue } from "../../lib/catalogue";
 import { SITE } from "../../site";
 import { useAdmin } from "./AdminLayout";
 import { canManage, errorText, fieldErrors, PageHead, ReadOnlyNote, send } from "./kit";
+import { FaqManager } from "./Faqs";
 
 const FIELDS: { k: SiteSettingKey; label: string; hint?: string; area?: boolean; placeholder?: string }[] = [
   { k: "announcement", label: "Announcement bar", hint: "Scrolling ribbon at the top of every page. Separate several messages with | . Leave empty to hide it.", placeholder: "e.g. New stock of TOPCon modules has arrived" },
@@ -104,6 +105,7 @@ export default function Settings() {
       </div>
       <p className="mt-4 max-w-3xl text-xs text-subtle">Search engines and link previews use these details too: changes appear on the next page load.</p>
       <MessageTemplates editable={editable} />
+      <FaqManager editable={editable} />
     </div>
   );
 }

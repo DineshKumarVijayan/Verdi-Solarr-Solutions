@@ -177,6 +177,21 @@ export const FieldPhotoInputSchema = z
   })
   .strict();
 
+export const FaqInputSchema = z
+  .object({
+    topic: z.string().trim().min(2, "Topic is required").max(40),
+    question: z.string().trim().min(5, "Write the question").max(200),
+    answer: z.string().trim().min(2, "Write the answer").max(2000),
+    questionTa: z.string().trim().max(300).default(""),
+    answerTa: z.string().trim().max(3000).default(""),
+    keywords: z.string().trim().max(300).default(""),
+    sortOrder: z.number().int().min(0).max(100000).default(0),
+    isActive: z.boolean().default(true),
+  })
+  .strict()
+  .refine((v) => !v.answerTa || v.questionTa, { message: "Add the Tamil question too", path: ["questionTa"] })
+  .refine((v) => !v.questionTa || v.answerTa, { message: "Add the Tamil answer too", path: ["answerTa"] });
+
 export const AdminUserInputSchema = z
   .object({
     /** Optional: staff sign in with their mobile number. */

@@ -14,6 +14,7 @@ import {
   CategoryInputSchema,
   EnquiryAdminUpdateSchema,
   EnquiryAssignSchema,
+  FaqInputSchema,
   FieldPhotoInputSchema,
   issues,
   MediaInputSchema,
@@ -29,6 +30,7 @@ import {
   type AdminCategory,
   type AdminCustomerRow,
   type AdminEnquiryRow,
+  type AdminFaq,
   type AdminFieldPhoto,
   type AdminIdentity,
   type AdminMedia,
@@ -1377,4 +1379,50 @@ export async function setProductStatus(env: Env, admin: AdminIdentity, id: numbe
   ]);
   await republish(env);
   return { stock: v.stock, onOffer: v.onOffer, offerLabel: v.onOffer ? v.offerLabel : null };
+}
+
+// ------------------------------------------------------------------ questions & answers (FAQ page and website helper)
+
+export async function listFaqs(env: Env): Promise<AdminFaq[]> {
+  const r = await env.DB.prepare("SELECT * FROM Faqs ORDER BY SortOrder, FaqId").all<Record<string, unknown>>();
+  return r.results.map((x) => ({
+    id: x.FaqId as number,
+    topic: x.Topic as string,
+    question: x.Question as string,
+    answer: x.Answer as string,
+    questionTa: (x.QuestionTa as string | null) ?? "",
+    answerTa: (x.AnswerTa as string | null) ?? "",
+    keywords: (x.Keywords as string | null) ?? "",
+    sortOrder: x.SortOrder as number,
+    isActive: x.IsActive === 1,
+  }));
+}
+
+export async function saveFaq(env: Env, admin: AdminIdentity, id: number | null, body: unknown) {
+  requireRole(admin, CONTENT_ROLES, "manage questions & answers");
+  const v = parse(FaqInputSchema, body);
+  const now = nowIso();
+  const before = id ? await env.DB.prepare("SELECT * FROM Faqs WHERE FaqId = ?1").bind(id).first() : null;
+  if (id && !before) throw new HttpError(404, "not_found", "Question not found.");
+  const ta = (s: string) => s || null;
+  const stmt = id
+    ? env.DB.prepare(
+        "UPDATE Faqs SET Topic = ?1, Question = ?2, Answer = ?3, QuestionTa = ?4, AnswerTa = ?5, Keywords = ?6, SortOrder = ?7, IsActive = ?8, UpdatedAt = ?9, UpdatedBy = ?10 WHERE FaqId = ?11",
+      ).bind(v.topic, v.question, v.answer, ta(v.questionTa), ta(v.answerTa), v.keywords, v.sortOrder, b(v.isActive), now, admin.email, id)
+    : env.DB.prepare(
+        `INSERT INTO Faqs (Topic, Question, Answer, QuestionTa, AnswerTa, Keywords, SortOrder, IsActive, CreatedAt, UpdatedAt, UpdatedBy)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, CASE WHEN ?7 > 0 THEN ?7 ELSE COALESCE((SELECT MAX(SortOrder) + 10 FROM Faqs), 10) END, ?8, ?9, ?9, ?10)`,
+      ).bind(v.topic, v.question, v.answer, ta(v.questionTa), ta(v.answerTa), v.keywords, v.sortOrder, b(v.isActive), now, admin.email);
+  await env.DB.batch([stmt, audit(env, admin, id ? "faq.update" : "faq.create", "Faq", id, before, v, now)]);
+  await republish(env);
+  return { faqs: await listFaqs(env) };
+}
+
+export async function deleteFaq(env: Env, admin: AdminIdentity, id: number) {
+  requireRole(admin, CONTENT_ROLES, "manage questions & answers");
+  const before = await env.DB.prepare("SELECT * FROM Faqs WHERE FaqId = ?1").bind(id).first<Record<string, unknown>>();
+  if (!before) throw new HttpError(404, "not_found", "Question not found.");
+  await env.DB.batch([env.DB.prepare("DELETE FROM Faqs WHERE FaqId = ?1").bind(id), audit(env, admin, "faq.delete", "Faq", id, before, null, nowIso())]);
+  await republish(env);
+  return { faqs: await listFaqs(env) };
 }

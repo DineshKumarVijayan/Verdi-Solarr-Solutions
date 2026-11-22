@@ -1,10 +1,11 @@
-import { BookOpen, Calculator, Camera, ClipboardList, Ellipsis, FileText, GitCompareArrows, GraduationCap, House, LayoutDashboard, LayoutGrid, LogOut, Mail, MapPin, Phone, Scale, UserRound, Wrench } from "lucide-react";
+import { BookOpen, CircleHelp, Sparkles, Calculator, Camera, ClipboardList, Ellipsis, FileText, GitCompareArrows, GraduationCap, House, LayoutDashboard, LayoutGrid, LogOut, Mail, MapPin, Phone, Scale, UserRound, Wrench } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import { useAccount, useStaff } from "../lib/account";
 import { useBasket } from "../lib/basket";
 import { useCompare } from "../lib/compare";
 import { useSite } from "../lib/site";
+import { useCatalogue } from "../lib/catalogue";
 import { BottomSheet, SheetGroup } from "./mobile/kit";
 import { WhatsAppIcon } from "./WhatsAppIcon";
 
@@ -72,6 +73,7 @@ function Tile({ to, href, icon, children, badge, external, onClick, tone = "" }:
 
 function PublicMoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const SITE = useSite();
+  const { data } = useCatalogue();
   const compare = useCompare();
   const basket = useBasket();
   const { customer, logout } = useAccount();
@@ -100,6 +102,21 @@ function PublicMoreSheet({ open, onClose }: { open: boolean; onClose: () => void
         <Tile to="/contact" icon={<MapPin className={i} />}>
           Contact &amp; address
         </Tile>
+        <Tile
+          onClick={() => {
+            onClose();
+            window.dispatchEvent(new CustomEvent("vs:helper-open", { detail: null }));
+          }}
+          icon={<Sparkles className={i} />}
+          tone="text-verdi-600"
+        >
+          Ask VERDI Helper
+        </Tile>
+        {!!data?.faqs?.length && (
+          <Tile to="/faq" icon={<CircleHelp className={i} />}>
+            Questions &amp; answers
+          </Tile>
+        )}
       </SheetGroup>
       <SheetGroup title="Shop">
         <Tile to="/products" icon={<LayoutGrid className={i} />}>

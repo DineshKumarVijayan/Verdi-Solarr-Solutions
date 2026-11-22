@@ -13,7 +13,7 @@ import type { Env } from "./env";
 import { nowIso } from "./http";
 
 /** Snapshot format version. Older snapshots (without field photos/settings) are rebuilt on read. */
-export const SNAPSHOT_SCHEMA = 3; // 3: stock status and offers
+export const SNAPSHOT_SCHEMA = 4; // 3: stock status and offers; 4: questions & answers
 
 /** Media abstraction: static deployment assets vs. R2 objects. */
 export function mediaUrl(storageKey: string): string {
@@ -72,7 +72,7 @@ const PRODUCT_SELECT = `
 
 /** Build the public catalogue from normalised tables. Only public fields are selected. */
 export async function buildCatalogue(env: Env, version: number): Promise<PublicCatalogue> {
-  const [brands, categories, products, specs, media, photos, settings] = await env.DB.batch([
+  const [brands, categories, products, specs, media, photos, settings, faqs] = await env.DB.batch([
     env.DB.prepare("SELECT BrandId, BrandSlug, BrandName, Description, Website, LogoStorageKey FROM Brands WHERE IsActive = 1 ORDER BY SortOrder, BrandName"),
     env.DB.prepare("SELECT CategoryId, CategorySlug, CategoryName, Description, SortOrder FROM Categories WHERE IsActive = 1 ORDER BY SortOrder, CategoryName"),
     env.DB.prepare(`${PRODUCT_SELECT} ORDER BY p.CategoryId, p.SeriesKey, p.ProductId`),
@@ -88,6 +88,7 @@ export async function buildCatalogue(env: Env, version: number): Promise<PublicC
     ),
     env.DB.prepare("SELECT StorageKey, Caption, Tag, IsTall FROM FieldPhotos WHERE IsActive = 1 ORDER BY SortOrder, PhotoId"),
     env.DB.prepare("SELECT SettingKey, SettingValue FROM SiteSettings"),
+    env.DB.prepare("SELECT FaqId, Topic, Question, Answer, QuestionTa, AnswerTa, Keywords FROM Faqs WHERE IsActive = 1 ORDER BY SortOrder, FaqId"),
   ]);
 
   const specMap = new Map<number, PublicSpec[]>();
@@ -174,6 +175,15 @@ export async function buildCatalogue(env: Env, version: number): Promise<PublicC
       tall: f.IsTall === 1,
     })),
     settings: settingMap,
+    faqs: (faqs.results as Record<string, unknown>[]).map((f) => ({
+      id: f.FaqId as number,
+      topic: f.Topic as string,
+      q: f.Question as string,
+      a: f.Answer as string,
+      qTa: (f.QuestionTa as string | null) || null,
+      aTa: (f.AnswerTa as string | null) || null,
+      k: (f.Keywords as string | null) ?? "",
+    })),
   };
 }
 
