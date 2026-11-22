@@ -106,7 +106,12 @@ test("website helper answers from the live catalogue and contact details, never 
   await page.getByTestId("helper-lang-ta").click();
   await expect(panel.getByTestId("helper-bot").first()).toContainText("வணக்கம்");
 
-  // Escape closes; nothing was sent to the server
+  // Escape closes; opening again starts a fresh conversation
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await page.getByTestId("customer-helper-open").click();
+  await expect(panel.getByTestId("helper-bot")).toHaveCount(1);
+  await expect(panel.getByTestId("helper-me")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
   expect(calls.filter((c) => !c.startsWith("GET "))).toEqual([]);
@@ -150,6 +155,10 @@ test("staff helper: sales staff get their own day and pages they may use; owner/
     }
     // nothing was fetched for those
     expect(calls.slice(before)).toEqual([]);
+
+    // pages they can open but not change, explained in any wording
+    await expect(await ask("how do I upload product photos?")).toContainText("only the owner or an admin can change it");
+    await expect(await ask("changing price")).toContainText("price editor");
 
     // own day: the same endpoint as the dashboard
     await ask("my day");

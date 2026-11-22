@@ -295,7 +295,7 @@ function has(plain: string, words: readonly string[]): boolean {
 }
 
 /** Words that carry meaning (stop words and intent words removed), in the search engine's spelling. */
-function contentTokens(q: string): string[] {
+export function contentTokens(q: string): string[] {
   let s = q.toLowerCase();
   for (const [ta, en] of TA_PRODUCT) s = s.split(ta).join(` ${en} `);
   return normalise(s)
@@ -428,6 +428,96 @@ function kwFrom(q: string): number | null {
 
 const inr = (n: number) => "₹" + Math.round(n).toLocaleString("en-IN");
 
+// ------------------------------------------------------------------ how-to guides (site help, admin help)
+
+/** Rough English stemmer: "uploading photos" and "upload photo" become the same words. */
+export function stems(s: string): string[] {
+  return plainText(s)
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => {
+      if (isTamilWord(w)) return w;
+      let x = w.replace(/'s$/, "").replace(/[.'-]+$/, "");
+      if (x.length > 5 && x.endsWith("ing")) x = x.slice(0, -3);
+      else if (x.length > 4 && x.endsWith("ies")) x = x.slice(0, -3) + "y";
+      else if (x.length > 4 && x.endsWith("ed")) x = x.slice(0, -2);
+      else if (x.length > 3 && x.endsWith("s") && !x.endsWith("ss")) x = x.slice(0, -1);
+      if (x.length > 4 && x.endsWith("e")) x = x.slice(0, -1);
+      return x;
+    });
+}
+
+/** Words that show the person wants to know how to do something (not a product question). */
+const HOW_WORDS = ["how", "where", "can", "change", "edit", "update", "add", "upload", "delete", "remove", "set", "create", "make", "send", "approve", "pay", "find", "see", "view", "open", "enable", "disable", "hide", "show", "reset", "export", "download", "assign", "reassign", "manage", "use", "mark", "track", "check", "register", "sign", "login", "log", "invite", "give", "cancel", "undo", "move", "write", "what", "who", "which", "do", "does", "need", "want", "help", "forgot", "lost", "get"];
+const HOW = new Set(HOW_WORDS.map((w) => stems(w)[0] ?? w));
+const HOW_TA = /எப்படி|எங்கே|மாற்ற|சேர்|அனுப்ப|பார்க்க|நீக்க|பதிவேற்ற|என்ன/;
+
+export interface Guide {
+  id: string;
+  /** what it is about: words or short phrases in any form ("photo", "upload photos"); Tamil words match anywhere */
+  about: string[];
+  en: string;
+  ta: string;
+  link?: HelperLink & { ta?: string };
+}
+
+const dfCache = new WeakMap<Guide[], Map<string, number>>();
+/** In how many guides each word appears. */
+function guideWordCounts(guides: Guide[]): Map<string, number> {
+  let m = dfCache.get(guides);
+  if (m) return m;
+  m = new Map();
+  for (const g of guides) for (const w of new Set(g.about.flatMap((a) => (isTamilWord(a) ? [] : stems(a))))) m.set(w, (m.get(w) ?? 0) + 1);
+  dfCache.set(guides, m);
+  return m;
+}
+
+/** Best matching guide, or null. `asking` is true when the question is phrased as "how / where / can I …". */
+export function matchGuide<G extends Guide>(guides: G[], q: string): { guide: G; score: number; asking: boolean } | null {
+  const words = stems(q);
+  const set = new Set(words);
+  const plain = plainText(q);
+  const asking = words.some((w) => HOW.has(w)) || HOW_TA.test(q);
+  // words used by many guides ("enquiry", "product") count less than specific ones ("reassign", "image")
+  const df = guideWordCounts(guides);
+  let best: { guide: G; score: number; asking: boolean; rank: number } | null = null;
+  for (const g of guides) {
+    let score = 0;
+    let rank = 0;
+    for (const a of g.about) {
+      if (isTamilWord(a)) {
+        if (plain.includes(a)) (score += 1.5), (rank += 2);
+        continue;
+      }
+      const k = stems(a);
+      if (k.length && k.every((w) => set.has(w))) {
+        score += k.length;
+        rank += k.length + k.reduce((s, w) => s + 1 / (df.get(w) ?? 1), 0);
+      }
+    }
+    if (score >= 1 && rank > (best?.rank ?? 0)) best = { guide: g, score, asking, rank };
+  }
+  return best ? { guide: best.guide, score: best.score, asking: best.asking } : null;
+}
+
+export function guideAnswer(g: Guide, lang: Lang): HelperAnswer {
+  return { text: lang === "ta" ? g.ta : g.en, links: g.link ? [{ label: lang === "ta" && g.link.ta ? g.link.ta : g.link.label, to: g.link.to }] : undefined };
+}
+
+/** Help with the website itself, for visitors. It only describes what the site does. */
+const SITE_GUIDES: Guide[] = [
+  { id: "account", about: ["account", "register", "sign up", "signup", "create account", "login", "log in", "sign in", "கணக்கு"], en: "Create a free account with your mobile number on the Account page. Then you can follow every enquiry you send and see your loyalty points.", ta: "Account பக்கத்தில் உங்கள் மொபைல் எண்ணுடன் இலவசக் கணக்கு தொடங்கலாம். பிறகு நீங்கள் அனுப்பிய ஒவ்வொரு விசாரணையின் நிலையையும், loyalty புள்ளிகளையும் பார்க்கலாம்.", link: { label: "My account", to: "/account", ta: "என் கணக்கு" } },
+  { id: "password", about: ["password", "forgot password", "reset password", "கடவுச்சொல்"], en: "Forgot your password? Message us on WhatsApp from your registered number and we'll send you a reset link.", ta: "கடவுச்சொல் மறந்துவிட்டதா? பதிவு செய்த எண்ணிலிருந்து WhatsApp செய்தால் reset link அனுப்புவோம்.", link: { label: "My account", to: "/account", ta: "என் கணக்கு" } },
+  { id: "order", about: ["order", "place order", "send enquiry", "enquiry", "enquire", "buy", "purchase", "quotation", "quote", "basket", "cart", "வாங்க", "ஆர்டர்", "விசாரணை"], en: "Add products to your enquiry list (the Enquiry button), choose quantities and send it. Every price is checked again before it goes, and you can send it on WhatsApp. We reply with a quotation.", ta: "பொருட்களை enquiry பட்டியலில் சேர்த்து, எண்ணிக்கையைத் தேர்வு செய்து அனுப்புங்கள். அனுப்பும் முன் ஒவ்வொரு விலையும் மீண்டும் சரிபார்க்கப்படும், WhatsApp-லும் அனுப்பலாம். நாங்கள் quotation அனுப்புவோம்.", link: { label: "My enquiry list", to: "/enquiry", ta: "என் enquiry பட்டியல்" } },
+  { id: "compare", about: ["compare", "comparison", "side by side", "ஒப்பிடு"], en: "Tap the compare icon on up to four products, then open Compare to see them side by side, with the differences highlighted.", ta: "அதிகபட்சம் நான்கு பொருட்களில் compare குறியைத் தட்டி, Compare பக்கத்தில் பக்கம் பக்கமாக ஒப்பிடலாம். வித்தியாசங்கள் தனியாகக் காட்டப்படும்.", link: { label: "Compare", to: "/compare" } },
+  { id: "tools", about: ["tool", "calculator", "calculate", "roof", "battery backup", "kit builder", "loss", "tilt", "orientation", "கருவி", "கணக்கீடு"], en: "Free solar tools: appliance load, size and savings, roof space, kit builder, battery backup, losses, tilt and orientation, a system explorer and a datasheet decoder.", ta: "இலவச சோலார் கருவிகள்: மின்சுமை, அளவு மற்றும் சேமிப்பு, கூரை இடம், kit builder, பேட்டரி பேக்கப், இழப்புகள், சாய்வு மற்றும் திசை, system explorer, datasheet decoder.", link: { label: "Solar tools", to: "/solar-tools", ta: "சோலார் கருவிகள்" } },
+  { id: "learn", about: ["learn", "lesson", "basics", "beginner", "myth", "கற்று", "பாடம்"], en: "The Learning hub explains solar in short, simple lessons, from how a cell works to choosing an inverter.", ta: "Learning hub சோலாரை சிறிய, எளிய பாடங்களில் விளக்குகிறது.", link: { label: "Learning hub", to: "/learn" } },
+  { id: "field", about: ["project", "installation", "gallery", "in the field", "field photo", "திட்டம்"], en: "See real photos of products and work in the field.", ta: "களத்தில் எடுத்த உண்மையான படங்களைப் பாருங்கள்.", link: { label: "In the field", to: "/in-the-field" } },
+  { id: "datasheet", about: ["datasheet", "data sheet", "brochure"], en: "Every product with a datasheet shows a Preview button on its page. The real manufacturer PDF opens right there, and you can download it. Tell me the product name to get its datasheet.", ta: "datasheet உள்ள ஒவ்வொரு பொருள் பக்கத்திலும் Preview பட்டன் இருக்கும். உண்மையான PDF அங்கேயே திறக்கும், download-உம் செய்யலாம். பொருளின் பெயரைச் சொன்னால் அதன் datasheet தருகிறேன்.", link: { label: "All products", to: "/products", ta: "அனைத்து பொருட்கள்" } },
+  { id: "language", about: ["tamil", "language", "english", "தமிழ்"], en: "Use the EN / தமிழ் switch at the top of this chat to change the language.", ta: "மொழியை மாற்ற இந்த chat-ன் மேலே உள்ள EN / தமிழ் பட்டனைப் பயன்படுத்துங்கள்." },
+];
+
 // ------------------------------------------------------------------ answers
 
 function contactLinks(ctx: HelperContext): HelperLink[] {
@@ -548,6 +638,12 @@ export function reply(question: string, ctx: HelperContext): HelperAnswer {
 
   const faq = bestFaq(faqs, q, ctx.lang);
   if (faq && faq.score >= 0.67) return faqAnswer(faq.faq, ctx, q);
+
+  // how to use the website ("how do I create an account?")
+  if (!ctx.staff) {
+    const g = matchGuide(SITE_GUIDES, q);
+    if (g && g.asking && !has(plain, W.myEnquiry) && !((g.guide.id === "order" || g.guide.id === "datasheet") && findProducts(ctx.index, tokens, 1).length)) return guideAnswer(g.guide, ctx.lang);
+  }
 
   // the visitor's own account (read only)
   if (!ctx.staff) {

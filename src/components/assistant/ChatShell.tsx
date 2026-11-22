@@ -89,12 +89,18 @@ export function ChatShell({
     return () => mq.removeEventListener("change", on);
   }, []);
 
-  // start (and restart in the other language) with the welcome message
+  // every opening is a fresh conversation (closing clears it); switching language also starts afresh
   const welcomeRef = useRef(welcome);
   welcomeRef.current = welcome;
   useEffect(() => {
+    if (!open) {
+      if (timer.current) window.clearTimeout(timer.current);
+      setTyping(false);
+      setText("");
+      return;
+    }
     setMsgs([{ id: ++seq.current, bot: welcomeRef.current() }]);
-  }, [lang]);
+  }, [lang, open]);
 
   const ask = useCallback(
     (q: string) => {
@@ -155,7 +161,7 @@ export function ChatShell({
             role="dialog"
             aria-modal={!desktop}
             aria-labelledby={titleId}
-            className="fixed z-50 flex flex-col overflow-hidden border border-line bg-card shadow-[0_30px_80px_-20px_rgba(10,30,20,0.45)] max-lg:inset-x-0 max-lg:top-[6vh] max-lg:bottom-0 max-lg:rounded-t-[1.75rem] lg:right-6 lg:bottom-24 lg:h-[min(40rem,calc(100vh-8rem))] lg:w-[25rem] lg:origin-bottom-right lg:rounded-[1.75rem]"
+            className="fixed z-50 flex flex-col overflow-hidden border border-line bg-card shadow-[0_30px_80px_-20px_rgba(10,30,20,0.45)] max-lg:inset-x-0 max-lg:top-[6vh] max-lg:bottom-0 max-lg:rounded-t-[1.75rem] lg:right-24 lg:bottom-24 lg:h-[min(40rem,calc(100vh-8rem))] lg:w-[25rem] lg:origin-bottom-right lg:rounded-[1.75rem]"
             initial={desktop ? { opacity: 0, scale: 0.9, y: 18 } : { y: "100%" }}
             animate={desktop ? { opacity: 1, scale: 1, y: 0 } : { y: 0 }}
             exit={desktop ? { opacity: 0, scale: 0.94, y: 12, transition: { duration: 0.18 } } : { y: "100%", transition: { duration: 0.25 } }}

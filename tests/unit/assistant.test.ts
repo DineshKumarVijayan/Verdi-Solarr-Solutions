@@ -136,6 +136,17 @@ describe("website helper", () => {
     expect(miss.links?.map((l) => l.to)).toContain("https://wa.me/919000000000");
   });
 
+  it("explains how to use the website", () => {
+    expect(reply("how do I create an account", ctx()).links?.[0].to).toBe("/account");
+    expect(reply("forgot password", ctx()).text).toContain("reset link");
+    expect(reply("how can I compare products?", ctx()).links?.[0].to).toBe("/compare");
+    expect(reply("which tools do you have", ctx()).links?.[0].to).toBe("/solar-tools");
+    expect(reply("how do I place an order", ctx()).links?.[0].to).toBe("/enquiry");
+    expect(reply("கணக்கு எப்படி தொடங்குவது", ctx({ lang: "ta" })).links?.[0].to).toBe("/account");
+    // a product question still gets the product, not the guide
+    expect(reply("540 wp datasheet", ctx()).products).toEqual([1]);
+  });
+
   it("never invents: the FAQ matcher needs real overlap", () => {
     expect((bestFaq(cat.faqs!, "solar panel price", "en")?.score ?? 0) < 0.4).toBe(true);
   });
@@ -157,17 +168,42 @@ describe("staff helper", () => {
   });
 
   it("keeps owner/admin topics away from sales staff", () => {
-    for (const q of ["staff performance", "customer list", "approve bonus", "reassign enquiries", "change price", "add points"]) {
+    for (const q of ["staff performance", "customer list", "approve bonus", "reassign enquiries", "add points", "how do i delete a quotation"]) {
       const a = staffReply(q, sctx("viewer"));
       expect(a.text, q).toBe("That's only available to the owner or an admin.");
       expect(a.links, q).toBeUndefined();
       expect(a.need, q).toBeUndefined();
     }
+    // pages they can open but not change: a clear note plus the page
+    const price = staffReply("how do I change a price?", sctx("viewer"));
+    expect(price.text).toContain("only the owner, an admin or a price editor can change it");
+    expect(price.links?.[0].to).toBe("/admin/prices");
     expect(staffReply("my bonus", sctx("viewer")).links?.[0].to).toBe("/admin/my-bonus");
     expect(staffReply("change price", sctx("price_editor")).links?.[0].to).toBe("/admin/prices");
     expect(staffReply("approve bonus", sctx("admin")).links?.[0].to).toBe("/admin/bonus");
     expect(staffReply("add staff", sctx("admin")).text).toBe("That's only available to the owner.");
     expect(staffReply("add staff", sctx("owner")).links?.[0].to).toBe("/admin/users");
+  });
+
+  it("knows every admin module, in any wording", () => {
+    const photos = staffReply("uploading photos", sctx("admin"));
+    expect(photos.text).toContain("Upload images");
+    expect(photos.links?.[0].to).toBe("/admin/products");
+    expect(staffReply("how to upload product images", sctx("owner")).text).toContain("Upload images");
+    expect(staffReply("where do I add a datasheet", sctx("admin")).text).toContain("Datasheet (PDF)");
+    expect(staffReply("check products", sctx("admin")).links?.[0].to).toBe("/admin/products");
+    expect(staffReply("how do I set an offer?", sctx("admin")).text).toContain("Availability & offer");
+    expect(staffReply("changing price", sctx("price_editor")).links?.[0].to).toBe("/admin/prices");
+    expect(staffReply("mark out of stock", sctx("admin")).text).toContain("Out of stock");
+    expect(staffReply("how do I add a brand", sctx("admin")).links?.[0].to).toBe("/admin/catalogue");
+    expect(staffReply("field photos", sctx("admin")).links?.[0].to).toBe("/admin/field-photos");
+    expect(staffReply("download excel", sctx("viewer")).text).toContain("Download Excel");
+    expect(staffReply("set follow up date", sctx("viewer")).text).toContain("follow-up date");
+    expect(staffReply("how do I send a quotation?", sctx("viewer")).text).toContain("WhatsApp");
+    expect(staffReply("change my password", sctx("viewer")).text).toContain("Password");
+    expect(staffReply("add a question to faq", sctx("admin")).links?.[0].to).toBe("/admin/settings#faqs");
+    expect(staffReply("What can I do?", sctx("viewer")).text).toContain("Sales staff");
+    expect(staffReply("பொருள் படம் எப்படி பதிவேற்றுவது?", sctx("admin")).links?.[0].to).toBe("/admin/products");
   });
 
   it("answers product questions from the public catalogue and offers", () => {
