@@ -36,6 +36,18 @@ test("test customer signs in and gets the My account menu (hidden when signed ou
   await expect(page.getByTestId("account-name")).toContainText("Hello, Test");
   await expect(page.getByTestId("points-balance")).toBeVisible();
   await expect(primary.getByRole("link", { name: "My account" })).toBeVisible();
+  // something in the enquiry list and the comparison before signing out
+  const cat = await (await page.request.get("/api/catalogue")).json();
+  await page.evaluate((ids) => {
+    localStorage.setItem("verdi.enquiry.v1", JSON.stringify([{ productId: ids[0], quantity: 2, seenSellingPaise: null, seenVersion: 1, addedAt: new Date().toISOString() }]));
+    localStorage.setItem("verdi.compare.v1", JSON.stringify(ids));
+  }, [cat.products[0].id, cat.products[1].id]);
+  await page.reload();
+  await expect(page.getByTestId("basket-count")).toHaveText("1");
   await page.getByTestId("sign-out").click();
   await expect(primary.getByRole("link", { name: "My account" })).toHaveCount(0);
+  // a friendly "signed out" message, and this device forgets the list and the comparison
+  await expect(page.getByTestId("signed-out-notice")).toContainText("You're signed out");
+  await expect(page.getByTestId("basket-count")).toHaveText("0");
+  expect(await page.evaluate(() => [localStorage.getItem("verdi.enquiry.v1"), localStorage.getItem("verdi.compare.v1")])).toEqual(["[]", "[]"]);
 });

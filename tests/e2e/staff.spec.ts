@@ -95,7 +95,7 @@ test("signed-in users are signed out after 30 minutes without activity", async (
   // browser: coming back after 31 minutes shows signed out, with a notice, and ends the server session
   await page.evaluate(() => localStorage.setItem("verdi.lastActive", String(Date.now() - 31 * 60_000)));
   await page.goto("/");
-  await expect(page.getByText("signed out after 30 minutes")).toBeVisible();
+  await expect(page.getByTestId("signed-out-notice")).toContainText("No activity for 30 minutes");
   await expect(page.getByTestId("signed-in-badge")).toHaveCount(0);
   await expect.poll(async () => (await (await page.request.get("/api/account/me")).json()).customer).toBeNull();
 

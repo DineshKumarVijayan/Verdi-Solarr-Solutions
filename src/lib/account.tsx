@@ -10,7 +10,7 @@ interface AccountState {
   checking: boolean;
   login: (login: string, password: string) => Promise<CustomerProfile>;
   register: (input: RegisterInput) => Promise<CustomerProfile>;
-  logout: () => Promise<void>;
+  logout: (reason?: "manual" | "idle") => Promise<void>;
   refresh: () => Promise<void>;
   setCustomer: (c: CustomerProfile | null) => void;
 }
@@ -21,13 +21,21 @@ const post = (path: string, body?: unknown) => api<{ customer: CustomerProfile }
 
 /** The session cookie is HttpOnly; a non-secret hint cookie tells us whether asking the server is worthwhile. */
 /** True while an admin (staff) session may exist in this browser (hint cookie set at admin sign-in). */
+/**
+ * Tell the app someone signed out: the "Signed out" message shows, and this device forgets the
+ * enquiry list, the comparison and the helper conversation (the next person starts clean).
+ */
+export function announceSignOut(who: "customer" | "staff", reason: "manual" | "idle" = "manual") {
+  window.dispatchEvent(new CustomEvent("vs:signed-out", { detail: { who, reason } }));
+}
+
 export const staffSignedIn = () => typeof document !== "undefined" && /(?:^|;\s*)vs_staff=1/.test(document.cookie);
 
 /**
  * Signed-in admin (staff) for the public header. Asks the server only when the hint cookie is
  * present, and again whenever that changes (sign-in / sign-out in the admin area).
  */
-export function useStaff(): { staff: AdminIdentity | null; signOut: () => Promise<void> } {
+export function useStaff(): { staff: AdminIdentity | null; signOut: (reason?: "manual" | "idle") => Promise<void> } {
   const hint = staffSignedIn();
   const [staff, setStaff] = useState<AdminIdentity | null>(null);
   useEffect(() => {
@@ -60,11 +68,12 @@ export function useStaff(): { staff: AdminIdentity | null; signOut: () => Promis
       window.removeEventListener("vs:admin-signed-in", started);
     };
   }, []);
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (reason: "manual" | "idle" = "manual") => {
     await api("/api/admin/logout", { method: "POST", body: "{}" }).catch(() => undefined);
     document.cookie = "vs_staff=; Path=/; Max-Age=0";
     setStaff(null);
     window.dispatchEvent(new Event("vs:admin-signed-out"));
+    announceSignOut("staff", reason);
   }, []);
   return { staff, signOut };
 }
@@ -118,9 +127,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         setCustomer(r.customer);
         return r.customer;
       },
-      logout: async () => {
+      logout: async (reason: "manual" | "idle" = "manual") => {
         await api("/api/account/logout", { method: "POST", body: "{}" }).catch(() => undefined);
         setCustomer(null);
+        announceSignOut("customer", reason);
       },
     }),
     [customer, checking, refresh],

@@ -61,6 +61,12 @@ export function BasketProvider({ children }: { children: ReactNode }) {
   }, []);
   const remove = useCallback((productId: number) => setLines((ls) => ls.filter((l) => l.productId !== productId)), []);
   const clear = useCallback(() => setLines([]), []);
+  // signing out (customer or staff) forgets the list on this device; guests keep theirs between visits
+  useEffect(() => {
+    const onOut = () => setLines([]);
+    window.addEventListener("vs:signed-out", onOut);
+    return () => window.removeEventListener("vs:signed-out", onOut);
+  }, []);
 
   const value = useMemo<BasketState>(
     () => ({ lines, count: lines.length, add, setQty, updateSeen, remove, clear, has: (id) => lines.some((l) => l.productId === id), lastAdded }),

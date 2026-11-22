@@ -90,6 +90,15 @@ export function HelperLauncher({ kind }: { kind: "customer" | "staff" }) {
     setStarter(null);
   }, []);
   const [session, setSession] = useState(0);
+  useEffect(() => {
+    const onOut = () => {
+      setOpen(false);
+      setStarter(null);
+      setSession((n) => n + 1);
+    };
+    window.addEventListener("vs:signed-out", onOut);
+    return () => window.removeEventListener("vs:signed-out", onOut);
+  }, []);
   const end = useCallback(() => {
     setOpen(false);
     setStarter(null);

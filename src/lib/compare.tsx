@@ -17,6 +17,12 @@ const Ctx = createContext<CompareState | null>(null);
 export function CompareProvider({ children }: { children: ReactNode }) {
   const [ids, setIds] = useState<number[]>(() => readStore<number[]>(KEY, []).filter((n) => Number.isInteger(n)).slice(0, MAX_COMPARE));
   useEffect(() => writeStore(KEY, ids), [ids]);
+  // signing out forgets the comparison on this device
+  useEffect(() => {
+    const onOut = () => setIds([]);
+    window.addEventListener("vs:signed-out", onOut);
+    return () => window.removeEventListener("vs:signed-out", onOut);
+  }, []);
   const toggle = useCallback(
     (id: number) => {
       if (ids.includes(id)) {

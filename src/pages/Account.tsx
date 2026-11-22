@@ -189,7 +189,6 @@ function AuthForms() {
 function Dashboard() {
   const { customer, logout, setCustomer } = useAccount();
   const c = customer!;
-  const toast = useToast();
   const [enquiries, setEnquiries] = useState<EnquiryView[] | null>(null);
   const pg = usePaged(enquiries ?? [], "account.enquiries");
   const [rewards, setRewards] = useState<{ balance: number; entries: RewardEntry[] } | null>(null);
@@ -226,7 +225,6 @@ function Dashboard() {
           className="btn-ghost btn-sm"
           onClick={async () => {
             await logout();
-            toast("Signed out", "success");
           }}
           data-testid="sign-out"
         >

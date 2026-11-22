@@ -4,6 +4,7 @@ import { AccountMenu } from "./AccountMenu";
 import { Announcement } from "./Announcement";
 import { ContactFabs } from "./ContactFabs";
 import { HelperLauncher } from "./assistant/Launcher";
+import { SignedOutNotice } from "./SignedOutNotice";
 import { MobileTabBar } from "./MobileTabBar";
 import { WhatsAppIcon } from "./WhatsAppIcon";
 import { useEffect, useState } from "react";
@@ -12,8 +13,6 @@ import localPages from "../../data/local-pages.json";
 import { useAccount, useStaff } from "../lib/account";
 import { api } from "../lib/api";
 import { useIdleSignOut } from "../lib/idle";
-import { useToast } from "./ui";
-import { IDLE_MINUTES } from "../../shared/session";
 import { useBasket } from "../lib/basket";
 import { useCatalogue } from "../lib/catalogue";
 import { useCompare } from "../lib/compare";
@@ -38,16 +37,14 @@ export function Layout() {
   const isAdmin = loc.pathname.startsWith("/admin");
   const { customer, logout } = useAccount();
   const { staff, signOut: staffSignOut } = useStaff();
-  const toast = useToast();
   useIdleSignOut({
     active: !!customer || !!staff,
     onTimeout: () => {
-      if (customer) void logout();
+      if (customer) void logout("idle");
       if (staff) {
         window.dispatchEvent(new Event("vs:admin-expired")); // admin screen shows the reason first
-        void staffSignOut();
+        void staffSignOut("idle");
       }
-      toast(`You were signed out after ${IDLE_MINUTES} minutes of inactivity.`, "info");
     },
     keepAlive: () => {
       if (customer) void api("/api/account/me").catch(() => undefined);
@@ -152,6 +149,7 @@ export function Layout() {
       <ContactFabs />
       <MobileTabBar />
       <SearchPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <SignedOutNotice />
       <ScrollRestoration />
     </div>
   );

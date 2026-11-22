@@ -11,6 +11,7 @@ import { AdminTabBar, AdminTopBar } from "./AdminMobile";
 import { api, ApiError } from "../../lib/api";
 import { usePageMeta } from "../../lib/seo";
 import { HelperLauncher } from "../../components/assistant/Launcher";
+import { announceSignOut } from "../../lib/account";
 
 const NAV = ADMIN_NAV;
 
@@ -79,6 +80,7 @@ export default function AdminLayout() {
     document.cookie = "vs_staff=; Path=/; Max-Age=0";
     setState({ error: new ApiError(401, "signed_out", "Signed out.") });
     window.dispatchEvent(new Event("vs:admin-expired"));
+    announceSignOut("staff");
   };
   return (
     <AdminCtx.Provider value={admin}>
