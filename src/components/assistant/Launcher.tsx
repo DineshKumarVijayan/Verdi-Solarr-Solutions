@@ -89,6 +89,12 @@ export function HelperLauncher({ kind }: { kind: "customer" | "staff" }) {
     setOpen(false);
     setStarter(null);
   }, []);
+  const [session, setSession] = useState(0);
+  const end = useCallback(() => {
+    setOpen(false);
+    setStarter(null);
+    setSession((n) => n + 1);
+  }, []);
 
   const label = kind === "staff" ? (lang === "ta" ? "உதவி" : "Helper") : lang === "ta" ? "கேளுங்கள்" : "Ask VERDI";
   const Panel = kind === "staff" ? StaffHelper : CustomerHelper;
@@ -140,7 +146,7 @@ export function HelperLauncher({ kind }: { kind: "customer" | "staff" }) {
       </div>
       {loaded && (
         <Suspense fallback={null}>
-          <Panel open={open} onClose={close} lang={lang} setLang={setLang} starter={starter} />
+          <Panel open={open} onClose={close} onEnd={end} session={session} lang={lang} setLang={setLang} starter={starter} />
         </Suspense>
       )}
     </>

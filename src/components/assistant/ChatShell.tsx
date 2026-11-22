@@ -1,5 +1,5 @@
 import { AnimatePresence } from "motion/react";
-import { ArrowUpRight, Languages, SendHorizontal, Sparkles, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Languages, SendHorizontal, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import type { HelperAnswer, HelperLink, Lang } from "../../../shared/assistant";
@@ -46,6 +46,8 @@ function Typing() {
 export function ChatShell({
   open,
   onClose,
+  session,
+  onEnd,
   title,
   subtitle,
   lang,
@@ -58,7 +60,12 @@ export function ChatShell({
   starter,
 }: {
   open: boolean;
+  /** minimise: hide the panel and keep the conversation */
   onClose: () => void;
+  /** changes when the conversation is ended (the next opening starts afresh) */
+  session: number;
+  /** end the conversation and close */
+  onEnd: () => void;
   title: string;
   subtitle: string;
   lang: Lang;
@@ -89,18 +96,15 @@ export function ChatShell({
     return () => mq.removeEventListener("change", on);
   }, []);
 
-  // every opening is a fresh conversation (closing clears it); switching language also starts afresh
+  // minimising keeps the conversation; ending it (or switching language) starts afresh
   const welcomeRef = useRef(welcome);
   welcomeRef.current = welcome;
   useEffect(() => {
-    if (!open) {
-      if (timer.current) window.clearTimeout(timer.current);
-      setTyping(false);
-      setText("");
-      return;
-    }
+    if (timer.current) window.clearTimeout(timer.current);
+    setTyping(false);
+    setText("");
     setMsgs([{ id: ++seq.current, bot: welcomeRef.current() }]);
-  }, [lang, open]);
+  }, [lang, session]);
 
   const ask = useCallback(
     (q: string) => {
@@ -149,7 +153,6 @@ export function ChatShell({
   const closeOnPhone = () => {
     if (!isDesktop()) onClose();
   };
-  const lastBot = [...msgs].reverse().find((x) => x.bot)?.id;
 
   return (
     <AnimatePresence>
@@ -173,7 +176,7 @@ export function ChatShell({
               <div className="pointer-events-none absolute -top-16 -right-10 size-40 rounded-full bg-sun-300/30 blur-2xl" aria-hidden="true" />
               <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/40 lg:hidden" aria-hidden="true" />
               <div className="relative flex items-center gap-3">
-                <span className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/30">
+                <span className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/30 max-[379px]:hidden">
                   <Sparkles className="size-5" />
                   <span className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-verdi-600 bg-lime-300" aria-hidden="true" />
                 </span>
@@ -191,7 +194,10 @@ export function ChatShell({
                     </button>
                   ))}
                 </div>
-                <button type="button" onClick={onClose} className="grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/15" aria-label="Close helper" data-testid="helper-close">
+                <button type="button" onClick={onClose} className="grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/15" aria-label={lang === "ta" ? "சிறிதாக்கு (உரையாடல் இருக்கும்)" : "Minimise (keeps the conversation)"} title={lang === "ta" ? "சிறிதாக்கு" : "Minimise"} data-testid="helper-minimise">
+                  <ChevronDown className="size-5" />
+                </button>
+                <button type="button" onClick={onEnd} className="grid size-10 shrink-0 place-items-center rounded-full hover:bg-white/15" aria-label={lang === "ta" ? "உரையாடலை முடி" : "End chat"} title={lang === "ta" ? "உரையாடலை முடி" : "End chat"} data-testid="helper-end">
                   <X className="size-5" />
                 </button>
               </div>
@@ -216,7 +222,7 @@ export function ChatShell({
                           ))}
                         </div>
                       )}
-                      {msg.id === lastBot && !!msg.bot!.chips?.length && (
+                      {!!msg.bot!.chips?.length && (
                         <div className="flex flex-wrap gap-1.5 pt-0.5" data-testid="helper-chips">
                           {msg.bot!.chips.map((c, i) => (
                             <m.button

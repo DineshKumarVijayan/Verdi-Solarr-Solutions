@@ -376,6 +376,6 @@ test("phone: the helper opens as a sheet, fits the screen and sits above the pro
   await expect(panel.getByTestId("helper-bot")).toHaveCount(2);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
-  await page.getByTestId("helper-close").click();
+  await page.getByTestId("helper-minimise").click();
   await expect(panel).toBeHidden();
 });

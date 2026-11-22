@@ -131,7 +131,7 @@ function MyData({ need, lang }: { need: "points" | "enquiries"; lang: Lang }) {
   );
 }
 
-export default function CustomerHelper({ open, onClose, lang, setLang, starter }: { open: boolean; onClose: () => void; lang: Lang; setLang: (l: Lang) => void; starter: string | null }) {
+export default function CustomerHelper({ open, onClose, onEnd, session, lang, setLang, starter }: { open: boolean; onClose: () => void; onEnd: () => void; session: number; lang: Lang; setLang: (l: Lang) => void; starter: string | null }) {
   const { data, index, bySlug } = useCatalogue();
   const SITE = useSite();
   const { customer } = useAccount();
@@ -177,6 +177,8 @@ export default function CustomerHelper({ open, onClose, lang, setLang, starter }
     <ChatShell
       open={open}
       onClose={onClose}
+      onEnd={onEnd}
+      session={session}
       title="VERDI Helper"
       subtitle={lang === "ta" ? "உடனடி பதில்கள் · எங்கள் நேரடி பட்டியலிலிருந்து" : "Instant answers from our live catalogue"}
       lang={lang}

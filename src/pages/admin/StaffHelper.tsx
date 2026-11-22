@@ -64,7 +64,7 @@ function MyDayCard({ lang, onNavigate }: { lang: Lang; onNavigate: () => void })
   );
 }
 
-export default function StaffHelper({ open, onClose, lang, setLang, starter }: { open: boolean; onClose: () => void; lang: Lang; setLang: (l: Lang) => void; starter: string | null }) {
+export default function StaffHelper({ open, onClose, onEnd, session, lang, setLang, starter }: { open: boolean; onClose: () => void; onEnd: () => void; session: number; lang: Lang; setLang: (l: Lang) => void; starter: string | null }) {
   const admin = useAdmin();
   const { data, index } = useCatalogue();
   const SITE = useSite();
@@ -90,6 +90,8 @@ export default function StaffHelper({ open, onClose, lang, setLang, starter }: {
     <ChatShell
       open={open}
       onClose={onClose}
+      onEnd={onEnd}
+      session={session}
       title={lang === "ta" ? "பணியாளர் உதவி" : "Staff helper"}
       subtitle={`${admin.displayName || admin.email.split("@")[0]} · ${lang === "ta" ? "நீங்கள் பார்க்க அனுமதி உள்ளவை மட்டும்" : "only what your role can see"}`}
       lang={lang}

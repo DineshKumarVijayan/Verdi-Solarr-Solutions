@@ -106,8 +106,20 @@ test("website helper answers from the live catalogue and contact details, never 
   await page.getByTestId("helper-lang-ta").click();
   await expect(panel.getByTestId("helper-bot").first()).toContainText("வணக்கம்");
 
-  // Escape closes; opening again starts a fresh conversation
+  // the welcome options stay in the conversation (scroll up and pick another)
+  await expect(panel.getByTestId("helper-bot").first().getByTestId("helper-chip").first()).toBeAttached();
+  const said = await panel.getByTestId("helper-bot").count();
+  // Escape (and the minimise button) only minimise: the conversation is still there when reopened
   await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await page.getByTestId("customer-helper-open").click();
+  await expect(panel.getByTestId("helper-bot")).toHaveCount(said);
+  await page.getByTestId("helper-minimise").click();
+  await expect(panel).toBeHidden();
+  await page.getByTestId("customer-helper-open").click();
+  await expect(panel.getByTestId("helper-bot")).toHaveCount(said);
+  // End chat clears it: the next opening starts afresh
+  await page.getByTestId("helper-end").click();
   await expect(panel).toBeHidden();
   await page.getByTestId("customer-helper-open").click();
   await expect(panel.getByTestId("helper-bot")).toHaveCount(1);
