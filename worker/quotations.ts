@@ -108,7 +108,8 @@ function toRow(r: QuoteDbRow) {
 // ------------------------------------------------------------------ read
 
 export async function listQuotations(env: Env, admin: AdminIdentity, url: URL): Promise<{ rows: QuoteRow[] }> {
-  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
+  // D1 refuses LIKE patterns longer than ~50 characters ("pattern too complex"): search on the first 40
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 40);
   const status = url.searchParams.get("status") ?? "";
   const where: string[] = [];
   const args: unknown[] = [];

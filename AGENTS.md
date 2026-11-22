@@ -2,7 +2,7 @@
 
 ## Non-negotiable business rules
 1. **Prices live only in D1** (`ProductPrices`, integer paise). No XML, JSON price files or hard-coded prices.
-2. **Never invent** technical data, prices, certifications, stock or availability, warranty terms, ratings or reviews. Every spec in `data/catalogue.mjs` must trace to a supplied PDF.
+2. **Never invent** technical data, prices, certifications, warranty terms, ratings or reviews. Stock status and offers come only from what the owner/admin set per product (`shared/stock.ts`; every product starts "In stock" by the owner's decision); a % off is only ever computed from the listed MRP and selling price. Every spec in `data/catalogue.mjs` must trace to a supplied PDF.
 3. Do not describe VERDI as an authorised dealer, manufacturer or installer unless the business confirms it.
 4. **Never reset or reseed production destructively.** `scripts/generate-seed.mjs` is insert-only by default and never touches prices. Do not add `DELETE`/`DROP` to seeds or deploy steps.
 5. Schema changes go in a **new** numbered file in `migrations/`. Never edit an applied migration. Production deploys apply new migrations automatically (`npm run deploy:production`). `scripts/check-migrations.mjs` enforces additive SQL and pinned checksums (`migrations/checksums.json`).

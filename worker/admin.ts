@@ -41,7 +41,8 @@ export async function recordLogin(env: Env, id: AdminIdentity): Promise<void> {
 }
 
 export async function listPrices(env: Env, url: URL): Promise<{ rows: AdminPriceRow[]; total: number }> {
-  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
+  // D1 refuses LIKE patterns longer than ~50 characters ("pattern too complex"): search on the first 40
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 40);
   const brand = url.searchParams.get("brand") ?? "";
   const category = url.searchParams.get("category") ?? "";
   const missing = url.searchParams.get("missing") === "1";

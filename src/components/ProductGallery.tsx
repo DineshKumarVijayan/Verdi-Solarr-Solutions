@@ -1,3 +1,4 @@
+import { StatusOverlay } from "./StockBadge";
 import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { useRef, useState } from "react";
@@ -37,7 +38,7 @@ export function ProductGallery({ product, categorySlug }: { product: PublicProdu
       >
         <AnimatePresence mode="wait">
           <m.div key={cur.url} initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.35 }}>
-            <ProductImage url={cur.url} alt={cur.alt ?? product.name} className="aspect-[4/3]" eager sizes="(max-width: 1024px) 96vw, 640px" />
+            <ProductImage url={cur.url} alt={cur.alt ?? product.name} className="aspect-[4/3]" eager sizes="(max-width: 1024px) 96vw, 640px" overlay={<StatusOverlay product={product} size="hero" />} muted={product.stock === "out_of_stock"} />
           </m.div>
         </AnimatePresence>
         <span className="absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-ink/70 px-3 py-1.5 text-xs font-medium text-paper opacity-0 backdrop-blur transition group-hover:opacity-100 group-focus-visible:opacity-100">

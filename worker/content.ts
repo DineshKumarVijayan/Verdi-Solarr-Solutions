@@ -50,6 +50,8 @@ import { isPlaceholderEmail, PLACEHOLDER_EMAIL_DOMAIN } from "../shared/session"
 import { hashPassword, randomToken } from "./crypto";
 import { issueResetLink, loadEnquiries, reference, rewardLedger, toEnquiryView } from "./customers";
 import { bonusStatementsForSale } from "./bonus";
+import { ProductStatusSchema } from "../shared/admin-schemas";
+import type { StockStatus } from "../shared/stock";
 import { MESSAGE_KEYS, MESSAGE_TEMPLATES, MessageSettingsSchema, REVIEW_LINK_KEY, type MessageSettings } from "../shared/messages";
 import { loyaltyRate, loyaltyStatementsForSale } from "./loyalty";
 import { loyaltyPoints } from "../shared/loyalty";
@@ -204,7 +206,8 @@ export async function deleteCategory(env: Env, admin: AdminIdentity, id: number)
 // ------------------------------------------------------------------ products
 
 export async function listProducts(env: Env, url: URL): Promise<{ rows: AdminProductListRow[] }> {
-  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
+  // D1 refuses LIKE patterns longer than ~50 characters ("pattern too complex"): search on the first 40
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 40);
   const brand = Number(url.searchParams.get("brand")) || 0;
   const category = Number(url.searchParams.get("category")) || 0;
   const status = url.searchParams.get("status") ?? "all";
@@ -226,7 +229,7 @@ export async function listProducts(env: Env, url: URL): Promise<{ rows: AdminPro
   if (status === "active") where.push("p.IsActive = 1");
   if (status === "inactive") where.push("p.IsActive = 0");
   const r = await env.DB.prepare(
-    `SELECT p.ProductId, p.SKU, p.ProductSlug, p.ProductName, p.ModelNumber, p.SeriesName, p.IsActive, p.IsFeatured, p.UpdatedAt,
+    `SELECT p.ProductId, p.SKU, p.ProductSlug, p.ProductName, p.ModelNumber, p.SeriesName, p.IsActive, p.IsFeatured, p.StockStatus, p.OnOffer, p.OfferLabel, p.UpdatedAt,
             b.BrandName, c.CategoryName, pp.SellingPricePaise,
             (SELECT COUNT(*) FROM ProductMedia m WHERE m.ProductId = p.ProductId AND m.MediaType = 'image') AS Images,
             EXISTS (SELECT 1 FROM ProductMedia m WHERE m.ProductId = p.ProductId AND m.MediaType = 'datasheet') AS HasDs
@@ -249,6 +252,9 @@ export async function listProducts(env: Env, url: URL): Promise<{ rows: AdminPro
       category: x.CategoryName as string,
       isActive: x.IsActive === 1,
       isFeatured: x.IsFeatured === 1,
+      stock: ((x.StockStatus as StockStatus) ?? "in_stock") as StockStatus,
+      onOffer: x.OnOffer === 1,
+      offerLabel: (x.OfferLabel as string) ?? null,
       sellingPaise: (x.SellingPricePaise as number) ?? null,
       images: x.Images as number,
       hasDatasheet: x.HasDs === 1,
@@ -291,6 +297,9 @@ export async function getProduct(env: Env, id: number): Promise<AdminProductDeta
     highlights,
     isActive: r.IsActive === 1,
     isFeatured: r.IsFeatured === 1,
+    stock: ((r.StockStatus as StockStatus) ?? "in_stock") as StockStatus,
+    onOffer: r.OnOffer === 1,
+    offerLabel: (r.OfferLabel as string) ?? null,
     updatedAt: r.UpdatedAt as string,
     updatedBy: (r.UpdatedBy as string) ?? null,
     specs: (specs.results as Record<string, unknown>[]).map((s) => ({
@@ -781,7 +790,8 @@ export async function saveAdminUser(env: Env, admin: AdminIdentity, id: number |
 // ------------------------------------------------------------------ customers (admin view)
 
 export async function listCustomers(env: Env, url: URL): Promise<{ rows: AdminCustomerRow[] }> {
-  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
+  // D1 refuses LIKE patterns longer than ~50 characters ("pattern too complex"): search on the first 40
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 40);
   const binds: unknown[] = [];
   let where = "";
   if (q) {
@@ -949,7 +959,8 @@ async function requireEnquiryOwner(env: Env, admin: AdminIdentity, id: number) {
 
 export async function listEnquiries(env: Env, admin: AdminIdentity, url: URL): Promise<{ rows: AdminEnquiryRow[]; counts: Record<string, number> }> {
   const status = url.searchParams.get("status") ?? "";
-  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80);
+  // D1 refuses LIKE patterns longer than ~50 characters ("pattern too complex"): search on the first 40
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 40);
   const where: string[] = [];
   const binds: unknown[] = [];
   // sales staff see only their own enquiries and unassigned ones they can pick up
@@ -1336,4 +1347,21 @@ export async function logExport(env: Env, admin: AdminIdentity, body: unknown) {
   const v = parse(z.object({ table: z.string().trim().min(1).max(60), rows: z.number().int().min(0).max(1_000_000) }).strict(), body);
   await audit(env, admin, "export.download", "Export", v.table, null, { rows: v.rows }, nowIso()).run();
   return { ok: true };
+}
+
+// ------------------------------------------------------------------ stock status & offers (owner / admin)
+
+/** Set a product's availability and offer. Publishes straight away (every page shows it). */
+export async function setProductStatus(env: Env, admin: AdminIdentity, id: number, body: unknown) {
+  requireRole(admin, CONTENT_ROLES, "change stock and offers");
+  const v = parse(ProductStatusSchema, body);
+  const before = await env.DB.prepare("SELECT StockStatus, OnOffer, OfferLabel FROM Products WHERE ProductId = ?1").bind(id).first<{ StockStatus: string; OnOffer: number; OfferLabel: string | null }>();
+  if (!before) throw new HttpError(404, "not_found", "Product not found.");
+  const now = nowIso();
+  await env.DB.batch([
+    env.DB.prepare("UPDATE Products SET StockStatus = ?1, OnOffer = ?2, OfferLabel = ?3, UpdatedAt = ?4, UpdatedBy = ?5 WHERE ProductId = ?6").bind(v.stock, b(v.onOffer), v.onOffer ? v.offerLabel : null, now, admin.email, id),
+    audit(env, admin, "product.status", "Product", id, { stock: before.StockStatus, onOffer: before.OnOffer === 1, offerLabel: before.OfferLabel }, v, now),
+  ]);
+  await republish(env);
+  return { stock: v.stock, onOffer: v.onOffer, offerLabel: v.onOffer ? v.offerLabel : null };
 }

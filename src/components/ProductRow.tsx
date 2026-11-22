@@ -1,3 +1,4 @@
+import { StockPill } from "./StockBadge";
 import { Check, Plus } from "lucide-react";
 import { Link } from "react-router";
 import { formatPaise } from "../../shared/money";
@@ -64,6 +65,7 @@ export function ProductRow({ product, query = "", mode = "row" }: { product: Pub
           </Link>
         </h3>
         {spec && <p className="num mt-1 truncate px-1 text-[11px] text-muted">{spec}</p>}
+        <StockPill stock={product.stock ?? "in_stock"} compact className="mt-1 px-1 !text-[11px]" />
         <div className="mt-auto flex items-center justify-between gap-1 pt-2 pl-1">
           <span className="min-w-0 truncate">{price}</span>
           {add}
@@ -81,7 +83,10 @@ export function ProductRow({ product, query = "", mode = "row" }: { product: Pub
           <Highlight text={product.name} query={query} />
         </Link>
         {sub && <span className="mt-0.5 block truncate text-xs text-muted">{sub}</span>}
-        <span className="mt-0.5 block">{price}</span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-2">
+          <span className="min-w-0 truncate">{price}</span>
+          <StockPill stock={product.stock ?? "in_stock"} compact className="!text-[11px]" />
+        </span>
       </span>
       {add}
     </li>

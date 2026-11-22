@@ -1,3 +1,4 @@
+import { StockPill } from "./StockBadge";
 import { ArrowRight, CornerDownLeft, History, Search } from "lucide-react";
 import { readStore, writeStore } from "../lib/storage";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -151,7 +152,10 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
                   {h.item.brand} · {category(h.item.p.categoryId)?.name} {h.item.p.model ? `· ${h.item.p.model}` : ""}
                 </p>
               </div>
-              <span className="num shrink-0 text-xs text-ink/70">{h.item.p.price.sellingPaise !== null ? formatPaise(h.item.p.price.sellingPaise) : "On request"}</span>
+              <span className="flex shrink-0 flex-col items-end gap-0.5">
+                <span className="num text-xs text-ink/70">{h.item.p.price.sellingPaise !== null ? formatPaise(h.item.p.price.sellingPaise) : "On request"}</span>
+                <StockPill stock={h.item.p.stock ?? "in_stock"} compact className="!text-[10px]" />
+              </span>
               {i === active && <CornerDownLeft className="size-3.5 shrink-0 text-subtle" />}
             </li>
           ))}

@@ -45,6 +45,15 @@ Starts with **My day**: your follow-ups that are due or overdue, new enquiries n
 - To take a product off the site temporarily, switch **Visible on website** off. **Delete permanently** removes it and its price history (a copy stays in the audit log).
 - If two people edit the same product at once, the second save is stopped. Reload and re-apply your change.
 
+## Stock and offers (owner and admins)
+Every product shows its availability wherever it appears (cards, product page, search, compare, enquiry basket, home offers, staff pickers):
+- **In stock** (green): every product starts like this.
+- **Limited stock** (amber): only a few left; the product page says "enquire soon".
+- **Out of stock** (grey, photo dimmed): customers can still send an enquiry; the page says you will tell them when it is available.
+- **On offer** (orange tag on the photo): separate from stock, so a product can be in stock and on offer. Add a short label such as *Festival offer*. If the product has an MRP above the selling price (under **Prices**), the real **% off** is added automatically, e.g. "Festival offer · 18% off". Products on offer also appear in **On offer now** on the Home page (it disappears when there are no offers) and under the **On offer** filter on Products.
+
+Change it quickly in **Products** (the Stock menu and the tag button on each row), or in a product's **Availability & offer** card. Changes show on the website straight away and are recorded in the activity log. Search engines also receive the availability with the listed price.
+
 ## Brands & categories
 - **Add brand:** name, slug (short web name, e.g. `waaree`), description, manufacturer website and logo.
 - **Add category:** name, slug (page address `/category/<slug>`), description and sort order (lower numbers appear first).

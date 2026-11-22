@@ -1,3 +1,4 @@
+import { OffersStrip } from "../components/home/OffersStrip";
 import { ArrowRight, BookOpen, Calculator, ClipboardList, FileText, Layers, MapPin, Phone, ShieldCheck } from "lucide-react";
 import { ProductRow } from "../components/ProductRow";
 import { Link } from "react-router";
@@ -35,6 +36,7 @@ export default function Home() {
     <>
       <Hero stats={stats} />
       <CatalogueShowcase />
+      <OffersStrip />
 
       <VideoBand />
 

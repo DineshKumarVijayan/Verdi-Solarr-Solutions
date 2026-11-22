@@ -1,3 +1,4 @@
+import { OfferTag, StockPill } from "../components/StockBadge";
 import { categoryRole, type CategoryRole } from "../../shared/category-role";
 import { ShareButton } from "../components/ShareButton";
 import { shareText, StickyBuyBar } from "../components/StickyBuyBar";
@@ -137,6 +138,8 @@ function Detail({ product, all, brandName, cat }: { product: PublicProduct; all:
           </p>
           <h1 className="mt-3 text-3xl leading-tight font-semibold max-sm:mt-1.5 max-sm:text-2xl sm:text-4xl">{product.name}</h1>
           {product.model && <p className="num mt-2 text-sm text-muted max-lg:mt-1 max-lg:text-xs">Model {product.model} · SKU {product.sku}</p>}
+          {/* phones: availability right under the title (the buy box is further down) */}
+          <StockPill stock={product.stock ?? "in_stock"} className="mt-1.5 lg:hidden" />
           {specs.length > 0 && (
             <ul className="mt-3 flex flex-wrap gap-1.5 lg:hidden" aria-label="Key specifications" data-testid="spec-chips">
               {specs.slice(0, 4).map((s) => (
@@ -163,7 +166,13 @@ function Detail({ product, all, brandName, cat }: { product: PublicProduct; all:
 
           <StickyBuyBar product={product} qty={qty} setQty={setQty} whatsappHref={`${SITE.whatsappUrl}?text=${encodeURIComponent(waText)}`} />
           <div className="card mt-6 p-5 max-lg:mt-4 max-lg:p-4" id="buy-box">
+            <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="buy-status">
+              <StockPill stock={product.stock ?? "in_stock"} className="!text-sm" />
+              <OfferTag product={product} />
+            </div>
             <PriceTag price={product.price} size="lg" />
+            {product.stock === "out_of_stock" && <p className="mt-2 rounded-xl bg-paper-2 px-3 py-2 text-xs text-muted">Currently out of stock. Send an enquiry and we will tell you when it is available.</p>}
+            {product.stock === "limited" && <p className="mt-2 text-xs font-medium text-sun-600">Only limited stock left: enquire soon.</p>}
             {product.price.sellingPaise !== null && product.price.updatedAt && (
               <p className="mt-1 text-[11px] text-subtle">Listed price updated {new Date(product.price.updatedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}. Re-checked when you send your enquiry.</p>
             )}

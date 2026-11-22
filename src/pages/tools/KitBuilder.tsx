@@ -181,7 +181,7 @@ return (
       {allowNone && <option value="">{allowNone}</option>}
       {options.map((o) => (
         <option key={o.id} value={o.id}>
-          {o.name} {o.price.sellingPaise !== null ? `· ${formatPaise(o.price.sellingPaise)}` : ""}
+          {o.name} {o.price.sellingPaise !== null ? `· ${formatPaise(o.price.sellingPaise)}` : ""}{o.stock === "out_of_stock" ? " · Out of stock" : o.stock === "limited" ? " · Limited stock" : ""}
         </option>
       ))}
     </select>

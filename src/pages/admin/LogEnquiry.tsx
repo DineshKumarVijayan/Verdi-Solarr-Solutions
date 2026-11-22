@@ -137,7 +137,7 @@ export function LogEnquiry({ open, onClose, onSaved }: { open: boolean; onClose:
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{h.item.p.name}</span>
                     <span className="block truncate text-xs text-muted">
-                      {h.item.brand} {h.item.p.model ? `· ${h.item.p.model}` : ""}
+                      {h.item.brand} {h.item.p.model ? `· ${h.item.p.model}` : ""}{h.item.p.stock === "out_of_stock" ? " · Out of stock" : h.item.p.stock === "limited" ? " · Limited stock" : ""}
                     </span>
                   </span>
                   <Plus className="size-4 shrink-0 text-verdi-700" />

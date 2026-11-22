@@ -1,3 +1,4 @@
+import { AvailabilityCard } from "./Availability";
 import { useConfirm, useConfirmDiscard } from "../../components/confirm";
 import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, FileText, Plus, Save, Star, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -640,6 +641,17 @@ export default function ProductEditor() {
               </>
             )}
           </section>
+
+          {detail && (
+            <AvailabilityCard
+              className={hide("price")}
+              productId={detail.id}
+              value={{ stock: detail.stock, onOffer: detail.onOffer, offerLabel: detail.offerLabel }}
+              price={detail.price}
+              editable={editable}
+              onSaved={(v) => setDetail({ ...detail, ...v })}
+            />
+          )}
 
           {/* ------------------------------------------------ media */}
           <div className={`contents ${hide("media")}`}>

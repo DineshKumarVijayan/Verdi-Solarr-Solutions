@@ -1,3 +1,4 @@
+import { StockPill } from "../components/StockBadge";
 import { AlertTriangle, ArrowRight, Check, ClipboardCopy, ClipboardList, Minus, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
 import { useEffect, useMemo, useState } from "react";
@@ -258,6 +259,8 @@ export default function Enquiry() {
                           {product && brand(product.brandId)?.name}
                           {product?.model ? ` · ${product.model}` : ""}
                         </p>
+                        {product && <StockPill stock={product.stock ?? "in_stock"} compact className="mt-0.5 !text-[11px]" />}
+                        {product?.stock === "out_of_stock" && <p className="mt-0.5 text-[11px] text-muted">Out of stock now: we will confirm when it is available.</p>}
                       </div>
                       <button type="button" className="rounded-full p-1.5 text-subtle hover:bg-danger-bg hover:text-danger max-lg:-m-2 max-lg:p-3" onClick={() => basket.remove(line.productId)} aria-label={`Remove ${product?.name ?? "item"}`}>
                         <Trash2 className="size-4" />

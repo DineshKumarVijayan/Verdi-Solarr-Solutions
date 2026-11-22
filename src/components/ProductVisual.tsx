@@ -1,3 +1,5 @@
+import { useState, type ReactNode } from "react";
+import { StatusOverlay } from "./StockBadge";
 import { categoryRole } from "../../shared/category-role";
 import { fallbackToOriginal, srcSetFor } from "../lib/img";
 import type { PublicProduct } from "../../shared/types";
@@ -9,9 +11,12 @@ import type { PublicProduct } from "../../shared/types";
 export function ProductVisual({ product, categorySlug, size = "card", label }: { product: PublicProduct; categorySlug: string; size?: "card" | "hero" | "thumb"; label?: string }) {
   const img = product.images[0];
   const h = size === "hero" ? "aspect-[4/3]" : size === "thumb" ? "aspect-square" : "aspect-[4/3]";
-  if (img) return <ProductImage url={img.url} alt={img.alt ?? product.name} className={h} eager={size === "hero"} />;
+  const overlay = <StatusOverlay product={product} size={size} />;
+  const muted = product.stock === "out_of_stock";
+  if (img) return <ProductImage url={img.url} alt={img.alt ?? product.name} className={h} eager={size === "hero"} overlay={overlay} muted={muted} />;
   return (
-    <div className={`relative ${h} overflow-hidden rounded-2xl bg-linear-to-br from-ink-3 to-ink`} role="img" aria-label={`Illustration of ${categoryNoun(categorySlug)} — product photo coming soon`}>
+    <div className={`relative ${h} overflow-hidden rounded-2xl bg-linear-to-br from-ink-3 to-ink ${muted ? "opacity-70 grayscale" : ""}`} role="img" aria-label={`Illustration of ${categoryNoun(categorySlug)} — product photo coming soon`}>
+      {overlay}
       <div className="absolute inset-0 grid-bg opacity-70" />
       <div className="absolute inset-0 flex items-center justify-center p-[12%]">
         <Illustration slug={categorySlug} />
@@ -23,13 +28,50 @@ export function ProductVisual({ product, categorySlug, size = "card", label }: {
   );
 }
 
-/** Transparent studio cut-outs get a soft backdrop + shadow; photographs fill the frame. */
+/** First guess before the image loads (bundled studio cut-outs); the loaded image then decides. */
 export function isCutout(url: string) {
   return /inverter|optimizer\.|mono-perc/.test(url);
 }
 
-export function ProductImage({ url, alt, className = "aspect-[4/3]", eager = false, sizes = "(max-width: 640px) 92vw, 420px" }: { url: string; alt: string; className?: string; eager?: boolean; sizes?: string }) {
-  const cutout = isCutout(url);
+// Decided once per image: a transparent or plain white background = studio cut-out (show whole, on a soft
+// backdrop); anything else = a photograph (fill the frame). Works for any photo the admin uploads.
+const cutoutSeen = new Map<string, boolean>();
+function looksLikeCutout(img: HTMLImageElement): boolean | null {
+  try {
+    const n = 24;
+    const c = document.createElement("canvas");
+    c.width = n;
+    c.height = n;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0, n, n);
+    const d = ctx.getImageData(0, 0, n, n).data;
+    const at = (x: number, y: number) => d.slice((y * n + x) * 4, (y * n + x) * 4 + 4);
+    const edge = [at(0, 0), at(n - 1, 0), at(0, n - 1), at(n - 1, n - 1), at(n >> 1, 0), at(0, n >> 1), at(n - 1, n >> 1), at(n >> 1, n - 1)];
+    return edge.every(([r, g, b, a]) => a < 200 || (r > 232 && g > 232 && b > 232));
+  } catch {
+    return null; // cross-origin or unsupported: keep the first guess
+  }
+}
+
+export function ProductImage({
+  url,
+  alt,
+  className = "aspect-[4/3]",
+  eager = false,
+  sizes = "(max-width: 640px) 92vw, 420px",
+  overlay,
+  muted = false,
+}: {
+  url: string;
+  alt: string;
+  className?: string;
+  eager?: boolean;
+  sizes?: string;
+  overlay?: ReactNode;
+  muted?: boolean;
+}) {
+  const [cutout, setCutout] = useState(() => cutoutSeen.get(url) ?? isCutout(url));
   return (
     <div className={`relative ${className} overflow-hidden rounded-2xl ${cutout ? "bg-[radial-gradient(120%_90%_at_50%_15%,#ffffff_0%,#eef3ea_55%,#dfe7da_100%)]" : "bg-ink"}`}>
       {cutout && <div className="absolute inset-x-[18%] bottom-[7%] h-[8%] rounded-[50%] bg-ink/25 blur-xl" aria-hidden="true" />}
@@ -38,11 +80,19 @@ export function ProductImage({ url, alt, className = "aspect-[4/3]", eager = fal
         srcSet={srcSetFor(url)}
         sizes={sizes}
         onError={fallbackToOriginal}
+        onLoad={(e) => {
+          if (cutoutSeen.has(url)) return;
+          const v = looksLikeCutout(e.currentTarget);
+          if (v === null) return;
+          cutoutSeen.set(url, v);
+          setCutout(v);
+        }}
         alt={alt}
         loading={eager ? "eager" : "lazy"}
         decoding="async"
-        className={`absolute inset-0 size-full transition-transform duration-700 ease-out group-hover:scale-[1.05] ${cutout ? "object-contain p-[9%] drop-shadow-[0_18px_22px_rgba(10,24,34,0.22)]" : "object-cover"}`}
+        className={`absolute inset-0 size-full transition-transform duration-700 ease-out group-hover:scale-[1.05] ${cutout ? "object-contain p-[9%] drop-shadow-[0_18px_22px_rgba(10,24,34,0.22)]" : "object-cover"} ${muted ? "opacity-60 grayscale" : ""}`}
       />
+      {overlay}
     </div>
   );
 }

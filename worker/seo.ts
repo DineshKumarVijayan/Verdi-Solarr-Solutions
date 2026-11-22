@@ -1,3 +1,4 @@
+import { STOCK_LABEL, STOCK_SCHEMA } from "../shared/stock";
 // Search-engine & link-preview HTML for product pages, plus a live sitemap.xml and robots.txt.
 //
 // /products/* runs through the Worker so EVERY product (including ones added in the admin after
@@ -60,6 +61,7 @@ function productJsonLd(p: PublicProduct, cat: PublicCatalogue, origin: string) {
             url,
             priceCurrency: "INR",
             price: (p.price.sellingPaise / 100).toFixed(2),
+            availability: STOCK_SCHEMA[p.stock ?? "in_stock"],
             seller: { "@type": "Organization", name: BUSINESS },
           },
         }
@@ -140,7 +142,7 @@ function productLive(p: PublicProduct, cat: PublicCatalogue, origin: string): Li
     ogType: "product",
     jsonld: productJsonLd(p, cat, origin),
     product: p,
-    body: `${nav}<article><p>${esc(brand)}${c ? ` · <a href="/category/${esc(c.slug)}">${esc(c.name)}</a>` : ""}</p><h1>${esc(p.name)}</h1>${p.model ? `<p>Model: ${esc(p.model)} · SKU: ${esc(p.sku)}</p>` : ""}${p.description ? `<p>${esc(p.description)}</p>` : ""}${p.highlights.length ? `<ul>${p.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : ""}${specs ? `<h2>Technical specifications</h2>${specs}` : ""}${p.datasheet ? `<p><a href="${esc(p.datasheet)}">Manufacturer datasheet (PDF)</a></p>` : ""}${siblings.length ? `<h2>Other ratings in this family</h2>${list(cat, siblings)}` : ""}<p>${p.price.sellingPaise != null ? `Price: ${esc(formatPaise(p.price.sellingPaise))} ${esc(p.price.unit)}.` : "Price on request."} Send an enquiry for confirmed pricing.</p></article>${contactHtml(cat)}`,
+    body: `${nav}<article><p>${esc(brand)}${c ? ` · <a href="/category/${esc(c.slug)}">${esc(c.name)}</a>` : ""}</p><h1>${esc(p.name)}</h1>${p.model ? `<p>Model: ${esc(p.model)} · SKU: ${esc(p.sku)}</p>` : ""}${p.description ? `<p>${esc(p.description)}</p>` : ""}${p.highlights.length ? `<ul>${p.highlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>` : ""}${specs ? `<h2>Technical specifications</h2>${specs}` : ""}${p.datasheet ? `<p><a href="${esc(p.datasheet)}">Manufacturer datasheet (PDF)</a></p>` : ""}${siblings.length ? `<h2>Other ratings in this family</h2>${list(cat, siblings)}` : ""}<p>${p.price.sellingPaise != null ? `Price: ${esc(formatPaise(p.price.sellingPaise))} ${esc(p.price.unit)}.` : "Price on request."} ${esc(STOCK_LABEL[p.stock ?? "in_stock"])}.${p.offer ? ` ${esc(p.offer.label || "Special offer")}.` : ""} Send an enquiry for confirmed pricing.</p></article>${contactHtml(cat)}`,
   };
 }
 

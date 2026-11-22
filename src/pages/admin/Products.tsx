@@ -1,3 +1,5 @@
+import { STOCK_LABEL } from "../../../shared/stock";
+import { QuickStatus } from "./Availability";
 import { Copy, Eye, EyeOff, FileText, ImageIcon, Pencil, Plus, Search, Star } from "lucide-react";
 import { usePaged } from "../../components/Pager";
 import { useCallback, useEffect, useState } from "react";
@@ -66,8 +68,8 @@ export default function AdminProducts() {
               build={() => [
                 {
                   name: "Products",
-                  columns: [{ header: "SKU" }, { header: "Product" }, { header: "Model" }, { header: "Series" }, { header: "Brand" }, { header: "Category" }, { header: "Price (₹)", type: "money" }, { header: "Visible" }, { header: "Featured" }, { header: "Photos", type: "number" }, { header: "Datasheet" }, { header: "Updated", type: "datetime" }],
-                  rows: (rows ?? []).map((p) => [p.sku, p.name, p.model, p.seriesName, p.brand, p.category, p.sellingPaise == null ? "Price on request" : p.sellingPaise / 100, p.isActive ? "Yes" : "No", p.isFeatured ? "Yes" : "No", p.images, p.hasDatasheet ? "Yes" : "No", p.updatedAt]),
+                  columns: [{ header: "SKU" }, { header: "Product" }, { header: "Model" }, { header: "Series" }, { header: "Brand" }, { header: "Category" }, { header: "Price (₹)", type: "money" }, { header: "Visible" }, { header: "Featured" }, { header: "Stock" }, { header: "Offer" }, { header: "Photos", type: "number" }, { header: "Datasheet" }, { header: "Updated", type: "datetime" }],
+                  rows: (rows ?? []).map((p) => [p.sku, p.name, p.model, p.seriesName, p.brand, p.category, p.sellingPaise == null ? "Price on request" : p.sellingPaise / 100, p.isActive ? "Yes" : "No", p.isFeatured ? "Yes" : "No", STOCK_LABEL[p.stock], p.onOffer ? p.offerLabel || "Special offer" : null, p.images, p.hasDatasheet ? "Yes" : "No", p.updatedAt]),
                 },
               ]}
             />
@@ -171,6 +173,9 @@ export default function AdminProducts() {
                         {r.isActive ? "Visible" : "Hidden"}
                       </span>
                       {r.isFeatured && <Star className="ml-1 inline size-3.5 fill-sun-400 text-sun-400" aria-label="Featured" />}
+                      <span className="mt-1.5 flex">
+                        <QuickStatus productId={r.id} editable={canManage(admin)} value={{ stock: r.stock, onOffer: r.onOffer, offerLabel: r.offerLabel }} onSaved={(v) => setRows((rs) => rs!.map((x) => (x.id === r.id ? { ...x, ...v } : x)))} />
+                      </span>
                     </td>
                     <td className="rt-actions p-3 text-right whitespace-nowrap">
                       <Link to={`/admin/products/${r.id}`} className="inline-flex rounded-full p-2 text-muted hover:bg-paper-2 hover:text-ink" aria-label={`Edit ${r.name}`}>

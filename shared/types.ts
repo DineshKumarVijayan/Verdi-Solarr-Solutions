@@ -1,3 +1,4 @@
+import type { StockStatus } from "./stock";
 // Shared public data contracts between the Worker and the browser.
 // NOTE: nothing admin-only (UpdatedBy, audit data, admin emails) may appear in the public types.
 
@@ -34,6 +35,10 @@ export interface PublicProduct {
   description: string | null;
   highlights: string[];
   featured: boolean;
+  /** availability set by the owner/admin (missing in old cached data = in stock) */
+  stock: StockStatus;
+  /** shown as a "Special offer" tag; the % off is worked out from the listed MRP */
+  offer: { label: string | null } | null;
   price: PublicPrice;
   datasheet: string | null; // public URL
   images: { url: string; alt: string | null }[];
@@ -202,6 +207,9 @@ export interface AdminProductListRow {
   category: string;
   isActive: boolean;
   isFeatured: boolean;
+  stock: StockStatus;
+  onOffer: boolean;
+  offerLabel: string | null;
   sellingPaise: number | null;
   images: number;
   hasDatasheet: boolean;
@@ -243,6 +251,9 @@ export interface AdminProductDetail {
   highlights: string[];
   isActive: boolean;
   isFeatured: boolean;
+  stock: StockStatus;
+  onOffer: boolean;
+  offerLabel: string | null;
   updatedAt: string;
   updatedBy: string | null;
   specs: AdminSpec[];

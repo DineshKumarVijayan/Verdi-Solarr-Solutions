@@ -1,3 +1,4 @@
+import { StockPill } from "../../components/StockBadge";
 import { useConfirm, useConfirmDiscard } from "../../components/confirm";
 import { usePaged } from "../../components/Pager";
 import { ArrowLeft, Building2, Download, Eye, FileText, ImagePlus, Plus, QrCode, Save, ScrollText, Search, Settings2, Share2, Trash2, X } from "lucide-react";
@@ -976,7 +977,10 @@ function ProductPicker({ onPick }: { onPick: (id: number) => void }) {
                   <span className="block truncate text-sm font-medium">{p.name}</span>
                   <span className="block truncate text-xs text-muted">{[cat.brand(p.brandId)?.name, p.model].filter(Boolean).join(" · ")}</span>
                 </span>
-                <span className="num shrink-0 text-sm">{formatPaise(p.price.sellingPaise)}</span>
+                <span className="flex shrink-0 flex-col items-end">
+                  <span className="num text-sm">{formatPaise(p.price.sellingPaise)}</span>
+                  <StockPill stock={p.stock ?? "in_stock"} compact className="!text-[10px]" />
+                </span>
               </button>
             </li>
           ))}

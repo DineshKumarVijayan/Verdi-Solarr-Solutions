@@ -85,6 +85,8 @@ export default function Products() {
     minPricePaise: num(params.get("rmin")) !== null ? num(params.get("rmin"))! * 100 : null,
     maxPricePaise: num(params.get("rmax")) !== null ? num(params.get("rmax"))! * 100 : null,
     pricedOnly: params.get("priced") === "1",
+    inStockOnly: params.get("stock") === "1",
+    offersOnly: params.get("offer") === "1",
     sort: (params.get("sort") as Sort) ?? "relevance",
   };
   const view = params.get("view") === "list" ? "list" : "grid";
@@ -113,7 +115,7 @@ export default function Products() {
   );
 
   const activeCount =
-    filters.brands.length + (categorySlug ? 0 : filters.categories.length) + (filters.phase ? 1 : 0) + (filters.minPower != null || filters.maxPower != null ? 1 : 0) + (filters.minPricePaise != null || filters.maxPricePaise != null ? 1 : 0) + (filters.pricedOnly ? 1 : 0);
+    filters.brands.length + (categorySlug ? 0 : filters.categories.length) + (filters.phase ? 1 : 0) + (filters.minPower != null || filters.maxPower != null ? 1 : 0) + (filters.minPricePaise != null || filters.maxPricePaise != null ? 1 : 0) + (filters.pricedOnly ? 1 : 0) + (filters.inStockOnly ? 1 : 0) + (filters.offersOnly ? 1 : 0);
 
   const clearAll = () => {
     setQ("");
@@ -360,6 +362,8 @@ function ActiveChips({ filters, q, categorySlug, update, setQ }: { filters: Sear
   if (filters.minPricePaise != null || filters.maxPricePaise != null)
     chips.push({ label: `₹${filters.minPricePaise != null ? filters.minPricePaise / 100 : 0}–${filters.maxPricePaise != null ? filters.maxPricePaise / 100 : "∞"}`, clear: () => update({ rmin: null, rmax: null }) });
   if (filters.pricedOnly) chips.push({ label: "Listed prices only", clear: () => update({ priced: null }) });
+  if (filters.inStockOnly) chips.push({ label: "In stock", clear: () => update({ stock: null }) });
+  if (filters.offersOnly) chips.push({ label: "On offer", clear: () => update({ offer: null }) });
   return (
     <>
       {chips.map((c) => (
@@ -450,6 +454,17 @@ function FilterPanel({ filters, categorySlug, update, onClear, activeCount }: { 
         <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm">
           <input type="checkbox" className="size-4 accent-verdi-600" checked={!!filters.pricedOnly} onChange={(e) => update({ priced: e.target.checked ? "1" : null })} />
           Only show listed prices
+        </label>
+      </fieldset>
+      <fieldset>
+        <legend className="eyebrow mb-3">Availability</legend>
+        <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+          <input type="checkbox" className="size-4 accent-verdi-600" checked={!!filters.inStockOnly} onChange={(e) => update({ stock: e.target.checked ? "1" : null })} data-testid="filter-in-stock" />
+          In stock (incl. limited)
+        </label>
+        <label className="mt-2 flex cursor-pointer items-center gap-2.5 text-sm">
+          <input type="checkbox" className="size-4 accent-verdi-600" checked={!!filters.offersOnly} onChange={(e) => update({ offer: e.target.checked ? "1" : null })} data-testid="filter-offers" />
+          On offer
         </label>
       </fieldset>
     </div>

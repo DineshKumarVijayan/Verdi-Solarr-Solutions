@@ -1,3 +1,4 @@
+import { StockPill } from "./StockBadge";
 import { ShareButton } from "./ShareButton";
 import { shareText } from "./StickyBuyBar";
 import { Check, GitCompareArrows, Plus } from "lucide-react";
@@ -68,7 +69,8 @@ export function ProductCard({ product, query = "", layout = "grid" }: { product:
             ))}
           </dl>
         )}
-        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+        <StockPill stock={product.stock ?? "in_stock"} className="mt-3" />
+        <div className="mt-auto flex items-end justify-between gap-3 pt-3">
           <PriceTag price={product.price} size="sm" />
         </div>
         <div className="relative z-10 mt-3 flex flex-wrap items-center gap-2">

@@ -203,6 +203,7 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
       if (id && seg.length === 2 && method === "GET") return json({ product: await content.getProduct(env, id) });
       if (id && seg.length === 2 && method === "PUT") return json(await content.updateProduct(env, admin, id, await body(256 * 1024)));
       if (id && seg.length === 2 && method === "DELETE") return json(await content.deleteProduct(env, admin, id));
+      if (id && sub === "status" && seg.length === 3 && method === "PUT") return json(await content.setProductStatus(env, admin, id, await body()));
       if (id && sub === "duplicate" && seg.length === 3 && method === "POST") return json(await content.duplicateProduct(env, admin, id), { status: 201 });
       if (id && sub === "media" && seg.length === 3 && method === "POST") return json(await content.addMedia(env, admin, id, await body()), { status: 201 });
       if (id && sub === "media" && subNum && method === "PUT") return json(await content.updateMedia(env, admin, id, subNum, await body()));

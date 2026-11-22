@@ -108,6 +108,10 @@ export interface SearchFilters {
   minPricePaise?: number | null;
   maxPricePaise?: number | null;
   pricedOnly?: boolean;
+  /** in stock or limited stock only */
+  inStockOnly?: boolean;
+  /** only products on offer */
+  offersOnly?: boolean;
   phase?: "single" | "three" | null;
   minPower?: number | null; // W (modules Wp or inverter AC W)
   maxPower?: number | null;
@@ -154,6 +158,8 @@ export function search(index: IndexedProduct[], f: SearchFilters): SearchHit[] {
     if (f.categories.length && !f.categories.includes(item.categorySlug)) continue;
     const price = item.p.price.sellingPaise;
     if (f.pricedOnly && price === null) continue;
+    if (f.inStockOnly && item.p.stock === "out_of_stock") continue;
+    if (f.offersOnly && !item.p.offer) continue;
     if (f.minPricePaise != null && (price === null || price < f.minPricePaise)) continue;
     if (f.maxPricePaise != null && (price === null || price > f.maxPricePaise)) continue;
     if (f.phase) {

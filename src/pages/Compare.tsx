@@ -1,3 +1,4 @@
+import { OfferTag, StockPill } from "../components/StockBadge";
 import { ChevronLeft, ChevronRight, GitCompareArrows, Plus, X } from "lucide-react";
 import type { PublicProduct } from "../../shared/types";
 import { useMemo, useState } from "react";
@@ -118,6 +119,19 @@ export default function Compare() {
                 </td>
               ))}
             </tr>
+            <tr className="border-t border-line" data-testid="compare-availability">
+              <th scope="row" className="sticky left-0 bg-card p-4 text-left text-xs font-semibold">
+                Availability
+              </th>
+              {products.map((p) => (
+                <td key={p.id} className="p-4">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <StockPill stock={p.stock ?? "in_stock"} />
+                    <OfferTag product={p} small />
+                  </span>
+                </td>
+              ))}
+            </tr>
             {rows
               .filter((r) => !diffOnly || r.differs)
               .map((r) => (
@@ -195,6 +209,7 @@ function MobileCompare({ products, rows, diffOnly, onRemove }: { products: Publi
                 {p.name}
               </Link>
               <p className="num mt-1 truncate text-sm font-semibold">{formatPaise(p.price.sellingPaise)}</p>
+              <StockPill stock={p.stock ?? "in_stock"} compact className="mt-0.5 !text-[11px]" />
               <button
                 type="button"
                 className="btn-primary btn-sm tap mt-2 w-full"

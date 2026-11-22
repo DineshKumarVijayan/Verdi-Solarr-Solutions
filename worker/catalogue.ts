@@ -1,3 +1,4 @@
+import type { StockStatus } from "../shared/stock";
 // Public catalogue publication + price revalidation.
 //
 // D1 is authoritative. A denormalised snapshot (PublishedCatalogue, ONE row) is rebuilt
@@ -12,7 +13,7 @@ import type { Env } from "./env";
 import { nowIso } from "./http";
 
 /** Snapshot format version. Older snapshots (without field photos/settings) are rebuilt on read. */
-export const SNAPSHOT_SCHEMA = 2;
+export const SNAPSHOT_SCHEMA = 3; // 3: stock status and offers
 
 /** Media abstraction: static deployment assets vs. R2 objects. */
 export function mediaUrl(storageKey: string): string {
@@ -35,6 +36,9 @@ interface ProductRow {
   Description: string | null;
   HighlightsJson: string | null;
   IsFeatured: number;
+  StockStatus: StockStatus;
+  OnOffer: number;
+  OfferLabel: string | null;
   SellingPricePaise: number | null;
   MRPPaise: number | null;
   GSTIncluded: number | null;
@@ -58,7 +62,7 @@ function toPrice(r: Pick<ProductRow, "SellingPricePaise" | "MRPPaise" | "GSTIncl
 
 const PRODUCT_SELECT = `
   SELECT p.ProductId, p.SKU, p.ProductSlug, p.ProductName, p.SeriesKey, p.SeriesName, p.VariantLabel, p.ModelNumber,
-         p.BrandId, p.CategoryId, p.ShortDescription, p.Description, p.HighlightsJson, p.IsFeatured,
+         p.BrandId, p.CategoryId, p.ShortDescription, p.Description, p.HighlightsJson, p.IsFeatured, p.StockStatus, p.OnOffer, p.OfferLabel,
          pp.SellingPricePaise, pp.MRPPaise, pp.GSTIncluded, pp.GSTRate, pp.PriceUnit, pp.Version, pp.UpdatedAt AS PriceUpdatedAt
   FROM Products p
   JOIN Brands b ON b.BrandId = p.BrandId AND b.IsActive = 1
@@ -155,6 +159,8 @@ export async function buildCatalogue(env: Env, version: number): Promise<PublicC
         description: r.Description,
         highlights: safeJsonArray(r.HighlightsJson),
         featured: r.IsFeatured === 1,
+        stock: r.StockStatus ?? "in_stock",
+        offer: r.OnOffer === 1 ? { label: r.OfferLabel } : null,
         price: toPrice(r),
         datasheet: datasheets.get(r.ProductId) ?? null,
         images: images.get(r.ProductId) ?? [],
