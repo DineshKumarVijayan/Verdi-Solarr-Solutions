@@ -79,7 +79,7 @@ export default function StaffHelper({ open, onClose, onEnd, session, lang, setLa
             signedIn: false,
             staff: true,
             role: admin.role,
-            site: { phoneDisplay: SITE.phoneDisplay, phoneHref: SITE.phoneHref, whatsappUrl: SITE.whatsappUrl, email: SITE.email, address: SITE.address, hours: SITE.businessHours, social: [] },
+            site: { phoneDisplay: SITE.phoneDisplay, phoneHref: SITE.phoneHref, whatsappUrl: SITE.whatsappUrl, email: SITE.email, address: SITE.address, mapsUrl: SITE.mapsUrl, hours: SITE.businessHours, social: [] },
           }
         : null,
     [data, index, lang, admin.role, SITE],

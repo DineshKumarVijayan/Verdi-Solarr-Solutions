@@ -40,6 +40,8 @@ export interface HelperSite {
   whatsappUrl: string;
   email: string;
   address: string[];
+  /** Google Maps link to the shop */
+  mapsUrl?: string;
   hours: string;
   social: HelperLink[];
 }
@@ -660,7 +662,7 @@ export function reply(question: string, ctx: HelperContext): HelperAnswer {
     if (has(plain, W.whatsapp)) return { text: t.whatsappTxt, links: [{ label: t.whatsapp, to: s.whatsappUrl }] };
     if (has(plain, W.address)) {
       const a = s.address.join(", ");
-      return { text: [t.address(s.address.join("\n")), s.hours ? t.hours(s.hours) : ""].filter(Boolean).join("\n"), links: [{ label: t.map, to: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}` }, { label: t.contactPage, to: "/contact" }] };
+      return { text: [t.address(s.address.join("\n")), s.hours ? t.hours(s.hours) : ""].filter(Boolean).join("\n"), links: [{ label: t.map, to: s.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a)}` }, { label: t.contactPage, to: "/contact" }] };
     }
     if (has(plain, W.hours)) return { text: s.hours ? t.hours(s.hours) : t.noHours, links: contactLinks(ctx).slice(0, 2) };
     if (has(plain, W.email)) return { text: t.emailTxt(s.email), links: [{ label: t.email, to: `mailto:${s.email}` }] };

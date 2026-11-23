@@ -18,6 +18,8 @@ const FIELDS: { k: SiteSettingKey; label: string; hint?: string; area?: boolean;
   { k: "whatsapp", label: "WhatsApp number", hint: "Enquiries are sent to this number. Leave empty to use the phone number.", placeholder: "+91 89392 77997" },
   { k: "email", label: "Email", placeholder: SITE.email },
   { k: "address", label: "Address (one line per row)", area: true, placeholder: SITE.address.join("\n") },
+  { k: "mapsUrl", label: "Google Maps link", hint: "In Google Maps, open your business → Share → Copy link. Used by every “Open in Google Maps” button.", placeholder: SITE.mapsUrl },
+  { k: "mapsEmbedUrl", label: "Map on the Contact page", area: true, hint: "In Google Maps, open your business → Share → Embed a map → Copy HTML, and paste it here.", placeholder: '<iframe src="https://www.google.com/maps/embed?pb=…"></iframe>' },
   { k: "businessHours", label: "Business hours", placeholder: "e.g. Mon–Sat, 9:30 am – 7 pm" },
   { k: "instagramUrl", label: "Instagram", placeholder: "https://www.instagram.com/…" },
   { k: "facebookUrl", label: "Facebook", placeholder: "https://www.facebook.com/…" },

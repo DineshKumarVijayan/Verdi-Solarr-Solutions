@@ -80,6 +80,10 @@ export const SITE_SETTING_KEYS = [
   "whatsapp",
   "email",
   "address",
+  /** Google Maps link to the shop (Share → Copy link) */
+  "mapsUrl",
+  /** Google Maps embed link (Share → Embed a map) shown on the Contact page */
+  "mapsEmbedUrl",
   "businessHours",
   "instagramUrl",
   "facebookUrl",

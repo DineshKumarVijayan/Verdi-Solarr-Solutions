@@ -40,6 +40,8 @@ export function useSite(): SiteInfo {
       addressOneLine: s?.address ? address.join(", ") : DEFAULTS.addressOneLine,
       businessHours: s?.businessHours ?? "",
       instagramUrl: s?.instagramUrl ?? DEFAULTS.instagramUrl,
+      mapsUrl: s?.mapsUrl || DEFAULTS.mapsUrl,
+      mapsEmbedUrl: s?.mapsEmbedUrl || DEFAULTS.mapsEmbedUrl,
       facebookUrl: s?.facebookUrl ?? "",
       youtubeUrl: s?.youtubeUrl ?? "",
       linkedinUrl: s?.linkedinUrl ?? "",

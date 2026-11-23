@@ -677,6 +677,13 @@ function validateSetting(k: SiteSettingKey, raw: string): string {
   const bad = (m: string): never => {
     throw new HttpError(422, "validation", m, [{ path: k, message: m }]);
   };
+  if (k === "mapsEmbedUrl") {
+    // accept the whole <iframe ...> code Google gives, or just its link
+    const src = (v.match(/src="([^"]+)"/)?.[1] ?? v).replace(/&amp;/g, "&");
+    if (src.length > 1500 || !/^https:\/\/www\.google\.com\/maps\/embed\?pb=[^\s"'<>]+$/.test(src)) bad("Paste the embed code from Google Maps (Share → Embed a map).");
+    return src;
+  }
+  if (k === "mapsUrl" && !/^https:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|(www\.)?google\.[a-z.]+\/maps|maps\.google\.[a-z.]+)(\/[^\s"'<>]*)?$/.test(v)) bad("Paste a Google Maps link (Share → Copy link), e.g. https://maps.app.goo.gl/…");
   if (v.length > 500) bad("Value is too long.");
   if (k.endsWith("Url") || k === "announcementLink") {
     if (k === "announcementLink" && v.startsWith("/") && /^\/[\w\-/?=&#.]*$/.test(v)) return v;
@@ -693,7 +700,7 @@ function validateSetting(k: SiteSettingKey, raw: string): string {
 
 export async function saveSettings(env: Env, admin: AdminIdentity, body: unknown) {
   requireRole(admin, CONTENT_ROLES, "change site settings");
-  const input = z.object({ settings: z.record(z.string(), z.string().max(600)) }).strict().safeParse(body);
+  const input = z.object({ settings: z.record(z.string(), z.string().max(2000)) }).strict().safeParse(body);
   if (!input.success) throw new HttpError(422, "validation", "Invalid settings.");
   const before = await getSettings(env);
   const now = nowIso();

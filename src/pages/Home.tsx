@@ -162,7 +162,7 @@ function ContactCard() {
         <a href={SITE.whatsappUrl} target="_blank" rel="noopener" className={tile}>
           <WhatsAppIcon className="size-5 text-[#25d366]" /> WhatsApp
         </a>
-        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(SITE.addressOneLine)}`} target="_blank" rel="noopener" className={tile}>
+        <a href={SITE.mapsUrl} target="_blank" rel="noopener" className={tile}>
           <MapPin className="size-5 text-sun-300" /> Directions
         </a>
       </div>

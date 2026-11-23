@@ -40,10 +40,26 @@ export default function Contact() {
               </span>
             ))}
           </address>
-          <a className="mt-4 inline-block text-sm font-semibold text-verdi-700 hover:underline max-md:btn-primary max-md:tap max-md:mt-3 max-md:w-full max-md:text-white max-md:no-underline" target="_blank" rel="noopener" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(SITE.addressOneLine)}`}>
-            Open in Maps →
+          <a className="mt-4 inline-block text-sm font-semibold text-verdi-700 hover:underline max-md:btn-primary max-md:tap max-md:mt-3 max-md:w-full max-md:text-white max-md:no-underline" target="_blank" rel="noopener" href={SITE.mapsUrl} data-testid="contact-maps-link">
+            Open in Google Maps →
           </a>
         </div>
+      </div>
+      {/* the shop on a map; a tap or click opens Google Maps (the app on phones) for directions */}
+      <div className="relative mt-6 overflow-hidden rounded-3xl border border-line bg-paper-2 max-md:mt-4" data-testid="contact-map">
+        <iframe
+          title={`Map: VERDI SOLARR SOLUTION, ${SITE.addressOneLine}`}
+          src={SITE.mapsEmbedUrl}
+          className="pointer-events-none block aspect-[16/7] w-full border-0 max-md:aspect-[4/3]"
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          tabIndex={-1}
+        />
+        <a href={SITE.mapsUrl} target="_blank" rel="noopener" className="group absolute inset-0 flex items-end p-4" aria-label="Open VERDI SOLARR SOLUTION in Google Maps for directions" data-testid="contact-map-link">
+          <span className="inline-flex items-center gap-2 rounded-full bg-ink/90 px-4 py-2.5 text-sm font-semibold text-paper shadow-[var(--shadow-lift)] backdrop-blur transition group-hover:bg-ink">
+            <MapPin className="size-4 text-sun-400" /> Open in Google Maps for directions
+          </span>
+        </a>
       </div>
       <p className="mt-8 flex items-center gap-2 text-sm text-muted">
         <Clock className="size-4" /> Please call or message to confirm business hours before visiting.

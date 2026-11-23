@@ -155,6 +155,7 @@ export default function CustomerHelper({ open, onClose, onEnd, session, lang, se
               whatsappUrl: SITE.whatsappUrl,
               email: SITE.email,
               address: SITE.address,
+              mapsUrl: SITE.mapsUrl,
               hours: SITE.businessHours,
               social: [
                 ["Instagram", SITE.instagramUrl],
