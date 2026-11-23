@@ -27,6 +27,8 @@
     "db:migrate:test": "node scripts/check-migrations.mjs && wrangler d1 migrations apply verdi-db-test --remote --env test"
   },
   "dependencies": {
+    "@sentry/cloudflare": "^11.16.0",
+    "@sentry/react": "^11.16.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
     "lucide-react": "^1.72.0",

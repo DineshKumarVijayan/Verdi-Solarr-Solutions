@@ -16,6 +16,8 @@ import * as customers from "./customers";
 import type { Env } from "./env";
 import { errorResponse, HttpError, json, readJson } from "./http";
 import { withIdempotency } from "./idempotency";
+import * as Sentry from "@sentry/cloudflare";
+import { scrub } from "../shared/scrub";
 
 async function rateLimit(limiter: Env["PUBLIC_LIMITER"], key: string): Promise<void> {
   if (!limiter) return;
@@ -143,6 +145,8 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     }
     if (path === "/api/admin/dashboard" && method === "GET") return json(await dashboard(env, admin));
     if (path === "/api/admin/my-day" && method === "GET") return json(await content.myDay(env, admin));
+    // TEST site only, owner only: raise one error on purpose to check that error alerts arrive
+    if (path === "/api/admin/alert-test" && method === "POST" && env.ENVIRONMENT === "test" && admin.role === "owner") throw new Error("VERDI test alert (server): this error was raised on purpose to check alerts");
     if (path === "/api/admin/exports" && method === "POST") return json(await content.logExport(env, admin, await readJson(request)));
     if (path === "/api/admin/message-templates" && method === "GET") return json(await content.getMessageTemplates(env));
     if (path === "/api/admin/message-templates" && method === "PUT") return json(await content.saveMessageTemplates(env, admin, await readJson(request, 32 * 1024)));
@@ -267,7 +271,31 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
   return null;
 }
 
-export default {
+// Error alerts (Sentry): only when SENTRY_DSN is set. No IPs, cookies, request bodies or user details are
+// sent, and phone numbers / emails are blanked out. Errors only, no performance tracing.
+export default Sentry.withSentry(
+  (env: Env) =>
+    env.SENTRY_DSN
+      ? {
+          dsn: env.SENTRY_DSN,
+          environment: env.ENVIRONMENT,
+          tracesSampleRate: 0,
+          beforeSend(event) {
+            delete event.user;
+            if (event.request) {
+              delete event.request.cookies;
+              delete event.request.headers;
+              delete event.request.data;
+              if (event.request.url) event.request.url = scrub(event.request.url);
+              if (typeof event.request.query_string === "string") event.request.query_string = scrub(event.request.query_string);
+            }
+            for (const v of event.exception?.values ?? []) if (v.value) v.value = scrub(v.value);
+            if (event.message) event.message = scrub(event.message);
+            return event;
+          },
+        }
+      : undefined,
+  {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
       const path = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
@@ -277,4 +305,5 @@ export default {
       return errorResponse(err);
     }
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Env>,
+);

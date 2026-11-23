@@ -1,3 +1,4 @@
+import { captureException } from "@sentry/cloudflare";
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -25,7 +26,7 @@ export const PAGE_SECURITY_HEADERS: Record<string, string> = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
   "Content-Security-Policy":
-    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
+    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' https://*.ingest.us.sentry.io; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
 };
 
 export function json(data: unknown, init: ResponseInit & { cache?: string } = {}): Response {
@@ -50,6 +51,7 @@ export function errorResponse(err: unknown): Response {
     );
   }
   console.error("Unhandled error", err);
+  captureException(err); // error alert (no-op when Sentry is not configured)
   return json({ error: { code: "internal", message: "Something went wrong. Please try again." } }, { status: 500 });
 }
 

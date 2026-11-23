@@ -15,4 +15,6 @@ export interface Env {
   PUBLIC_CACHE_SECONDS: string;
   /** SECRET (wrangler secret put PASSWORD_PEPPER). Secret key mixed into every password hash. See PASSWORDS.md. */
   PASSWORD_PEPPER?: string;
+  /** Sentry project DSN for server error alerts (optional: alerts are off without it). */
+  SENTRY_DSN?: string;
 }

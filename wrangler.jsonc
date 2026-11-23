@@ -63,7 +63,13 @@
         { "name": "ADMIN_LIMITER", "namespace_id": "4202", "simple": { "limit": 120, "period": 60 } },
         { "name": "AUTH_LIMITER", "namespace_id": "4203", "simple": { "limit": 20, "period": 60 } }
       ],
-      "vars": { "ENVIRONMENT": "test", "ADMIN_ALLOWED_HOSTS": "verdi-solarr-test.verdi-solarr.workers.dev", "PUBLIC_CACHE_SECONDS": "60" }
+      "vars": {
+        "ENVIRONMENT": "test",
+        "ADMIN_ALLOWED_HOSTS": "verdi-solarr-test.verdi-solarr.workers.dev",
+        "PUBLIC_CACHE_SECONDS": "60",
+        // error alerts (Sentry project verdi-worker); a DSN is public by design
+        "SENTRY_DSN": "https://bcc7115eab987eafccf0251d887df979@o4512481735475201.ingest.us.sentry.io/4512481776762880"
+      }
     }
   }
 }

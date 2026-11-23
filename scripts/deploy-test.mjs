@@ -6,7 +6,13 @@
 
 import { execSync } from "node:child_process";
 
-const env = { ...process.env, CLOUDFLARE_ENV: "test" };
+const env = {
+  ...process.env,
+  CLOUDFLARE_ENV: "test",
+  // website error alerts (Sentry project verdi-web); a DSN is public by design
+  VITE_SENTRY_DSN: "https://286bdd24638c14b0a0c7a9de2e7dd14a@o4512481735475201.ingest.us.sentry.io/4512481772175360",
+  VITE_SENTRY_ENV: "test",
+};
 const run = (cmd) => {
   console.log(`\n$ ${cmd}`);
   try {
