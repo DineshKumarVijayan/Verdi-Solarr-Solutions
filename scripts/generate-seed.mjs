@@ -75,7 +75,8 @@ for (const p of products) {
 lines.push(
   `INSERT OR IGNORE INTO AdminUsers (Email, DisplayName, Role) VALUES (${q(ownerEmail)}, 'Owner', 'owner');`,
   "-- Derived cache only: force the Worker to rebuild the public catalogue snapshot.",
-  "UPDATE PublishedCatalogue SET PayloadJson = '{}' WHERE Id = 1; -- keeps the version number, so browsers never mistake a new copy for an old one",
+  "-- (keeps the version number, so browsers never mistake a new copy for an old one)",
+  "UPDATE PublishedCatalogue SET PayloadJson = '{}' WHERE Id = 1;",
 );
 
 mkdirSync("seed", { recursive: true });
