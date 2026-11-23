@@ -299,6 +299,79 @@ select {
 }
 select::-ms-expand { display: none; }
 
+/* Modern open list (customizable select: Chrome/Edge/Android). Other browsers keep their own list.
+   The closed box keeps the look above; only the list that opens is restyled. */
+@supports (appearance: base-select) {
+  select:not([multiple]):not([size]),
+  select:not([multiple]):not([size])::picker(select) {
+    appearance: base-select;
+  }
+  select:not([multiple]):not([size])::picker-icon { display: none; }
+  /* the closed box stays one line, like before: long names end in "…" */
+  select:not([multiple]):not([size]) {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  select:not([multiple]):not([size])::picker(select) {
+    margin-block: 6px;
+    padding: 6px;
+    min-width: anchor-size(width);
+    max-height: min(60dvh, 380px);
+    overflow-y: auto;
+    border: 1px solid var(--color-line);
+    border-radius: 16px;
+    background: var(--color-card);
+    box-shadow: 0 2px 6px rgb(10 24 34 / 0.06), 0 22px 44px -18px rgb(10 24 34 / 0.35);
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), overlay 0.2s allow-discrete, display 0.2s allow-discrete;
+  }
+  @starting-style {
+    select:not([multiple]):not([size])::picker(select):popover-open {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.98);
+    }
+  }
+  select:not([multiple]):not([size]) option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+    color: var(--color-ink);
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+  }
+  select:not([multiple]):not([size]) option:hover,
+  select:not([multiple]):not([size]) option:focus-visible {
+    background: var(--color-verdi-50);
+    outline: none;
+  }
+  select:not([multiple]):not([size]) option:checked {
+    background: var(--color-verdi-100);
+    color: var(--color-verdi-700);
+    font-weight: 600;
+  }
+  select:not([multiple]):not([size]) option::checkmark {
+    order: 1;
+    margin-left: auto;
+    content: "✓";
+    color: var(--color-verdi-600);
+    font-weight: 700;
+  }
+  select:not([multiple]):not([size]) option:disabled {
+    color: var(--color-muted);
+    cursor: default;
+    opacity: 0.6;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    select:not([multiple]):not([size])::picker(select) { transition: none; }
+  }
+}
+
 /* ---- Marquee ----------------------------------------------------------------- */
 @keyframes marquee { to { transform: translateX(-50%); } }
 .marquee-track { animation: marquee var(--marquee-duration, 40s) linear infinite; width: max-content; will-change: transform; }
@@ -485,4 +558,60 @@ select::-ms-expand { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .helper-glow { animation: none; }
+}
+
+/* App-wide tooltip for icon-only buttons (src/lib/tooltips.ts). Shown in the popover layer, so it also sits above dialogs. */
+.vs-tip {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  z-index: 100;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 6px 10px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 10px;
+  background: rgb(10 24 34 / 0.94);
+  color: var(--color-paper);
+  font: 500 12px/1.35 var(--font-sans);
+  letter-spacing: 0.01em;
+  text-align: center;
+  white-space: normal;
+  box-shadow: 0 10px 28px -8px rgb(10 24 34 / 0.45), 0 2px 6px rgb(10 24 34 / 0.18);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  overflow: visible;
+  opacity: 0;
+  transform: translateY(4px) scale(0.96);
+  transition: opacity 0.14s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.vs-tip:not(:popover-open):not(.vs-tip-on) { visibility: hidden; }
+.vs-tip[data-side="bottom"] { transform: translateY(-4px) scale(0.96); }
+.vs-tip.vs-tip-on { opacity: 1; transform: none; visibility: visible; }
+.vs-tip::after {
+  content: "";
+  position: absolute;
+  left: var(--arrow-x, 50%);
+  top: 100%;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  border-right: inherit;
+  border-bottom: inherit;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-radius: 0 0 2px 0;
+}
+.vs-tip[data-side="bottom"]::after { top: 0; transform: translate(-50%, -50%) rotate(225deg); }
+@media (prefers-reduced-motion: reduce) {
+  .vs-tip { transition: opacity 0.1s linear; transform: none; }
+}
+
+/* Admin tour: soft pulse around the highlighted feature */
+.tour-ring { animation: tour-pulse 1.8s ease-out infinite; }
+@keyframes tour-pulse {
+  0% { opacity: 0.9; transform: scale(1); }
+  70% { opacity: 0; transform: scale(1.06); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-ring { animation: none; }
 }

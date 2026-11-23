@@ -1,4 +1,5 @@
-import { KeyRound, LogOut, ShieldAlert } from "lucide-react";
+import { Compass, KeyRound, LogOut, ShieldAlert } from "lucide-react";
+import { AdminTour, startTour } from "./Tour";
 import { ADMIN_NAV, navAllowed } from "./nav";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
@@ -99,6 +100,9 @@ export default function AdminLayout() {
             <span className="hidden sm:inline">
               {admin.displayName || admin.email.split("@")[0]} · <span className="text-paper/90">{ROLE_LABEL[admin.role]}</span>
             </span>
+            <button type="button" onClick={startTour} className="inline-flex items-center gap-1 hover:text-paper" data-testid="admin-tour-start">
+              <Compass className="size-3.5" /> Take the tour
+            </button>
             <button type="button" onClick={() => setPwOpen(true)} className="inline-flex items-center gap-1 hover:text-paper" data-testid="admin-change-password">
               <KeyRound className="size-3.5" /> Password
             </button>
@@ -113,6 +117,7 @@ export default function AdminLayout() {
       </RoleGate>
       <AdminTabBar admin={admin} onPassword={() => setPwOpen(true)} onSignOut={signOut} />
       <HelperLauncher kind="staff" />
+      <AdminTour admin={admin} />
       {state.relogin && (
         <div className="fixed inset-0 z-[80] overflow-auto bg-ink/75 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Sign in again" data-testid="relogin-overlay">
           <AdminLogin onDone={signedIn} notice={state.relogin} />

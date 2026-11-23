@@ -1,5 +1,5 @@
 import { BookOpen, CircleHelp, Sparkles, Calculator, Camera, ClipboardList, Ellipsis, FileText, GitCompareArrows, GraduationCap, House, LayoutDashboard, LayoutGrid, LogOut, Mail, MapPin, Phone, Scale, UserRound, Wrench } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, useRef } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import { useAccount, useStaff } from "../lib/account";
 import { useBasket } from "../lib/basket";
@@ -18,7 +18,16 @@ export function MobileTabBar() {
   const basket = useBasket();
   const { pathname } = useLocation();
   const [more, setMore] = useState(false);
-  useEffect(() => setMore(false), [pathname]);
+  // close after a navigation away from the page it was opened on (a slow page can finish loading after
+  // the sheet opened: that is not a new navigation, so the sheet stays)
+  const openedOn = useRef<string | null>(null);
+  useEffect(() => {
+    if (pathname !== openedOn.current) setMore(false);
+  }, [pathname]);
+  const openMore = () => {
+    openedOn.current = window.location.pathname;
+    setMore(true);
+  };
   if (pathname.startsWith("/admin")) return null;
   const navCls = ({ isActive }: { isActive: boolean }) => `tabbar-item ${isActive ? "!text-verdi-700" : ""}`;
   const learnActive = pathname.startsWith("/learn") || pathname.startsWith("/solar-tools");
@@ -46,7 +55,7 @@ export function MobileTabBar() {
           <NavLink to="/learn" className={() => navCls({ isActive: learnActive })}>
             <GraduationCap className="size-5" /> Learn
           </NavLink>
-          <button type="button" className={`tabbar-item ${more ? "!text-verdi-700" : ""}`} onClick={() => setMore(true)} aria-haspopup="dialog" aria-expanded={more} data-testid="tab-more">
+          <button type="button" className={`tabbar-item ${more ? "!text-verdi-700" : ""}`} onClick={openMore} aria-haspopup="dialog" aria-expanded={more} data-testid="tab-more">
             <Ellipsis className="size-5" /> More
           </button>
         </div>

@@ -4,6 +4,8 @@ import { RouterProvider } from "react-router/dom";
 import { router } from "./router";
 import "./styles.css";
 import { startOffscreenPausing } from "./lib/offscreen";
+import { startTooltips } from "./lib/tooltips";
+import { startSelectSizing } from "./lib/selects";
 
 const root = document.getElementById("root")!;
 // Prerendered SEO markup (see scripts/prerender.mjs) is replaced by the live app.
@@ -15,3 +17,5 @@ createRoot(root).render(
 );
 
 startOffscreenPausing();
+startTooltips();
+startSelectSizing();

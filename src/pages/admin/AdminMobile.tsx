@@ -1,6 +1,7 @@
-import { Ellipsis, ExternalLink, KeyRound, LogOut } from "lucide-react";
+import { Ellipsis, ExternalLink, KeyRound, LogOut, Compass } from "lucide-react";
 import { ADMIN_NAV, navAllowed } from "./nav";
-import { useEffect, useState, type ReactNode } from "react";
+import { startTour } from "./Tour";
+import { useEffect, useState, type ReactNode, useRef } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import { ROLE_LABEL, type AdminDashboard, type AdminIdentity } from "../../../shared/types";
 import { BottomSheet, SheetGroup } from "../../components/mobile/kit";
@@ -71,7 +72,16 @@ export function AdminTabBar({ admin, onPassword, onSignOut }: { admin: AdminIden
     }
   };
   const [newEnq, setNewEnq] = useState(0);
-  useEffect(() => setMore(false), [pathname]);
+  // close after a navigation away from the page it was opened on (a slow page can finish loading after
+  // the sheet opened: that is not a new navigation, so the sheet stays)
+  const openedOn = useRef<string | null>(null);
+  useEffect(() => {
+    if (pathname !== openedOn.current) setMore(false);
+  }, [pathname]);
+  const openMore = () => {
+    openedOn.current = window.location.pathname;
+    setMore(true);
+  };
   // "new enquiries" badge (phones only; reuses the dashboard counts endpoint)
   useEffect(() => {
     if (!isPhone()) return;
@@ -103,7 +113,7 @@ export function AdminTabBar({ admin, onPassword, onSignOut }: { admin: AdminIden
               {n.tabLabel ?? n.label}
             </NavLink>
           ))}
-          <button type="button" className={`tabbar-item ${more || moreActive ? "!text-verdi-700" : ""}`} onClick={() => setMore(true)} aria-haspopup="dialog" aria-expanded={more} data-testid="admin-tab-more">
+          <button type="button" className={`tabbar-item ${more || moreActive ? "!text-verdi-700" : ""}`} onClick={openMore} aria-haspopup="dialog" aria-expanded={more} data-testid="admin-tab-more">
             <Ellipsis className="size-5" /> More
           </button>
         </div>
@@ -120,6 +130,9 @@ export function AdminTabBar({ admin, onPassword, onSignOut }: { admin: AdminIden
           ))}
         </SheetGroup>
         <SheetGroup title="Your account">
+          <Tile onClick={() => (setMore(false), startTour())} icon={<Compass />} testId="m-admin-tour">
+            Take the tour
+          </Tile>
           <Tile onClick={() => (setMore(false), onPassword())} icon={<KeyRound />} testId="m-admin-change-password">
             Password
           </Tile>

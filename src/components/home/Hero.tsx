@@ -252,7 +252,7 @@ export function Hero({ stats }: { stats: { k: string; v: number }[] }) {
       <div className="relative border-t border-white/10 bg-ink/85">
         <dl className="container-x grid grid-cols-4 divide-x divide-white/10">
           {stats.map((s) => (
-            <div key={s.k} className="px-2 py-3 sm:px-6 sm:py-5">
+            <div key={s.k} className="px-2 py-3 sm:px-6 sm:py-5 max-lg:flex max-lg:flex-col max-lg:justify-between">
               <dt className="font-mono text-[8px] leading-tight tracking-[0.1em] text-paper/55 uppercase sm:text-[10px] sm:tracking-[0.16em]">{s.k}</dt>
               <dd className="num mt-1 text-xl text-paper sm:text-3xl">
                 <CountUp to={s.v} />
