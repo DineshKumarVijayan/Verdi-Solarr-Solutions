@@ -63,7 +63,7 @@ export default function Prices() {
   return (
     <div className="container-x py-10 max-lg:pt-3">
       <div className="flex flex-wrap items-end justify-between gap-4 max-lg:items-center max-lg:gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 max-lg:basis-full">
           <h1 className="text-3xl font-semibold max-lg:text-xl">Price management</h1>
           <p className="mt-1 text-sm text-muted max-lg:line-clamp-1 max-lg:text-xs">Prices are stored in rupees and paise. Saved prices appear on the public site within about a minute.</p>
         </div>

@@ -1,18 +1,10 @@
-import { Check, Minus, Plus, Wallet } from "lucide-react";
+import { Check, ChevronRight, ListChecks, Minus, Percent, Plus, Wallet, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import {
-  basisPointsToPercent,
-  PAYOUT_METHODS,
-  percentToBasisPoints,
-  type BonusEntry,
-  type BonusOverview,
-  type BonusPayout,
-  type BonusStaffSummary,
-} from "../../../shared/bonus";
+import { basisPointsToPercent, PAYOUT_METHODS, percentToBasisPoints, type BonusEntry, type BonusOverview, type BonusPayout, type BonusStaffSummary } from "../../../shared/bonus";
 import { formatPaise } from "../../../shared/money";
 import { rupeesToPaise } from "../../../shared/schemas";
-import { BottomSheet, useIsPhone } from "../../components/mobile/kit";
+import { BottomSheet, MobileTabs, useIsPhone } from "../../components/mobile/kit";
 import { usePaged } from "../../components/Pager";
 import { Modal, Spinner, useToast } from "../../components/ui";
 import { api } from "../../lib/api";
@@ -25,8 +17,16 @@ import { canManage, dt, errorText, PageHead, send, ExportButton } from "./kit";
 
 const today = () => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
 const money = (p: number) => <span className={`num ${p < 0 ? "text-danger" : ""}`}>{formatPaise(p)}</span>;
-const KIND: Record<BonusEntry["kind"], string> = { sale: "Sale", reversal: "Reversed", adjustment: "Adjustment" };
-const STATUS_STYLE: Record<BonusEntry["status"], string> = { pending: "bg-sun-100 text-sun-600", approved: "bg-sky-100 text-sky-600", paid: "bg-verdi-50 text-verdi-700" };
+const KIND: Record<BonusEntry["kind"], string> = {
+  sale: "Sale",
+  reversal: "Reversed",
+  adjustment: "Adjustment",
+};
+const STATUS_STYLE: Record<BonusEntry["status"], string> = {
+  pending: "bg-sun-100 text-sun-600",
+  approved: "bg-sky-100 text-sky-600",
+  paid: "bg-verdi-50 text-verdi-700",
+};
 
 /** Bottom sheet on phones, dialog on desktop. */
 function Panel({ open, onClose, title, children, footer, testId }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; testId?: string }) {
@@ -50,7 +50,7 @@ function EntryRow({ e, showStaff, selectable, checked, onCheck }: { e: BonusEntr
       {selectable && <input type="checkbox" className="mt-1 size-5 shrink-0 accent-verdi-600" checked={checked} onChange={(x) => onCheck?.(x.target.checked)} aria-label={`Select bonus ${e.id}`} />}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">
-          {e.kind === "adjustment" ? e.reason : e.customer ?? "—"}
+          {e.kind === "adjustment" ? e.reason : (e.customer ?? "—")}
           {e.enquiryRef && <span className="num ml-1.5 text-xs font-normal text-muted">{e.enquiryRef}</span>}
         </p>
         <p className="truncate text-xs text-muted">
@@ -58,7 +58,8 @@ function EntryRow({ e, showStaff, selectable, checked, onCheck }: { e: BonusEntr
           {KIND[e.kind]}
           {e.salePaise != null && e.kind === "sale" && (
             <>
-              {" "}· {basisPointsToPercent(e.rateBasisPoints)}% of {formatPaise(e.salePaise)}
+              {" "}
+              · {basisPointsToPercent(e.rateBasisPoints)}% of {formatPaise(e.salePaise)}
             </>
           )}
           {e.kind === "reversal" && e.reason ? ` · ${e.reason}` : ""} · {dt(e.createdAt)}
@@ -77,8 +78,13 @@ function PayoutRow({ p, onCancel }: { p: BonusPayout; onCancel?: () => void }) {
     <li className={`flex items-start gap-3 py-2.5 ${p.status === "cancelled" ? "opacity-60" : ""}`} data-testid="bonus-payout">
       <Wallet className="mt-0.5 size-4 shrink-0 text-verdi-600" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">
-          {p.staffName} · {new Date(`${p.paidOn}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+        <p className="text-sm font-medium max-lg:truncate">
+          {p.staffName} ·{" "}
+          {new Date(`${p.paidOn}T00:00:00`).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
         </p>
         <p className="truncate text-xs text-muted">
           {[p.method, p.reference, `${p.entryCount} bonus${p.entryCount === 1 ? "" : "es"}`, `by ${p.paidBy}`].filter(Boolean).join(" · ")}
@@ -103,7 +109,10 @@ export default function Bonus() {
   const admin = useAdmin();
   const toast = useToast();
   const [ov, setOv] = useState<BonusOverview | null>(null);
-  const [list, setList] = useState<{ entries: BonusEntry[]; payouts: BonusPayout[] } | null>(null);
+  const [list, setList] = useState<{
+    entries: BonusEntry[];
+    payouts: BonusPayout[];
+  } | null>(null);
   const [staffF, setStaffF] = useState<number | null>(null);
   const [statusF, setStatusF] = useState<"unpaid" | "pending" | "approved" | "paid" | "">("unpaid");
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +121,8 @@ export default function Bonus() {
   const [adjust, setAdjust] = useState(false);
   const [cancelP, setCancelP] = useState<BonusPayout | null>(null);
   const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [tab, setTab] = useState("staff");
+  const [sheetFor, setSheetFor] = useState<BonusStaffSummary | null>(null);
 
   const load = useCallback(() => {
     const sp = new URLSearchParams();
@@ -154,9 +165,23 @@ export default function Bonus() {
             <ExportButton
               name="Staff bonus"
               build={async () => {
-                const all = await api<{ entries: BonusEntry[]; payouts: BonusPayout[] }>("/api/admin/bonus/entries");
+                const all = await api<{
+                  entries: BonusEntry[];
+                  payouts: BonusPayout[];
+                }>("/api/admin/bonus/entries");
                 return [
-                  { name: "Balances", columns: [{ header: "Staff member" }, { header: "Rate %", type: "number" }, { header: "Waiting approval (₹)", type: "money" }, { header: "Approved (₹)", type: "money" }, { header: "Unpaid total (₹)", type: "money" }, { header: "Paid so far (₹)", type: "money" }], rows: (ov?.staff ?? []).map((x) => [x.name, x.effectiveBasisPoints / 100, x.pendingPaise / 100, x.approvedPaise / 100, x.unpaidPaise / 100, x.paidPaise / 100]) },
+                  {
+                    name: "Balances",
+                    columns: [
+                      { header: "Staff member" },
+                      { header: "Rate %", type: "number" },
+                      { header: "Waiting approval (₹)", type: "money" },
+                      { header: "Approved (₹)", type: "money" },
+                      { header: "Unpaid total (₹)", type: "money" },
+                      { header: "Paid so far (₹)", type: "money" },
+                    ],
+                    rows: (ov?.staff ?? []).map((x) => [x.name, x.effectiveBasisPoints / 100, x.pendingPaise / 100, x.approvedPaise / 100, x.unpaidPaise / 100, x.paidPaise / 100]),
+                  },
                   ...bonusSheets(all.entries, all.payouts),
                 ];
               }}
@@ -174,107 +199,176 @@ export default function Bonus() {
         </div>
       ) : (
         <>
-          <div className="card mt-5 flex flex-wrap items-center justify-between gap-3 p-4" data-testid="default-rate">
-            <p className="text-sm">
-              Default bonus for everyone: <b className="num text-lg">{ov.defaultBasisPoints == null ? "not set" : `${basisPointsToPercent(ov.defaultBasisPoints)}%`}</b> of the sale amount
-            </p>
-            <button type="button" className="btn-ghost btn-sm max-lg:tap" onClick={() => setRateFor("default")} data-testid="edit-default-rate">
-              Change
-            </button>
-          </div>
+          <MobileTabs
+            active={tab}
+            onChange={setTab}
+            className="-mx-4 mt-4"
+            testId="bonus-tabs"
+            tabs={[
+              {
+                id: "staff",
+                label: "Staff",
+                dot: ov.staff.some((x) => x.unpaidPaise > 0),
+                panel: (
+                  <>
+                    <div className="card mt-5 flex flex-wrap items-center justify-between gap-3 p-4 max-lg:mt-3 max-lg:flex-nowrap max-lg:p-3" data-testid="default-rate">
+                      <p className="text-sm max-lg:text-xs">
+                        Default bonus for everyone: <b className="num text-lg max-lg:text-base">{ov.defaultBasisPoints == null ? "not set" : `${basisPointsToPercent(ov.defaultBasisPoints)}%`}</b> of the sale amount
+                      </p>
+                      <button type="button" className="btn-ghost btn-sm max-lg:tap max-lg:shrink-0" onClick={() => setRateFor("default")} data-testid="edit-default-rate">
+                        Change
+                      </button>
+                    </div>
 
-          <ul className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="bonus-staff">
-            {ov.staff.map((s) => (
-              <li key={s.staffId} className="card p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{s.name}</p>
-                    <button type="button" className="text-xs text-verdi-700 underline max-lg:min-h-9" onClick={() => setRateFor(s)}>
-                      {s.rateBasisPoints == null ? `Default rate (${basisPointsToPercent(s.effectiveBasisPoints)}%)` : `Own rate ${basisPointsToPercent(s.rateBasisPoints)}%`} · change
-                    </button>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[11px] text-muted">Unpaid</p>
-                    <p className="num text-xl font-semibold" data-testid="unpaid-amount">
-                      {formatPaise(s.unpaidPaise)}
-                    </p>
-                  </div>
-                </div>
-                <p className="num mt-2 text-xs text-muted">
-                  Pending {formatPaise(s.pendingPaise)} · approved {formatPaise(s.approvedPaise)} · paid so far {formatPaise(s.paidPaise)}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" className="btn-primary btn-sm max-lg:tap" disabled={s.unpaidPaise <= 0} onClick={() => setPayFor(s)} data-testid="pay-bonus">
-                    <Wallet className="size-4" /> Pay bonus
-                  </button>
-                  <button type="button" className="btn-ghost btn-sm max-lg:tap" onClick={() => setStaffF(staffF === s.staffId ? null : s.staffId)}>
-                    {staffF === s.staffId ? "Show everyone" : "Details"}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                    <ul className="mt-4 grid gap-3 max-lg:mt-3 max-lg:gap-2 md:grid-cols-2 xl:grid-cols-3" data-testid="bonus-staff">
+                      {ov.staff.map((s) => (
+                        <li key={s.staffId} className="card p-4 max-lg:relative max-lg:px-3.5 max-lg:py-3">
+                          <div className="flex items-start justify-between gap-2 max-lg:items-center">
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold">{s.name}</p>
+                              <p className="truncate text-xs text-muted lg:hidden">
+                              {basisPointsToPercent(s.effectiveBasisPoints)}% bonus
+                                {s.pendingPaise > 0 ? ` · ${formatPaise(s.pendingPaise)} to approve` : ""}
+                              </p>
+                              <button type="button" className="text-xs text-verdi-700 underline max-lg:hidden" onClick={() => setRateFor(s)}>
+                                {s.rateBasisPoints == null ? `Default rate (${basisPointsToPercent(s.effectiveBasisPoints)}%)` : `Own rate ${basisPointsToPercent(s.rateBasisPoints)}%`} · change
+                              </button>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <div className="text-right">
+                                <p className="text-[11px] text-muted">Unpaid</p>
+                                <p className={`num text-xl font-semibold max-lg:text-base ${s.unpaidPaise <= 0 ? "max-lg:text-muted" : ""}`} data-testid="unpaid-amount">
+                                  {formatPaise(s.unpaidPaise)}
+                                </p>
+                              </div>
+                              <ChevronRight className="size-4 text-subtle lg:hidden" aria-hidden="true" />
+                            </div>
+                          </div>
+                          <p className="num mt-2 text-xs text-muted max-lg:hidden">
+                            Pending {formatPaise(s.pendingPaise)} · approved {formatPaise(s.approvedPaise)} · paid so far {formatPaise(s.paidPaise)}
+                          </p>
+                          <div className="mt-3 flex flex-wrap gap-2 max-lg:hidden">
+                            <button type="button" className="btn-primary btn-sm max-lg:tap" disabled={s.unpaidPaise <= 0} onClick={() => setPayFor(s)} data-testid="pay-bonus">
+                              <Wallet className="size-4" /> Pay bonus
+                            </button>
+                            <button type="button" className="btn-ghost btn-sm max-lg:tap" onClick={() => setStaffF(staffF === s.staffId ? null : s.staffId)}>
+                              {staffF === s.staffId ? "Show everyone" : "Details"}
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="absolute inset-0 rounded-[inherit] lg:hidden"
+                            aria-label={`${s.name}: unpaid ${formatPaise(s.unpaidPaise)}. Open`}
+                            onClick={() => setSheetFor(s)}
+                            data-testid="bonus-staff-open"
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ),
+              },
+              {
+                id: "bonuses",
+                label: `Bonuses${list ? ` (${list.entries.length})` : ""}`,
+                panel: (
+                  <section className="card mt-5 p-4 max-lg:mt-3 sm:p-5" aria-labelledby="be-h">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h2 id="be-h" className="font-semibold">
+                        Bonuses {staffF ? `· ${ov.staff.find((s) => s.staffId === staffF)?.name ?? ""}` : ""}
+                      </h2>
+                      {staffF && (
+                        <button type="button" className="chip chip-on tap gap-1 lg:hidden" onClick={() => setStaffF(null)}>
+                          Everyone <X className="size-3.5" />
+                        </button>
+                      )}
+                      {pendingPicked.length > 0 && (
+                        <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => void approvePicked(pendingPicked)} data-testid="approve-selected">
+                          <Check className="size-4" /> Approve {pendingPicked.length}
+                        </button>
+                      )}
+                    </div>
+                    <div className="scrollbar-none -mx-4 mt-2 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Show">
+                      {(
+                        [
+                          ["unpaid", "Unpaid"],
+                          ["pending", "Pending"],
+                          ["approved", "Approved"],
+                          ["paid", "Paid"],
+                          ["", "All"],
+                        ] as const
+                      ).map(([k, l]) => (
+                        <button key={k} type="button" className={`chip shrink-0 max-lg:tap ${statusF === k ? "chip-on" : ""}`} onClick={() => setStatusF(k)}>
+                          {l}
+                        </button>
+                      ))}
+                    </div>
+                    {!list ? (
+                      <Spinner className="mt-4 size-5" />
+                    ) : list.entries.length === 0 ? (
+                      <p className="mt-4 text-sm text-muted">No bonuses here.</p>
+                    ) : (
+                      <>
+                        <ul className="mt-2 divide-y divide-line/70">
+                          {entries.items.map((e) => (
+                            <EntryRow
+                              key={e.id}
+                              e={e}
+                              showStaff={!staffF}
+                              selectable={e.status === "pending"}
+                              checked={picked.has(e.id)}
+                              onCheck={(v) =>
+                                setPicked((s) => {
+                                  const n = new Set(s);
+                                  if (v) n.add(e.id);
+                                  else n.delete(e.id);
+                                  return n;
+                                })
+                              }
+                            />
+                          ))}
+                        </ul>
+                        {entries.pager}
+                      </>
+                    )}
+                  </section>
+                ),
+              },
+              {
+                id: "payments",
+                label: "Payments",
+                panel: (
+                  <section className="card mt-5 p-4 max-lg:mt-3 sm:p-5" aria-labelledby="bp-h">
+                    <h2 id="bp-h" className="font-semibold">
+                      Payments
+                    </h2>
+                    {!list || list.payouts.length === 0 ? (
+                      <p className="mt-3 text-sm text-muted">No bonus payments yet.</p>
+                    ) : (
+                      <>
+                        <ul className="mt-2 divide-y divide-line/70">
+                          {payouts.items.map((p) => (
+                            <PayoutRow key={p.id} p={p} onCancel={() => setCancelP(p)} />
+                          ))}
+                        </ul>
+                        {payouts.pager}
+                      </>
+                    )}
+                  </section>
+                ),
+              },
+            ]}
+          />
 
-          <section className="card mt-5 p-4 sm:p-5" aria-labelledby="be-h">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 id="be-h" className="font-semibold">
-                Bonuses {staffF ? `· ${ov.staff.find((s) => s.staffId === staffF)?.name ?? ""}` : ""}
-              </h2>
-              {pendingPicked.length > 0 && (
-                <button type="button" className="btn-primary btn-sm max-lg:tap" onClick={() => void approvePicked(pendingPicked)} data-testid="approve-selected">
-                  <Check className="size-4" /> Approve {pendingPicked.length}
-                </button>
-              )}
-            </div>
-            <div className="scrollbar-none -mx-4 mt-2 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Show">
-              {(
-                [
-                  ["unpaid", "Unpaid"],
-                  ["pending", "Pending"],
-                  ["approved", "Approved"],
-                  ["paid", "Paid"],
-                  ["", "All"],
-                ] as const
-              ).map(([k, l]) => (
-                <button key={k} type="button" className={`chip shrink-0 max-lg:tap ${statusF === k ? "chip-on" : ""}`} onClick={() => setStatusF(k)}>
-                  {l}
-                </button>
-              ))}
-            </div>
-            {!list ? (
-              <Spinner className="mt-4 size-5" />
-            ) : list.entries.length === 0 ? (
-              <p className="mt-4 text-sm text-muted">No bonuses here.</p>
-            ) : (
-              <>
-                <ul className="mt-2 divide-y divide-line/70">
-                  {entries.items.map((e) => (
-                    <EntryRow key={e.id} e={e} showStaff={!staffF} selectable={e.status === "pending"} checked={picked.has(e.id)} onCheck={(v) => setPicked((s) => { const n = new Set(s); if (v) n.add(e.id); else n.delete(e.id); return n; })} />
-                  ))}
-                </ul>
-                {entries.pager}
-              </>
-            )}
-          </section>
-
-          <section className="card mt-5 p-4 sm:p-5" aria-labelledby="bp-h">
-            <h2 id="bp-h" className="font-semibold">
-              Payments
-            </h2>
-            {!list || list.payouts.length === 0 ? (
-              <p className="mt-3 text-sm text-muted">No bonus payments yet.</p>
-            ) : (
-              <>
-                <ul className="mt-2 divide-y divide-line/70">
-                  {payouts.items.map((p) => (
-                    <PayoutRow key={p.id} p={p} onCancel={() => setCancelP(p)} />
-                  ))}
-                </ul>
-                {payouts.pager}
-              </>
-            )}
-          </section>
-
+          {sheetFor && (
+            <StaffSheet
+              s={sheetFor}
+              onClose={() => setSheetFor(null)}
+              onPay={() => (setSheetFor(null), setPayFor(sheetFor))}
+              onRate={() => (setSheetFor(null), setRateFor(sheetFor))}
+              onList={() => (setSheetFor(null), setStaffF(sheetFor.staffId), setTab("bonuses"), window.scrollTo({ top: 0 }))}
+            />
+          )}
           <RatePanel target={rateFor} defaultBp={ov.defaultBasisPoints} onClose={() => setRateFor(null)} onSaved={load} />
           {payFor && <PayPanel staff={payFor} onClose={() => setPayFor(null)} onDone={load} />}
           <AdjustPanel open={adjust} staff={ov.staff} onClose={() => setAdjust(false)} onSaved={load} />
@@ -282,6 +376,57 @@ export default function Bonus() {
         </>
       )}
     </div>
+  );
+}
+
+/** Phones: one staff member's bonus at a glance, with the actions in reach of the thumb. */
+function StaffSheet({ s, onClose, onPay, onRate, onList }: { s: BonusStaffSummary; onClose: () => void; onPay: () => void; onRate: () => void; onList: () => void }) {
+  return (
+    <BottomSheet
+      open
+      onClose={onClose}
+      title={s.name}
+      testId="bonus-staff-sheet"
+      footer={
+        <button type="button" className="btn-primary tap w-full" disabled={s.unpaidPaise <= 0} onClick={onPay}>
+          <Wallet className="size-4" /> {s.unpaidPaise > 0 ? `Pay ${formatPaise(s.unpaidPaise)}` : "Nothing to pay"}
+        </button>
+      }
+    >
+      <div className="rounded-2xl bg-verdi-50 p-4 text-center">
+        <p className="text-xs text-muted">Unpaid bonus</p>
+        <p className="num mt-0.5 text-3xl font-semibold">{formatPaise(s.unpaidPaise)}</p>
+      </div>
+      <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+        {(
+          [
+            ["To approve", s.pendingPaise],
+            ["Approved", s.approvedPaise],
+            ["Paid so far", s.paidPaise],
+          ] as const
+        ).map(([k, v]) => (
+          <div key={k} className="min-w-0 rounded-xl border border-line p-2">
+            <dt className="text-[11px] text-muted">{k}</dt>
+            <dd className="num mt-0.5 text-sm font-semibold [overflow-wrap:anywhere]">{formatPaise(v)}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-3 divide-y divide-line/70 rounded-2xl border border-line">
+        <button type="button" className="tap flex w-full items-center gap-3 px-3 text-left" onClick={onRate}>
+          <Percent className="size-4 shrink-0 text-verdi-600" />
+          <span className="min-w-0 flex-1 text-sm">
+            Bonus rate <b className="num">{basisPointsToPercent(s.effectiveBasisPoints)}%</b>
+            <span className="text-muted">{s.rateBasisPoints == null ? " · default" : " · own rate"}</span>
+          </span>
+          <span className="text-sm font-semibold text-verdi-700">Change</span>
+        </button>
+        <button type="button" className="tap flex w-full items-center gap-3 px-3 text-left" onClick={onList}>
+          <ListChecks className="size-4 shrink-0 text-verdi-600" />
+          <span className="min-w-0 flex-1 text-sm">See their bonuses</span>
+          <ChevronRight className="size-4 text-subtle" />
+        </button>
+      </div>
+    </BottomSheet>
   );
 }
 
@@ -298,7 +443,10 @@ function RatePanel({ target, defaultBp, onClose, onSaved }: { target: BonusStaff
     const bp = useDefault ? null : percentToBasisPoints(v);
     if (!useDefault && (bp === null || Number.isNaN(bp))) return setErr("Enter a percentage between 0 and 100, e.g. 2 or 2.5");
     try {
-      await send("/api/admin/bonus/rates", "PUT", { staffId: isDefault ? null : (target as BonusStaffSummary).staffId, rateBasisPoints: bp });
+      await send("/api/admin/bonus/rates", "PUT", {
+        staffId: isDefault ? null : (target as BonusStaffSummary).staffId,
+        rateBasisPoints: bp,
+      });
       toast("Bonus rate saved. It applies to sales won from now on.", "success");
       onSaved();
       onClose();
@@ -364,7 +512,15 @@ function PayPanel({ staff, onClose, onDone }: { staff: BonusStaffSummary; onClos
     setBusy(true);
     setErr(null);
     try {
-      const r = await send<{ payout: BonusPayout }>("/api/admin/bonus/payouts", "POST", { staffId: staff.staffId, entryIds: chosen.map((e) => e.id), expectedPaise: total, paidOn, method, reference, note });
+      const r = await send<{ payout: BonusPayout }>("/api/admin/bonus/payouts", "POST", {
+        staffId: staff.staffId,
+        entryIds: chosen.map((e) => e.id),
+        expectedPaise: total,
+        paidOn,
+        method,
+        reference,
+        note,
+      });
       toast(`Paid ${formatPaise(r.payout.amountPaise)} to ${staff.name}. Their unpaid bonus is settled.`, "success");
       onDone();
       onClose();
@@ -411,7 +567,20 @@ function PayPanel({ staff, onClose, onDone }: { staff: BonusStaffSummary; onClos
         ) : (
           <ul className="divide-y divide-line/70 rounded-2xl border border-line px-3" data-testid="pay-entries">
             {inRange.map((e) => (
-              <EntryRow key={e.id} e={e} selectable checked={!off.has(e.id)} onCheck={(v) => setOff((s) => { const n = new Set(s); if (v) n.delete(e.id); else n.add(e.id); return n; })} />
+              <EntryRow
+                key={e.id}
+                e={e}
+                selectable
+                checked={!off.has(e.id)}
+                onCheck={(v) =>
+                  setOff((s) => {
+                    const n = new Set(s);
+                    if (v) n.delete(e.id);
+                    else n.add(e.id);
+                    return n;
+                  })
+                }
+              />
             ))}
           </ul>
         )}
@@ -450,7 +619,11 @@ function AdjustPanel({ open, staff, onClose, onSaved }: { open: boolean; staff: 
     if (p === null || Number.isNaN(p) || p <= 0) return setErr("Enter the amount, e.g. 500");
     if (reason.trim().length < 3) return setErr("Say why (the staff member sees this)");
     try {
-      await send("/api/admin/bonus/adjustments", "POST", { staffId: who, amountPaise: sign * p, reason: reason.trim() });
+      await send("/api/admin/bonus/adjustments", "POST", {
+        staffId: who,
+        amountPaise: sign * p,
+        reason: reason.trim(),
+      });
       toast("Adjustment added.", "success");
       setAmount("");
       setReason("");
@@ -507,7 +680,9 @@ function CancelPanel({ payout, onClose, onDone }: { payout: BonusPayout | null; 
   const go = async () => {
     if (reason.trim().length < 3) return setErr("Say why this payment is cancelled");
     try {
-      await send(`/api/admin/bonus/payouts/${payout!.id}/cancel`, "POST", { reason: reason.trim() });
+      await send(`/api/admin/bonus/payouts/${payout!.id}/cancel`, "POST", {
+        reason: reason.trim(),
+      });
       toast("Payment cancelled. Its bonuses are unpaid again.", "success");
       setReason("");
       onDone();
@@ -537,7 +712,10 @@ function CancelPanel({ payout, onClose, onDone }: { payout: BonusPayout | null; 
 // ---------------------------------------------------------------------------------------------- staff: my bonus
 export function MyBonusPage() {
   usePageMeta("My bonus", undefined, { noindex: true });
-  const [list, setList] = useState<{ entries: BonusEntry[]; payouts: BonusPayout[] } | null>(null);
+  const [list, setList] = useState<{
+    entries: BonusEntry[];
+    payouts: BonusPayout[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     api<{ entries: BonusEntry[]; payouts: BonusPayout[] }>("/api/admin/bonus/entries")
@@ -545,7 +723,11 @@ export function MyBonusPage() {
       .catch((e) => setError(errorText(e)));
   }, []);
   const entries = usePaged(list?.entries ?? [], "mybonus.entries");
-  const payouts = usePaged((list?.payouts ?? []).filter((p) => p.status === "paid"), "mybonus.payouts", 5);
+  const payouts = usePaged(
+    (list?.payouts ?? []).filter((p) => p.status === "paid"),
+    "mybonus.payouts",
+    5,
+  );
   const sum = (f: (e: BonusEntry) => boolean) => (list?.entries ?? []).filter(f).reduce((a, e) => a + e.amountPaise, 0);
   return (
     <div className="container-x py-10 max-lg:pt-3">
@@ -569,7 +751,7 @@ export function MyBonusPage() {
             ].map(([k, v]) => (
               <div key={k as string} className="card p-3 sm:p-4">
                 <dt className="text-xs text-muted">{k}</dt>
-                <dd className="num mt-1 truncate text-lg sm:text-2xl">{formatPaise(v as number)}</dd>
+                <dd className="num mt-1 truncate text-lg max-lg:text-base max-lg:whitespace-normal max-lg:[overflow-wrap:anywhere] sm:text-2xl">{formatPaise(v as number)}</dd>
               </div>
             ))}
           </dl>
@@ -577,7 +759,10 @@ export function MyBonusPage() {
             <h2 className="font-semibold">Bonuses</h2>
             {list.entries.length === 0 ? (
               <p className="mt-3 text-sm text-muted">
-                No bonuses yet. They appear here when an enquiry you are responsible for is marked won. <Link to="/admin/enquiries?owner=me" className="text-verdi-700 underline">My enquiries</Link>
+                No bonuses yet. They appear here when an enquiry you are responsible for is marked won.{" "}
+                <Link to="/admin/enquiries?owner=me" className="text-verdi-700 underline">
+                  My enquiries
+                </Link>
               </p>
             ) : (
               <>
@@ -616,12 +801,44 @@ function bonusSheets(entries: BonusEntry[], payouts: BonusPayout[]) {
   return [
     {
       name: "Bonus lines",
-      columns: [{ header: "Date", type: "datetime" as const }, { header: "Staff member" }, { header: "Type" }, { header: "Enquiry" }, { header: "Customer" }, { header: "Sale (₹)", type: "money" as const }, { header: "Rate %", type: "number" as const }, { header: "Bonus (₹)", type: "money" as const }, { header: "Status" }, { header: "Reason" }],
-      rows: entries.map((e) => [e.createdAt, e.staffName, e.kind === "sale" ? "Sale" : e.kind === "reversal" ? "Reversal" : "Adjustment", e.enquiryRef, e.customer, e.salePaise == null ? null : e.salePaise / 100, e.rateBasisPoints == null ? null : e.rateBasisPoints / 100, e.amountPaise / 100, e.status === "pending" ? "Waiting approval" : e.status === "approved" ? "Approved" : "Paid", e.reason]),
+      columns: [
+        { header: "Date", type: "datetime" as const },
+        { header: "Staff member" },
+        { header: "Type" },
+        { header: "Enquiry" },
+        { header: "Customer" },
+        { header: "Sale (₹)", type: "money" as const },
+        { header: "Rate %", type: "number" as const },
+        { header: "Bonus (₹)", type: "money" as const },
+        { header: "Status" },
+        { header: "Reason" },
+      ],
+      rows: entries.map((e) => [
+        e.createdAt,
+        e.staffName,
+        e.kind === "sale" ? "Sale" : e.kind === "reversal" ? "Reversal" : "Adjustment",
+        e.enquiryRef,
+        e.customer,
+        e.salePaise == null ? null : e.salePaise / 100,
+        e.rateBasisPoints == null ? null : e.rateBasisPoints / 100,
+        e.amountPaise / 100,
+        e.status === "pending" ? "Waiting approval" : e.status === "approved" ? "Approved" : "Paid",
+        e.reason,
+      ]),
     },
     {
       name: "Payments",
-      columns: [{ header: "Paid on", type: "date" as const }, { header: "Staff member" }, { header: "Amount (₹)", type: "money" as const }, { header: "Bonus lines", type: "number" as const }, { header: "Method" }, { header: "Reference" }, { header: "Note" }, { header: "Status" }, { header: "Paid by" }],
+      columns: [
+        { header: "Paid on", type: "date" as const },
+        { header: "Staff member" },
+        { header: "Amount (₹)", type: "money" as const },
+        { header: "Bonus lines", type: "number" as const },
+        { header: "Method" },
+        { header: "Reference" },
+        { header: "Note" },
+        { header: "Status" },
+        { header: "Paid by" },
+      ],
       rows: payouts.map((p) => [p.paidOn, p.staffName, p.amountPaise / 100, p.entryCount, p.method, p.reference, p.note, p.status === "paid" ? "Paid" : `Cancelled: ${p.cancelReason ?? ""}`, p.paidBy]),
     },
   ];

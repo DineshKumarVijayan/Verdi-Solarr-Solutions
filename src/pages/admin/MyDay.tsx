@@ -65,7 +65,7 @@ function Ring({ done, left }: { done: number; left: number }) {
   const r = 26;
   const c = 2 * Math.PI * r;
   return (
-    <div className="relative grid size-16 shrink-0 place-items-center" role="img" aria-label={`${done} done today, ${left} still to do`}>
+    <div className="relative grid size-16 shrink-0 place-items-center max-lg:size-12" role="img" aria-label={`${done} done today, ${left} still to do`}>
       <svg viewBox="0 0 64 64" className="absolute inset-0 -rotate-90" aria-hidden="true">
         <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" className="stroke-paper-3" />
         <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" strokeLinecap="round" className="stroke-verdi-600 transition-[stroke-dashoffset] duration-700 motion-reduce:transition-none" strokeDasharray={c} strokeDashoffset={c * (1 - pct)} />
@@ -77,11 +77,11 @@ function Ring({ done, left }: { done: number; left: number }) {
 
 function Counter({ n, label, tone, icon, to }: { n: number; label: string; tone: keyof typeof TONE; icon: ReactNode; to: string }) {
   return (
-    <Link to={to} className={`flex min-h-16 items-center gap-2.5 rounded-2xl border p-3 transition hover:-translate-y-0.5 hover:shadow-sm motion-reduce:transform-none ${n ? "border-line bg-card" : "border-dashed border-line/80 bg-transparent opacity-70"}`} data-testid={`myday-count-${tone}`}>
+    <Link to={to} className={`flex min-h-16 min-w-0 items-center gap-2.5 rounded-2xl border p-3 max-lg:flex-col max-lg:items-start max-lg:gap-2 transition hover:-translate-y-0.5 hover:shadow-sm motion-reduce:transform-none ${n ? "border-line bg-card" : "border-dashed border-line/80 bg-transparent opacity-70"}`} data-testid={`myday-count-${tone}`}>
       <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${TONE[tone].chip} [&>svg]:size-4.5`}>{icon}</span>
-      <span className="min-w-0">
+      <span className="max-w-full min-w-0">
         <span className="num block text-xl leading-none font-semibold">{n}</span>
-        <span className="mt-0.5 block text-xs leading-tight text-muted">{label}</span>
+        <span className="mt-0.5 block text-xs leading-tight [overflow-wrap:anywhere] text-muted">{label}</span>
       </span>
     </Link>
   );
@@ -100,7 +100,7 @@ export function MyDayCard({ day, name, className = "" }: { day: MyDay; name: str
       <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         {/* left: greeting, progress and counters */}
         <div className="min-w-0">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 max-lg:gap-3">
             <Ring done={day.doneToday} left={left} />
             <div className="min-w-0">
               <p className="text-xs font-medium tracking-wide text-verdi-700 uppercase">

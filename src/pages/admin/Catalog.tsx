@@ -130,7 +130,7 @@ export default function Catalog() {
   );
 
   return (
-    <div className="container-x py-10">
+    <div className="container-x py-10 max-lg:pt-3">
       <PageHead
         actions={
           <ExportButton
@@ -168,13 +168,13 @@ export default function Catalog() {
           ) : (
             <ul className="card mt-3 divide-y divide-line">
               {pgB.items.map((b) => (
-                <li key={b.id} className="flex items-center gap-3 p-3">
+                <li key={b.id} className="flex items-center gap-3 p-3 max-lg:gap-1.5 max-lg:pr-1.5">
                   <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl border border-line bg-white">{b.logoUrl ? <img src={b.logoUrl} alt="" className="size-full object-contain p-1" /> : <span className="text-sm font-semibold text-subtle">{b.name[0]}</span>}</div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">
+                    <p className="truncate font-semibold max-lg:line-clamp-2 max-lg:whitespace-normal max-lg:[overflow-wrap:anywhere]">
                       {b.name} {!b.isActive && <EyeOff className="ml-1 inline size-3.5 text-subtle" aria-label="Hidden" />}
                     </p>
-                    <p className="text-xs text-muted">
+                    <p className="text-xs text-muted max-lg:truncate">
                       <Link className="hover:underline" to={`/admin/products?brand=${b.id}`}>
                         {b.productCount} product(s)
                       </Link>{" "}
@@ -228,13 +228,13 @@ export default function Catalog() {
           ) : (
             <ul className="card mt-3 divide-y divide-line">
               {pgC.items.map((c) => (
-                <li key={c.id} className="flex items-center gap-3 p-3">
-                  <span className="num w-10 shrink-0 text-xs text-subtle">{c.sortOrder}</span>
+                <li key={c.id} className="flex items-center gap-3 p-3 max-lg:gap-1.5 max-lg:pr-1.5">
+                  <span className="num w-10 shrink-0 max-lg:w-7 text-xs text-subtle">{c.sortOrder}</span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold">
+                    <p className="truncate font-semibold max-lg:line-clamp-2 max-lg:whitespace-normal max-lg:[overflow-wrap:anywhere]">
                       {c.name} {c.isActive ? <Eye className="ml-1 inline size-3.5 text-verdi-600" aria-label="Visible" /> : <EyeOff className="ml-1 inline size-3.5 text-subtle" aria-label="Hidden" />}
                     </p>
-                    <p className="text-xs text-muted">
+                    <p className="text-xs text-muted max-lg:truncate">
                       <Link className="hover:underline" to={`/admin/products?category=${c.id}`}>
                         {c.productCount} product(s)
                       </Link>{" "}

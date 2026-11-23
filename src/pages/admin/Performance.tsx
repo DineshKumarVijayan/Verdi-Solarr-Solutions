@@ -75,6 +75,7 @@ export default function Performance() {
   const staffId = Number(params.get("staff") ?? 0) || null;
   const source = params.get("source") ?? "";
   const [metric, setMetric] = useState<Metric>("total");
+  const [allStaff, setAllStaff] = useState(false);
   const [data, setData] = useState<EnquiryStats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -167,13 +168,13 @@ export default function Performance() {
             </button>
           ))}
         </div>
-        <label className="grid text-xs text-muted">
+        <label className="grid text-xs text-muted max-lg:min-w-0 max-lg:basis-[calc(50%-0.25rem)]">
           From
-          <input type="date" className="field !py-2" value={data?.from ?? ""} max={data?.to} onChange={(e) => set({ from: e.target.value || null })} />
+          <input type="date" className="field !py-2 max-lg:min-w-0 max-lg:px-2.5" value={data?.from ?? ""} max={data?.to} onChange={(e) => set({ from: e.target.value || null })} />
         </label>
-        <label className="grid text-xs text-muted">
+        <label className="grid text-xs text-muted max-lg:min-w-0 max-lg:basis-[calc(50%-0.25rem)]">
           To
-          <input type="date" className="field !py-2" value={data?.to ?? ""} min={data?.from} onChange={(e) => set({ to: e.target.value || null })} />
+          <input type="date" className="field !py-2 max-lg:min-w-0 max-lg:px-2.5" value={data?.to ?? ""} min={data?.from} onChange={(e) => set({ to: e.target.value || null })} />
         </label>
         <label className="grid min-w-36 flex-1 text-xs text-muted sm:flex-none">
           Staff member
@@ -219,7 +220,7 @@ export default function Performance() {
             ].map(([k, v]) => (
               <div key={k} className="card p-3 sm:p-4">
                 <dt className="text-xs text-muted">{k}</dt>
-                <dd className="num mt-1 truncate text-xl sm:text-2xl">{v}</dd>
+                <dd className="num mt-1 truncate text-xl max-lg:text-base max-lg:whitespace-normal sm:text-2xl">{v}</dd>
               </div>
             ))}
           </dl>
@@ -267,35 +268,38 @@ export default function Performance() {
                   </table>
                 </div>
                 <ol className="mt-3 grid gap-2 md:hidden" data-testid="leaderboard-cards">
-                  {staff.map((s) => (
-                    <li key={s.id} className={`rounded-2xl border border-line p-3 ${staffId && staffId !== s.id ? "opacity-45" : ""}`}>
-                      <div className="flex items-baseline justify-between gap-2">
+                  {staff.map((s, i) => (
+                    <li key={s.id} className={`rounded-2xl border border-line px-3 py-2.5 ${staffId && staffId !== s.id ? "opacity-45" : ""} ${i >= 5 && !allStaff ? "hidden" : ""}`}>
+                      <div className="flex items-center justify-between gap-2">
                         <button type="button" className="tap -my-2 min-w-0 truncate text-left font-semibold" onClick={() => set({ staff: staffId === s.id ? null : String(s.id) })}>
                           {s.name}
                         </button>
                         <span className="num shrink-0 text-sm font-semibold">{rupees(s.salePaise)}</span>
                       </div>
                       {/* funnel: enquiries -> quoted -> won */}
-                      <div className="mt-2 grid grid-cols-3 gap-1 text-center text-xs" aria-label="Enquiries, quoted, won">
-                        {(
-                          [
-                            ["Enquiries", s.total],
-                            ["Quoted", s.quoted],
-                            ["Won", s.won],
-                          ] as const
-                        ).map(([k, n]) => (
-                          <div key={k} className="rounded-xl bg-paper-2/70 py-1.5">
-                            <p className="num text-base text-ink">{n}</p>
-                            <p className="text-muted">{k}</p>
-                          </div>
-                        ))}
-                      </div>
-                      <p className="num mt-2 text-xs text-muted">
-                        Win rate {pct(s.won, s.total)} · not won {s.lost} · open {s.open} · <span className={s.overdue > 0 ? "font-semibold text-danger" : ""}>overdue {s.overdue}</span> · quote in {days(s.avgDaysToQuote)} · close in {days(s.avgDaysToClose)}
+                      <p className="num mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted" aria-label="Enquiries, quoted, won">
+                        <span>
+                          <b className="text-ink">{s.total}</b> enquiries
+                        </span>
+                        <span>
+                          <b className="text-ink">{s.quoted}</b> quoted
+                        </span>
+                        <span>
+                          <b className="text-ink">{s.won}</b> won · {pct(s.won, s.total)}
+                        </span>
+                        {s.overdue > 0 && <span className="font-semibold text-danger">{s.overdue} overdue</span>}
+                      </p>
+                      <p className="num mt-0.5 truncate text-[11px] text-subtle">
+                        not won {s.lost} · open {s.open} · quote in {days(s.avgDaysToQuote)} · close in {days(s.avgDaysToClose)}
                       </p>
                     </li>
                   ))}
                 </ol>
+                {staff.length > 5 && (
+                  <button type="button" className="btn-ghost btn-sm tap mt-2 w-full md:hidden" onClick={() => setAllStaff((v) => !v)}>
+                    {allStaff ? "Show fewer" : `Show all ${staff.length} staff`}
+                  </button>
+                )}
               </>
             )}
           </section>

@@ -94,7 +94,7 @@ export function BottomSheet({
           >
             <span aria-hidden className="mx-auto block h-1.5 w-10 rounded-full bg-line" />
             <div className="flex items-center justify-between gap-3 py-2">
-              <h2 id={titleId} className="truncate text-lg font-semibold">
+              <h2 id={titleId} className="line-clamp-2 text-lg leading-snug font-semibold">
                 {title}
               </h2>
               <button type="button" onClick={onClose} className="tap -mr-2 grid place-items-center rounded-full text-muted" aria-label="Close">
@@ -147,12 +147,32 @@ export function ChipRow({ children, label }: { children: ReactNode; label: strin
  * Tabs on phones, everything stacked on desktop. All panels stay in the HTML (hidden only with
  * CSS below lg), so search engines and desktop visitors still get every section.
  */
-export function MobileTabs({ tabs, initial, top = "top-14", testId }: { tabs: { id: string; label: ReactNode; dot?: boolean; panel: ReactNode }[]; initial?: string; top?: string; testId?: string }) {
-  const [active, setActive] = useState(initial ?? tabs[0]?.id);
+export function MobileTabs({
+  tabs,
+  initial,
+  top = "top-14",
+  testId,
+  active: controlled,
+  onChange,
+  className = "",
+}: {
+  tabs: { id: string; label: ReactNode; dot?: boolean; panel: ReactNode }[];
+  initial?: string;
+  top?: string;
+  testId?: string;
+  /** optional: let the page switch tabs (e.g. "See their bonuses") */
+  active?: string;
+  onChange?: (id: string) => void;
+  /** extra classes for the tab strip */
+  className?: string;
+}) {
+  const [own, setOwn] = useState(initial ?? tabs[0]?.id);
+  const active = controlled ?? own;
+  const setActive = (id: string) => (onChange ? onChange(id) : setOwn(id));
   const base = useId();
   return (
     <div data-testid={testId}>
-      <div role="tablist" className={`m-tabs ${top} lg:hidden`}>
+      <div role="tablist" className={`m-tabs ${top} lg:hidden ${className}`}>
         {tabs.map((t) => (
           <button
             key={t.id}

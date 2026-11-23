@@ -57,7 +57,7 @@ export default function AdminProducts() {
   };
 
   return (
-    <div className="container-x py-10">
+    <div className="container-x py-10 max-lg:pt-3">
       <PageHead
         title="Products"
         intro="Add, edit, hide or remove products. Changes publish to every page of the website straight away."

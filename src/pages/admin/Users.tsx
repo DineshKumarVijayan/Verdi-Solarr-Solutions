@@ -51,7 +51,7 @@ export default function Users() {
   };
 
   return (
-    <div className="container-x py-10">
+    <div className="container-x py-10 max-lg:pt-3">
       <PageHead
         title="Staff"
         intro={
@@ -103,7 +103,7 @@ export default function Users() {
                       {[u.mobile ? formatMobile(u.mobile) : "no mobile set", u.email || null].filter(Boolean).join(" · ")}
                       {!u.hasPassword && <span className="ml-1 text-danger">· no password (cannot sign in)</span>}
                     </p>
-                    {u.mustChangePassword && <p className="mt-1 inline-block rounded-full bg-sun-100 px-2 py-0.5 text-[11px] font-medium text-ink" data-testid="temp-password-badge">Temporary password · must set their own at next sign-in</p>}
+                    {u.mustChangePassword && <p className="mt-1 inline-block rounded-full bg-sun-100 px-2 py-0.5 text-[11px] font-medium text-ink" data-testid="temp-password-badge">Temporary password<span className="max-lg:hidden"> · must set their own at next sign-in</span></p>}
                   </td>
                   <td className="rt-chip p-3">{ROLES.find((r) => r.v === u.role)?.label}</td>
                   <td className="rt-chip p-3">

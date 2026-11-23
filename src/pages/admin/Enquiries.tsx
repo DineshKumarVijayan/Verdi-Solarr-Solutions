@@ -342,7 +342,7 @@ function EnquiryRow({
         <span className="num font-semibold">{e.reference}</span>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[e.status]}`}>{STATUS_LABEL[e.status]}</span>
         {e.followUpOn && <FollowUpChip date={e.followUpOn} />}
-        <span className="min-w-0 flex-1 truncate text-sm">
+        <span className="min-w-0 flex-1 truncate text-sm max-lg:basis-full max-lg:font-medium">
           {e.contactName}
           {e.business ? ` · ${e.business}` : ""} <span className="text-muted">· {e.location}</span>
         </span>
@@ -360,25 +360,25 @@ function EnquiryRow({
           {e.owner ? `👤 ${e.owner.name}` : "Unassigned"}
         </span>
         {e.customerId && <UserRound className="size-4 text-verdi-600" aria-label="Registered customer" />}
-        <span className="num text-sm">{e.totalPaise != null ? formatPaise(e.totalPaise) : "—"}</span>
+        <span className={`num text-sm ${e.totalPaise == null ? "max-lg:hidden" : ""}`}>{e.totalPaise != null ? formatPaise(e.totalPaise) : "—"}</span>
         <span className="text-xs text-muted">{dt(e.createdAt)}</span>
         <ChevronDown className={`size-4 text-subtle transition ${open ? "rotate-180" : ""}`} />
       </button>
       </div>
       {open && (
         <ActionBar testId="enquiry-actions">
-          <a className="btn-ghost tap min-w-0 flex-1" href={`tel:+${mobile ?? e.mobile.replace(/\D/g, "")}`}>
+          <a className="btn-ghost tap min-w-0 flex-1 max-[379px]:flex-col max-[379px]:!gap-0.5 max-[379px]:!px-1 max-[379px]:text-xs" href={`tel:+${mobile ?? e.mobile.replace(/\D/g, "")}`}>
             <Phone className="size-4 shrink-0" /> Call
           </a>
-          <WhatsAppMenu phone={waPhone} vars={waVars} keys={waKeys} className="btn-ghost tap min-w-0 flex-1" testId="m-wa-menu" />
-          <Link className="btn-primary tap min-w-0 flex-1" to="/admin/quotations/new" state={{ enquiry: e }}>
+          <WhatsAppMenu phone={waPhone} vars={waVars} keys={waKeys} className="btn-ghost tap min-w-0 flex-1 max-[379px]:flex-col max-[379px]:!gap-0.5 max-[379px]:!px-1 max-[379px]:text-xs" testId="m-wa-menu" />
+          <Link className="btn-primary tap min-w-0 flex-1 max-[379px]:flex-col max-[379px]:!gap-0.5 max-[379px]:!px-1 max-[379px]:text-xs" to="/admin/quotations/new" state={{ enquiry: e }}>
             <FileText className="size-4 shrink-0" /> Quote
           </Link>
         </ActionBar>
       )}
       {open && (
         <div className="grid gap-5 border-t border-line p-4 lg:grid-cols-[1.4fr_1fr]">
-          <div className="min-w-0">
+          <div className={`min-w-0 ${e.items.length === 0 && !e.comments ? "max-lg:hidden" : ""}`}>
             <table className="w-full text-sm">
               <tbody>
                 {e.items.map((i, k) => (

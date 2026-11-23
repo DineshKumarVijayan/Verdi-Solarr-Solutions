@@ -48,7 +48,7 @@ export default function Customers() {
     );
 
   return (
-    <div className="container-x py-10">
+    <div className="container-x py-10 max-lg:pt-3">
       <PageHead
         actions={
           <ExportButton
@@ -365,10 +365,10 @@ function LoyaltyRate() {
   };
   return (
     <section className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-paper p-3 text-sm" data-testid="loyalty-rate">
-      <Percent className="size-4 shrink-0 text-verdi-600" />
+      <Percent className="size-4 shrink-0 text-verdi-600 max-sm:hidden" />
       {edit == null ? (
         <>
-          <p className="min-w-0 flex-1">
+          <p className="min-w-0 flex-1 max-sm:basis-full">
             Loyalty points: <span className="num font-semibold" data-testid="loyalty-rate-value">{basisPointsToPercent(rate.rateBasisPoints) || "0"}%</span> of each sale{" "}
             <span className="text-muted">(1 point = ₹1; added when an enquiry is marked won)</span>
           </p>

@@ -73,7 +73,7 @@ function List() {
     );
 
   return (
-    <div className="container-x py-10">
+    <div className="container-x py-10 max-lg:pt-3">
       <PageHead
         title="Quotations"
         intro="Draft → Sent → Accepted or Declined. Accepting a quotation records the sale on its enquiry. Quotations past their validity date show as Expired."
@@ -145,7 +145,7 @@ function List() {
                 <span className="font-mono text-sm font-semibold">{r.number}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[r.status]}`}>{STATUS_LABEL[r.status]}</span>
                 {isExpired(r) && <ExpiredChip />}
-                <span className="min-w-0 flex-1 truncate">
+                <span className="min-w-0 flex-1 truncate max-lg:basis-full max-lg:font-medium">
                   {r.customerName}
                   {r.customerCompany ? <span className="text-muted"> · {r.customerCompany}</span> : null}
                 </span>
@@ -629,7 +629,7 @@ function Editor({ id }: { id: number | null }) {
     );
 
   return (
-    <div className="container-x py-10 pb-28">
+    <div className="container-x py-10 pb-28 max-lg:pt-3">
       <Link to="/admin/quotations" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
         <ArrowLeft className="size-4" /> All quotations
       </Link>
@@ -771,7 +771,7 @@ function Editor({ id }: { id: number | null }) {
                   return (
                     <li key={l.key} className="rounded-2xl border border-line p-3" data-testid="q-line">
                       <div className="flex gap-3">
-                        <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-line">
+                        <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-line max-[359px]:size-10">
                           {img ? <img src={img} alt="" className="size-full object-contain" loading="lazy" /> : <FileText className="size-5 text-subtle" />}
                         </span>
                         <div className="min-w-0 flex-1">
@@ -782,7 +782,7 @@ function Editor({ id }: { id: number | null }) {
                             </div>
                           ) : (
                             <>
-                              <p className="truncate font-medium">{p?.name ?? l.name}</p>
+                              <p className="truncate font-medium max-lg:line-clamp-2 max-lg:text-sm max-lg:whitespace-normal">{p?.name ?? l.name}</p>
                               <p className="truncate text-xs text-muted">{[brand, p?.model && `Model ${p.model}`, p?.price.unit].filter(Boolean).join(" · ")}</p>
                             </>
                           )}
@@ -871,9 +871,9 @@ function Editor({ id }: { id: number | null }) {
 
       {/* phones: actions pinned above the tab bar */}
       <div data-raise-helper className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 border-t border-line bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="mx-auto flex max-w-lg items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-muted">Total</p>
+        <div className="mx-auto flex max-w-lg items-center gap-2 max-[359px]:flex-wrap max-[359px]:gap-y-1.5">
+          <div className="min-w-0 flex-1 max-[359px]:flex max-[359px]:basis-full max-[359px]:items-baseline max-[359px]:justify-between">
+            <p className="truncate text-xs text-muted">Total</p>
             <p className="num truncate font-semibold">{formatPaise(totals.total)}</p>
           </div>
           <ActionButtons busy={busy} dirty={dirty} hasQuote={!!quote} compact onCancel={cancel} onSave={() => run("save", async () => void ((await save()) && toast("Quotation saved", "success")))} onPreview={() => run("preview", preview)} />
@@ -923,7 +923,7 @@ function ActionButtons({ busy, dirty, hasQuote, compact, onSave, onPreview, onCa
         {busy === "save" ? <Spinner className="size-4" /> : <Save className="size-4" />} <span className={compact ? "max-[399px]:sr-only" : ""}>{hasQuote ? "Save" : "Save draft"}</span>
       </button>
       <button type="button" className={`btn-primary ${compact ? "btn-sm" : ""}`} disabled={!!busy} onClick={onPreview} data-testid="q-preview-btn">
-        {busy === "preview" ? <Spinner className="size-4" /> : <Eye className="size-4" />} Preview PDF
+        {busy === "preview" ? <Spinner className="size-4" /> : <Eye className="size-4" />} Preview<span className={compact ? "max-[339px]:hidden" : ""}> PDF</span>
       </button>
     </>
   );

@@ -337,7 +337,10 @@ export default function ProductEditor() {
             {dirty ? (
               <span className="font-semibold text-sun-600">● {unsavedCount} unsaved {unsavedCount === 1 ? "change" : "changes"}</span>
             ) : (
-              "All changes saved"
+              <>
+                <span className="min-[360px]:hidden">Saved</span>
+                <span className="max-[359px]:hidden">All changes saved</span>
+              </>
             )}
           </p>
           <button type="button" className="btn-ghost tap shrink-0" onClick={cancel} disabled={busy}>

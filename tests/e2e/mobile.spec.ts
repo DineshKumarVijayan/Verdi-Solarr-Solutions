@@ -379,3 +379,19 @@ test("phone: the helper opens as a sheet, fits the screen and sits above the pro
   await page.getByTestId("helper-minimise").click();
   await expect(panel).toBeHidden();
 });
+
+test("staff bonus on phones: tabs, one short row per staff member, details in a sheet", async ({ page }) => {
+  await page.goto("/admin/bonus");
+  const tabs = page.getByTestId("bonus-tabs").getByRole("tab");
+  await expect(tabs).toHaveCount(3);
+  const rows = page.getByTestId("bonus-staff-open");
+  if ((await rows.count()) === 0) return; // no staff yet: nothing more to check
+  const box = await page.getByTestId("bonus-staff").locator("li").first().boundingBox();
+  expect(box!.height).toBeLessThan(110); // a compact row, not a tall card
+  await rows.first().click();
+  const sheet = page.getByTestId("bonus-staff-sheet");
+  await expect(sheet).toBeVisible();
+  await sheet.getByText("See their bonuses").click();
+  await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: /^Bonuses ·/ })).toBeVisible();
+});

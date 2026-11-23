@@ -132,7 +132,9 @@ export function PageHead({ title, intro, actions }: { title: string; intro?: Rea
         <h1 className="text-3xl font-semibold max-lg:text-xl">{title}</h1>
         {intro && <p className="mt-1 max-w-2xl text-sm text-muted max-lg:line-clamp-2 max-lg:text-xs">{intro}</p>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && (
+        <div className="scrollbar-none flex flex-wrap gap-2 max-lg:-mx-4 max-lg:w-[calc(100%+2rem)] max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-4 max-lg:py-0.5 max-lg:[&>*]:shrink-0 max-lg:[&>.btn-primary]:order-first">{actions}</div>
+      )}
     </div>
   );
 }

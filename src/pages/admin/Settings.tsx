@@ -70,7 +70,7 @@ export default function Settings() {
   const dirty = SITE_SETTING_KEYS.some((k) => (values[k] ?? "") !== (saved[k] ?? ""));
 
   return (
-    <div className="container-x py-10">
+    <div className="container-x py-10 max-lg:pt-3">
       <PageHead
         title="Site settings"
         intro="Contact details, social links and the announcement bar. Empty fields use the built-in default (shown faintly)."

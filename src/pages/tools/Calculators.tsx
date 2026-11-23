@@ -70,7 +70,7 @@ export function ConsumptionTool() {
                 </td>
                 {(["watts", "quantity", "hoursPerDay"] as const).map((k) => (
                   <td key={k} className="py-1.5 pr-2" data-label={k === "watts" ? "Watts" : k === "quantity" ? "Qty" : "Hours/day"}>
-                    <input aria-label={`${r.name} ${k}`} type="number" min={0} max={k === "hoursPerDay" ? 24 : undefined} step={k === "hoursPerDay" ? 0.5 : 1} className="field num !w-24 !py-1.5" value={r[k]} onChange={(e) => upd(i, { [k]: Math.max(0, e.target.valueAsNumber || 0) })} />
+                    <input aria-label={`${r.name} ${k}`} type="number" min={0} max={k === "hoursPerDay" ? 24 : undefined} step={k === "hoursPerDay" ? 0.5 : 1} className="field num !w-24 !py-1.5 max-[359px]:!w-full max-[359px]:min-w-0" value={r[k]} onChange={(e) => upd(i, { [k]: Math.max(0, e.target.valueAsNumber || 0) })} />
                   </td>
                 ))}
                 <td className="num py-1.5" data-label="kWh/day">{s.perRow[i].dailyKwh.toFixed(2)}</td>
@@ -402,9 +402,9 @@ export function OrientationTool() {
 
 export function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className={`rounded-xl p-3 ${accent ? "bg-ink text-paper" : "bg-card ring-1 ring-line"}`}>
+    <div className={`min-w-0 rounded-xl p-3 max-[359px]:p-2 ${accent ? "bg-ink text-paper" : "bg-card ring-1 ring-line"}`}>
       <p className={`text-[10px] tracking-wide uppercase ${accent ? "text-paper/55" : "text-subtle"}`}>{label}</p>
-      <p className="num mt-0.5 text-lg leading-tight">{value}</p>
+      <p className="num mt-0.5 text-lg leading-tight max-[359px]:text-sm">{value}</p>
     </div>
   );
 }

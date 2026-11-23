@@ -90,7 +90,7 @@ export default function FieldPhotos() {
   };
 
   return (
-    <div className="container-x py-10">
+    <div className="container-x py-10 max-lg:pt-3">
       <PageHead
         title="Field photos"
         intro="Photos for the “In the field” page and the home-page filmstrip. Use your own project or stock photos only, and keep captions factual."
