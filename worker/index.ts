@@ -15,6 +15,7 @@ import * as loyalty from "./loyalty";
 import * as customers from "./customers";
 import type { Env } from "./env";
 import { errorResponse, HttpError, json, readJson } from "./http";
+import { withIdempotency } from "./idempotency";
 
 async function rateLimit(limiter: Env["PUBLIC_LIMITER"], key: string): Promise<void> {
   if (!limiter) return;
@@ -269,7 +270,9 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
-      return await route(request, env, ctx);
+      const path = new URL(request.url).pathname.replace(/\/+$/, "") || "/";
+      // create requests carrying a one-time key never run twice (see idempotency.ts)
+      return await withIdempotency(request, env, path, request.method.toUpperCase(), () => route(request, env, ctx));
     } catch (err) {
       return errorResponse(err);
     }

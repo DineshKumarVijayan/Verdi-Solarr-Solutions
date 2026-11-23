@@ -13,14 +13,33 @@ export class ApiError extends Error {
 let authChangedAt = 0;
 const AUTH_PATHS = /^\/api\/(admin\/(login|password)|account\/(login|register|reset|password))$/;
 
+/**
+ * Creates that must not happen twice (mirrors worker/idempotency.ts). If the exact same request is sent
+ * again within 10 minutes (Save pressed again after a lost reply on a weak connection), it carries the
+ * same one-time key, so the server returns the first result instead of saving a second copy.
+ */
+const ONCE = /^\/api\/(enquiries|admin\/(enquiries|quotations|bonus\/adjustments|customers\/\d{1,9}\/points|products|faqs|field-photos|users))$/;
+const recentKeys = new Map<string, { key: string; at: number }>();
+function submissionKey(path: string, body: string): string {
+  const now = Date.now();
+  for (const [k, v] of recentKeys) if (now - v.at > 10 * 60_000) recentKeys.delete(k);
+  const sig = `${path}|${body}`;
+  const hit = recentKeys.get(sig);
+  if (hit) return hit.key;
+  const key = (globalThis.crypto?.randomUUID?.() ?? `${now}-${Math.random()}`).replace(/[^A-Za-z0-9]/g, "").padEnd(16, "0");
+  recentKeys.set(sig, { key, at: now });
+  return key;
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const sentAt = Date.now();
+  const once: Record<string, string> = (init.method ?? "GET").toUpperCase() === "POST" && typeof init.body === "string" && ONCE.test(path) ? { "Idempotency-Key": submissionKey(path, init.body) } : {};
   let res: Response;
   try {
     res = await fetch(path, {
       ...init,
       credentials: "same-origin",
-      headers: { Accept: "application/json", ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}), ...init.headers },
+      headers: { Accept: "application/json", ...(typeof init.body === "string" ? { "Content-Type": "application/json" } : {}), ...once, ...init.headers },
     });
   } catch {
     throw new ApiError(0, "network", "Network error — please check your connection.");

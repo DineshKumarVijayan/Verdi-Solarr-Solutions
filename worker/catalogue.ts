@@ -197,6 +197,42 @@ function safeJsonArray(s: string | null): string[] {
   }
 }
 
+// D1 allows about 2 MB per row. Small catalogues are stored as plain JSON; larger ones gzip-compressed
+// (catalogue JSON shrinks 6-8x, room for thousands of products). If even that is too big, only a marker is
+// stored and the catalogue is built fresh for each request: slower, but the website keeps working.
+const PLAIN_MAX = 900_000;
+const STORE_MAX = 1_800_000;
+const GZ = `gz1:${SNAPSHOT_SCHEMA}:`;
+const BIG = `big1:${SNAPSHOT_SCHEMA}:`;
+
+async function gzipBase64(text: string): Promise<string> {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+async function gunzipBase64(b64: string): Promise<string> {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+}
+async function packSnapshot(payload: string): Promise<string> {
+  if (payload.length <= PLAIN_MAX) return payload;
+  const gz = GZ + (await gzipBase64(payload));
+  if (gz.length <= STORE_MAX) return gz;
+  console.error(`Catalogue snapshot too large to store (${payload.length} bytes): building per request`);
+  return BIG;
+}
+/** The stored form is current (plain, compressed or "too big" marker of this schema version). */
+export const isCurrentStored = (head: string) => head.startsWith(`{"schema":${SNAPSHOT_SCHEMA},`) || head.startsWith(GZ) || head.startsWith(BIG);
+async function unpackSnapshot(env: Env, version: number, stored: string): Promise<string> {
+  if (stored.startsWith(GZ)) return gunzipBase64(stored.slice(GZ.length));
+  if (stored.startsWith(BIG)) return JSON.stringify(await buildCatalogue(env, version));
+  return stored;
+}
+
 /** Rebuild and store the snapshot. Called after every committed admin catalogue change. */
 export async function publishCatalogue(env: Env): Promise<{ version: number; payload: string }> {
   // Two admins saving at the same moment both rebuild. Each build claims the next version only if
@@ -207,25 +243,26 @@ export async function publishCatalogue(env: Env): Promise<{ version: number; pay
     const version = (cur?.Version ?? 0) + 1;
     const catalogue = await buildCatalogue(env, version);
     const payload = JSON.stringify(catalogue);
+    const stored = await packSnapshot(payload);
     const r = await env.DB.prepare(
       `INSERT INTO PublishedCatalogue (Id, Version, PayloadJson, PublishedAt) VALUES (1, ?1, ?2, ?3)
        ON CONFLICT(Id) DO UPDATE SET Version = excluded.Version, PayloadJson = excluded.PayloadJson, PublishedAt = excluded.PublishedAt
        WHERE PublishedCatalogue.Version = ?1 - 1`,
     )
-      .bind(version, payload, catalogue.publishedAt)
+      .bind(version, stored, catalogue.publishedAt)
       .run();
     if (r.meta.changes) return { version, payload };
   }
   // still racing after several rounds: the latest published copy already includes this change
   const row = await env.DB.prepare("SELECT Version, PayloadJson FROM PublishedCatalogue WHERE Id = 1").first<{ Version: number; PayloadJson: string }>();
-  return { version: row!.Version, payload: row!.PayloadJson };
+  return { version: row!.Version, payload: await unpackSnapshot(env, row!.Version, row!.PayloadJson) };
 }
 
 /** Read the snapshot (1 row). Builds it on first use. */
 export async function getPublishedCatalogue(env: Env): Promise<{ version: number; payload: string }> {
   const row = await env.DB.prepare("SELECT Version, PayloadJson FROM PublishedCatalogue WHERE Id = 1").first<{ Version: number; PayloadJson: string }>();
   // JSON.stringify keeps insertion order, so a current snapshot always starts with the schema marker.
-  if (row && row.PayloadJson.startsWith(`{"schema":${SNAPSHOT_SCHEMA},`)) return { version: row.Version, payload: row.PayloadJson };
+  if (row && isCurrentStored(row.PayloadJson)) return { version: row.Version, payload: await unpackSnapshot(env, row.Version, row.PayloadJson) };
   return publishCatalogue(env);
 }
 
@@ -252,7 +289,7 @@ export async function handleCatalogue(request: Request, env: Env, ctx: Execution
   // One tiny read (the version number) per request keys the edge copy, so a change is visible in every
   // data centre at once instead of after the cache time; an unchanged catalogue still costs a 304.
   const head = await env.DB.prepare("SELECT Version, substr(PayloadJson, 1, 16) AS Head FROM PublishedCatalogue WHERE Id = 1").first<{ Version: number; Head: string }>();
-  const current = head && head.Head.startsWith(`{"schema":${SNAPSHOT_SCHEMA},`) ? head.Version : null;
+  const current = head && isCurrentStored(head.Head) ? head.Version : null;
   if (current !== null && request.headers.get("If-None-Match") === `W/"cat-${current}"`) {
     return new Response(null, { status: 304, headers: { ETag: `W/"cat-${current}"`, "Cache-Control": `public, max-age=30, s-maxage=${ttl}` } });
   }
