@@ -279,7 +279,7 @@ async function adminContent(request: Request, env: Env, admin: AdminIdentity, pa
 // sent, and phone numbers / emails are blanked out. Errors only, no performance tracing.
 export default Sentry.withSentry(
   (env: Env) =>
-    env.SENTRY_DSN
+    env.SENTRY_DSN && env.ENVIRONMENT !== "development" // never from a laptop or the test runs
       ? {
           dsn: env.SENTRY_DSN,
           environment: env.ENVIRONMENT,

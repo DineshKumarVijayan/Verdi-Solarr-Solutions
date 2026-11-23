@@ -4,7 +4,10 @@
  * sent, and phone numbers / emails are blanked out of messages. Each distinct error is sent at most a few
  * times per visit, so one broken page cannot use up the monthly allowance.
  */
-const DSN = import.meta.env.VITE_SENTRY_DSN as string | undefined;
+// Production builds report to the verdi-web project (a DSN is public by design); the test site sets its own
+// label at build time; local development never loads Sentry.
+const PROD_DSN = "https://286bdd24638c14b0a0c7a9de2e7dd14a@o4512481735475201.ingest.us.sentry.io/4512481772175360";
+const DSN = (import.meta.env.VITE_SENTRY_DSN as string | undefined) || (import.meta.env.PROD ? PROD_DSN : undefined);
 const ENV = (import.meta.env.VITE_SENTRY_ENV as string | undefined) ?? "production";
 
 import { scrub } from "../../shared/scrub";

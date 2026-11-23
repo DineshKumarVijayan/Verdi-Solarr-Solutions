@@ -39,7 +39,9 @@
     "ENVIRONMENT": "production",
     // Comma-separated hostnames allowed to perform admin writes (CSRF/origin check), e.g. "verdisolarr.com,www.verdisolarr.com"
     "ADMIN_ALLOWED_HOSTS": "",
-    "PUBLIC_CACHE_SECONDS": "60"
+    "PUBLIC_CACHE_SECONDS": "60",
+    // error alerts (Sentry project verdi-worker); a DSN is public by design. Off when ENVIRONMENT=development.
+    "SENTRY_DSN": "https://bcc7115eab987eafccf0251d887df979@o4512481735475201.ingest.us.sentry.io/4512481776762880"
   },
   // Secrets (NOT here, never in GitHub): PASSWORD_PEPPER — set with `npx wrangler secret put PASSWORD_PEPPER`. See PASSWORDS.md.
 
