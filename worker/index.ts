@@ -146,7 +146,11 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
     if (path === "/api/admin/dashboard" && method === "GET") return json(await dashboard(env, admin));
     if (path === "/api/admin/my-day" && method === "GET") return json(await content.myDay(env, admin));
     // TEST site only, owner only: raise one error on purpose to check that error alerts arrive
-    if (path === "/api/admin/alert-test" && method === "POST" && env.ENVIRONMENT === "test" && admin.role === "owner") throw new Error("VERDI test alert (server): this error was raised on purpose to check alerts");
+    if (path === "/api/admin/alert-test" && method === "POST" && env.ENVIRONMENT === "test" && admin.role === "owner") {
+      const e = new Error("VERDI test alert (server): this error was raised on purpose to check alerts");
+      e.name = `VerdiAlertTest${Date.now()}`; // a new name each time, so Sentry treats it as a new issue
+      throw e;
+    }
     if (path === "/api/admin/exports" && method === "POST") return json(await content.logExport(env, admin, await readJson(request)));
     if (path === "/api/admin/message-templates" && method === "GET") return json(await content.getMessageTemplates(env));
     if (path === "/api/admin/message-templates" && method === "PUT") return json(await content.saveMessageTemplates(env, admin, await readJson(request, 32 * 1024)));
