@@ -40,6 +40,30 @@
     // Comma-separated hostnames allowed to perform admin writes (CSRF/origin check), e.g. "verdisolarr.com,www.verdisolarr.com"
     "ADMIN_ALLOWED_HOSTS": "",
     "PUBLIC_CACHE_SECONDS": "60"
-  }
+  },
   // Secrets (NOT here, never in GitHub): PASSWORD_PEPPER — set with `npx wrangler secret put PASSWORD_PEPPER`. See PASSWORDS.md.
+
+  // TEST site on a free workers.dev address with dummy data (its own database, no R2 file storage, never
+  // indexed by search engines). Completely separate from production: delete it any time.
+  //   build + deploy:  npm run deploy:test        migrations:  npm run db:migrate:test
+  "env": {
+    "test": {
+      "name": "verdi-solarr-test",
+      "workers_dev": true,
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "verdi-db-test",
+          "database_id": "3947cce3-9014-4a0f-991f-09f484148694",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "ratelimits": [
+        { "name": "PUBLIC_LIMITER", "namespace_id": "4201", "simple": { "limit": 60, "period": 60 } },
+        { "name": "ADMIN_LIMITER", "namespace_id": "4202", "simple": { "limit": 120, "period": 60 } },
+        { "name": "AUTH_LIMITER", "namespace_id": "4203", "simple": { "limit": 20, "period": 60 } }
+      ],
+      "vars": { "ENVIRONMENT": "test", "ADMIN_ALLOWED_HOSTS": "", "PUBLIC_CACHE_SECONDS": "60" }
+    }
+  }
 }

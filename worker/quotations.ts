@@ -364,11 +364,18 @@ export async function updateQuotation(env: Env, admin: AdminIdentity, id: number
   const items = await resolveItems(env, v, keep);
   const t = sums(items);
   const now = nowIso();
+  // Save only if it is still not accepted and nobody else saved it since this editor loaded it
+  // (otherwise an accepted sale could change, or one person's edits would silently replace another's).
+  const head = await env.DB.prepare(
+    `UPDATE Quotations SET CustomerName = ?2, CustomerCompany = ?3, CustomerMobile = ?4, CustomerEmail = ?5, CustomerAddress = ?6, Notes = ?7, ValidDays = ?8,
+            SubtotalPaise = ?9, DiscountPaise = ?10, TotalPaise = ?11, UpdatedBy = ?12, UpdatedAt = ?13
+      WHERE QuotationId = ?1 AND Status <> 'accepted' AND UpdatedAt = ?14`,
+  )
+    .bind(id, v.customerName, v.customerCompany || null, v.mobile, v.customerEmail || null, v.customerAddress || null, v.notes || null, v.validDays, t.subtotal, t.discount, t.total, admin.email, now, v.expectedUpdatedAt ?? before.updatedAt)
+    .run();
+  if (!head.meta.changes)
+    throw new HttpError(409, "changed", "This quotation was changed by someone else (or accepted) after you opened it. Reload it to see the latest version, then make your change again.");
   await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE Quotations SET CustomerName = ?2, CustomerCompany = ?3, CustomerMobile = ?4, CustomerEmail = ?5, CustomerAddress = ?6, Notes = ?7, ValidDays = ?8,
-              SubtotalPaise = ?9, DiscountPaise = ?10, TotalPaise = ?11, UpdatedBy = ?12, UpdatedAt = ?13 WHERE QuotationId = ?1`,
-    ).bind(id, v.customerName, v.customerCompany || null, v.mobile, v.customerEmail || null, v.customerAddress || null, v.notes || null, v.validDays, t.subtotal, t.discount, t.total, admin.email, now),
     env.DB.prepare("DELETE FROM QuotationItems WHERE QuotationId = ?1").bind(id),
     ...itemStatements(env, id, items),
     audit(env, admin, "quotation.update", before.number, { totalPaise: before.totalPaise, items: before.items.length }, { totalPaise: t.total, items: items.length }, now),
@@ -488,7 +495,7 @@ export async function shareQuotationPdf(env: Env, admin: AdminIdentity, id: numb
     audit(env, admin, "quotation.share", before.Number, null, { bytes: buf.byteLength }, now),
   ]);
   if (before.PdfKey && before.PdfKey !== key) await env.MEDIA.delete(before.PdfKey).catch(() => undefined);
-  return { shareUrl: shareUrl(token)!, status: before.Status === "draft" ? "sent" : before.Status };
+  return { shareUrl: shareUrl(token)!, status: before.Status === "draft" ? "sent" : before.Status, updatedAt: now };
 }
 
 /** Public: the shared PDF behind an unguessable link. */

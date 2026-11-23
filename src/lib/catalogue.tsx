@@ -45,7 +45,8 @@ export function CatalogueProvider({ children }: { children: ReactNode }) {
     api<PublicCatalogue>("/api/catalogue", { cache: "no-cache" })
       .then((c) => {
         if (!alive) return;
-        setData(c);
+        // same version: keep the current object so nothing re-renders for an unchanged catalogue
+        setData((prev) => (prev && prev.version === c.version && prev.schema === c.schema ? prev : c));
         setError(null);
         try {
           sessionStorage.setItem(SESSION_KEY, JSON.stringify(c));
@@ -61,6 +62,26 @@ export function CatalogueProvider({ children }: { children: ReactNode }) {
   }, [tick]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
+
+  // A tab left open for hours must not keep old prices or stock: check again when the visitor comes
+  // back to it (after a minute away) and every few minutes while it is visible. Unchanged = a tiny 304.
+  useEffect(() => {
+    let last = Date.now();
+    const check = (minAgeMs: number) => {
+      if (document.visibilityState !== "visible" || Date.now() - last < minAgeMs) return;
+      last = Date.now();
+      reload();
+    };
+    const onShow = () => check(60_000);
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", onShow);
+    const every = window.setInterval(() => check(5 * 60_000), 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("focus", onShow);
+      window.clearInterval(every);
+    };
+  }, [reload]);
 
   const value = useMemo<CatalogueState>(() => {
     const products = data?.products ?? [];

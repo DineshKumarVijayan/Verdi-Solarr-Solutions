@@ -46,6 +46,8 @@ export const QuoteInputSchema = z
     enquiryId: z.number().int().positive().nullable().optional(),
     /** for a quotation not made from an enquiry: how staff reached the customer (an enquiry is created for it) */
     reachedVia: z.enum(["phone", "whatsapp", "visit"]).optional(),
+    /** when editing: the updatedAt the editor loaded, so two people never overwrite each other */
+    expectedUpdatedAt: z.string().max(40).optional(),
   })
   .strict();
 export type QuoteInput = z.infer<typeof QuoteInputSchema>;

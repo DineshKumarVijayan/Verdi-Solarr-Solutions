@@ -6,6 +6,7 @@ import type { AdminDashboard, MyDay } from "../../../shared/types";
 import { MyDayCard } from "./MyDay";
 import { Spinner } from "../../components/ui";
 import { api, ApiError } from "../../lib/api";
+import { useRefreshOnReturn } from "../../lib/refresh";
 import { useAdmin } from "./AdminLayout";
 
 /** Cloudflare D1 free plan: 500 MB per database (the paid plan allows 10 GB). */
@@ -38,6 +39,7 @@ export default function Dashboard() {
   const [d, setD] = useState<AdminDashboard | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [day, setDay] = useState<MyDay | null>(null);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     api<AdminDashboard>("/api/admin/dashboard")
       .then(setD)
@@ -45,7 +47,8 @@ export default function Dashboard() {
     api<MyDay>("/api/admin/my-day")
       .then(setDay)
       .catch(() => undefined);
-  }, []);
+  }, [tick]);
+  useRefreshOnReturn(() => setTick((t) => t + 1)); // My day and counts stay current when the tab is left open
 
   if (err) return <p className="container-x py-10 text-danger">{err}</p>;
   if (!d)

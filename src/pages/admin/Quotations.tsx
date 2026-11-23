@@ -16,6 +16,7 @@ import { useCatalogue } from "../../lib/catalogue";
 import { useSite } from "../../lib/site";
 import { useAdmin } from "./AdminLayout";
 import { WhatsAppMenu } from "./WhatsAppMenu";
+import { useRefreshOnReturn } from "../../lib/refresh";
 import { canManage, dt, errorText, PageHead, send, uploadFile, useUnsavedWarning, ExportButton, FilterNote } from "./kit";
 
 const PdfViewer = lazy(() => import("../../components/PdfViewer"));
@@ -55,11 +56,13 @@ function List() {
   const admin = useAdmin();
   const owner = params.get("owner") ?? "";
 
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     api<{ rows: QuoteRow[] }>(`/api/admin/quotations?${params}`)
       .then((r) => setRows(r.rows))
       .catch((e) => setError(errorText(e)));
-  }, [params]);
+  }, [params, tick]);
+  useRefreshOnReturn(() => setTick((t) => t + 1));
 
   const set = (k: string, v: string) =>
     setParams(
@@ -516,7 +519,7 @@ function Editor({ id }: { id: number | null }) {
     setError(null);
     try {
       const r = quote
-        ? await send<{ quote: Quote }>(`/api/admin/quotations/${quote.id}`, "PUT", payload())
+        ? await send<{ quote: Quote }>(`/api/admin/quotations/${quote.id}`, "PUT", { ...payload(), expectedUpdatedAt: quote.updatedAt })
         : await send<{ quote: Quote }>("/api/admin/quotations", "POST", payload());
       load(r.quote);
       if (!quote) nav(`/admin/quotations/${r.quote.id}`, { replace: true, state: { created: true } });
@@ -576,8 +579,8 @@ function Editor({ id }: { id: number | null }) {
     if (!pdf || !quote) return;
     const w = window.open("about:blank", "_blank"); // open now, inside the click, so it is not blocked
     try {
-      const r = await api<{ shareUrl: string; status: QuoteStatus }>(`/api/admin/quotations/${quote.id}/pdf`, { method: "POST", body: pdf.blob, headers: { "Content-Type": "application/pdf" } });
-      setQuote({ ...quote, shareUrl: r.shareUrl, status: r.status, sentAt: new Date().toISOString() });
+      const r = await api<{ shareUrl: string; status: QuoteStatus; updatedAt: string }>(`/api/admin/quotations/${quote.id}/pdf`, { method: "POST", body: pdf.blob, headers: { "Content-Type": "application/pdf" } });
+      setQuote({ ...quote, shareUrl: r.shareUrl, status: r.status, sentAt: r.updatedAt, updatedAt: r.updatedAt });
       const to = quote.customerMobile ?? "";
       const url = `https://wa.me/${to}?text=${encodeURIComponent(message(quote, location.origin + r.shareUrl))}`;
       if (w) w.location.href = url;

@@ -199,17 +199,26 @@ function safeJsonArray(s: string | null): string[] {
 
 /** Rebuild and store the snapshot. Called after every committed admin catalogue change. */
 export async function publishCatalogue(env: Env): Promise<{ version: number; payload: string }> {
-  const cur = await env.DB.prepare("SELECT Version FROM PublishedCatalogue WHERE Id = 1").first<{ Version: number }>();
-  const version = (cur?.Version ?? 0) + 1;
-  const catalogue = await buildCatalogue(env, version);
-  const payload = JSON.stringify(catalogue);
-  await env.DB.prepare(
-    `INSERT INTO PublishedCatalogue (Id, Version, PayloadJson, PublishedAt) VALUES (1, ?1, ?2, ?3)
-     ON CONFLICT(Id) DO UPDATE SET Version = excluded.Version, PayloadJson = excluded.PayloadJson, PublishedAt = excluded.PublishedAt`,
-  )
-    .bind(version, payload, catalogue.publishedAt)
-    .run();
-  return { version, payload };
+  // Two admins saving at the same moment both rebuild. Each build claims the next version only if
+  // nobody published in between; otherwise it rebuilds from the latest data. So an older build can
+  // never overwrite a newer one (which would hide the other person's change from the website).
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const cur = await env.DB.prepare("SELECT Version FROM PublishedCatalogue WHERE Id = 1").first<{ Version: number }>();
+    const version = (cur?.Version ?? 0) + 1;
+    const catalogue = await buildCatalogue(env, version);
+    const payload = JSON.stringify(catalogue);
+    const r = await env.DB.prepare(
+      `INSERT INTO PublishedCatalogue (Id, Version, PayloadJson, PublishedAt) VALUES (1, ?1, ?2, ?3)
+       ON CONFLICT(Id) DO UPDATE SET Version = excluded.Version, PayloadJson = excluded.PayloadJson, PublishedAt = excluded.PublishedAt
+       WHERE PublishedCatalogue.Version = ?1 - 1`,
+    )
+      .bind(version, payload, catalogue.publishedAt)
+      .run();
+    if (r.meta.changes) return { version, payload };
+  }
+  // still racing after several rounds: the latest published copy already includes this change
+  const row = await env.DB.prepare("SELECT Version, PayloadJson FROM PublishedCatalogue WHERE Id = 1").first<{ Version: number; PayloadJson: string }>();
+  return { version: row!.Version, payload: row!.PayloadJson };
 }
 
 /** Read the snapshot (1 row). Builds it on first use. */
@@ -240,7 +249,15 @@ export async function handleCatalogue(request: Request, env: Env, ctx: Execution
   } catch {
     cache = null;
   }
-  let res = cache ? await cache.match(CATALOGUE_CACHE_KEY) : undefined;
+  // One tiny read (the version number) per request keys the edge copy, so a change is visible in every
+  // data centre at once instead of after the cache time; an unchanged catalogue still costs a 304.
+  const head = await env.DB.prepare("SELECT Version, substr(PayloadJson, 1, 16) AS Head FROM PublishedCatalogue WHERE Id = 1").first<{ Version: number; Head: string }>();
+  const current = head && head.Head.startsWith(`{"schema":${SNAPSHOT_SCHEMA},`) ? head.Version : null;
+  if (current !== null && request.headers.get("If-None-Match") === `W/"cat-${current}"`) {
+    return new Response(null, { status: 304, headers: { ETag: `W/"cat-${current}"`, "Cache-Control": `public, max-age=30, s-maxage=${ttl}` } });
+  }
+  const key = current !== null ? `${CATALOGUE_CACHE_KEY}?v=${current}` : CATALOGUE_CACHE_KEY;
+  let res = cache && current !== null ? await cache.match(key) : undefined;
   if (!res) {
     const { version, payload } = await getPublishedCatalogue(env);
     res = new Response(payload, {
@@ -253,7 +270,7 @@ export async function handleCatalogue(request: Request, env: Env, ctx: Execution
         "X-Content-Type-Options": "nosniff",
       },
     });
-    if (cache) ctx.waitUntil(cache.put(CATALOGUE_CACHE_KEY, res.clone()));
+    if (cache) ctx.waitUntil(cache.put(`${CATALOGUE_CACHE_KEY}?v=${version}`, res.clone()));
   }
   const etag = res.headers.get("ETag");
   if (etag && request.headers.get("If-None-Match") === etag) {

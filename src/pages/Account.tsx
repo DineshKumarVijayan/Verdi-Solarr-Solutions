@@ -14,6 +14,7 @@ import { useBasket } from "../lib/basket";
 import { useCatalogue } from "../lib/catalogue";
 import { STATUS_LABEL, STATUS_STYLE } from "../lib/enquiry-status";
 import { usePageMeta } from "../lib/seo";
+import { useRefreshOnReturn } from "../lib/refresh";
 import { useSite } from "../lib/site";
 
 const dateFmt = (s: string) => new Date(s).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
@@ -197,6 +198,8 @@ function Dashboard() {
   const [tab, setTab] = useState<"enquiries" | "rewards" | "profile">("enquiries");
   const hide = (t: typeof tab) => (tab === t ? "" : "max-lg:hidden");
 
+  const [tick, setTick] = useState(0);
+  useRefreshOnReturn(() => setTick((t) => t + 1)); // enquiry progress and points update while the page is open
   useEffect(() => {
     Promise.all([api<{ enquiries: EnquiryView[] }>("/api/account/enquiries"), api<{ balance: number; entries: RewardEntry[] }>("/api/account/rewards")])
       .then(([e, r]) => {
@@ -206,7 +209,7 @@ function Dashboard() {
       })
       .catch((e: ApiError) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tick]);
 
   return (
     <div className="container-x py-10 max-lg:pt-4">

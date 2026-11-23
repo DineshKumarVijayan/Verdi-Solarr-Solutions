@@ -303,7 +303,7 @@ export async function livePage(request: Request, env: Env, ctx: ExecutionContext
     out.headers.set(k, v);
   }
   out.headers.delete("ETag");
-  if (live.noindex) out.headers.set("X-Robots-Tag", "noindex");
+  if (live.noindex || env.ENVIRONMENT === "test") out.headers.set("X-Robots-Tag", "noindex, nofollow"); // test site: never in search results
   return out;
 }
 
@@ -331,7 +331,9 @@ export async function sitemap(request: Request, env: Env, ctx: ExecutionContext)
   return new Response(xml, { headers: { "Content-Type": "application/xml; charset=utf-8", "Cache-Control": "public, max-age=3600" } });
 }
 
-export function robots(request: Request): Response {
+export function robots(request: Request, env?: { ENVIRONMENT?: string }): Response {
+  // the test site (dummy data) must never be indexed by search engines
+  if (env?.ENVIRONMENT === "test") return new Response(["User-agent: *", "Disallow: /"].join("\n") + "\n", { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
   const origin = new URL(request.url).origin;
   const body = ["User-agent: *", "Allow: /", "Disallow: /admin", "Disallow: /account", "Disallow: /api/", "Disallow: /enquiry", `Sitemap: ${origin}/sitemap.xml`].join("\n") + "\n";
   return new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" } });

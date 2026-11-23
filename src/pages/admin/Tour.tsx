@@ -40,7 +40,18 @@ function stepsFor(admin: AdminIdentity): Step[] {
     { id: "quotes", title: "Quotations", body: "Build a quotation from the catalogue in a few taps. Prices come from the system, and it becomes a professional PDF you can send on WhatsApp.", target: navLink("/admin/quotations") },
     { id: "products", title: "Products", body: mgr ? "Add or edit products, photos, datasheets, stock and offers. Changes reach the website straight away." : "Look up any product: specifications, datasheets, stock and offers, to answer customers quickly.", target: navLink("/admin/products") },
   );
-  if (allowed("/admin/prices")) s.push({ id: "prices", title: "Prices", body: "Set selling price and MRP. Every change is kept in the price history, so you always know who changed what.", target: navLink("/admin/prices") });
+  if (allowed("/admin/prices")) {
+    // only owner, admin and price editors may change prices (the server enforces this too)
+    const edits = mgr || admin.role === "price_editor";
+    s.push({
+      id: "prices",
+      title: "Prices",
+      body: edits
+        ? "Set selling price and MRP. Every change is kept in the price history, so you always know who changed what."
+        : "See the current selling price and MRP of every product, to answer customers quickly. Prices are set by the owner or an admin.",
+      target: navLink("/admin/prices"),
+    });
+  }
   if (allowed("/admin/performance")) s.push({ id: "performance", title: "Performance & bonus", body: "See each staff member’s enquiries, quotations and wins, and approve and pay their sales bonus.", target: navLink("/admin/performance") });
   if (allowed("/admin/customers")) s.push({ id: "customers", title: "Customers & loyalty", body: "Registered customers, their enquiries and the loyalty points they earn on every sale.", target: navLink("/admin/customers") });
   if (allowed("/admin/my-bonus")) s.push({ id: "mybonus", title: "My bonus", body: "What you earned on every sale you won, and when it was paid.", target: navLink("/admin/my-bonus") });

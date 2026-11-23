@@ -87,7 +87,7 @@ export async function republish(env: Env): Promise<number | null> {
     version = (await publishCatalogue(env)).version;
   } catch (e) {
     console.error("Catalogue publish failed", e);
-    await env.DB.prepare("DELETE FROM PublishedCatalogue").run().catch(() => undefined); // derived cache only
+    await env.DB.prepare("UPDATE PublishedCatalogue SET PayloadJson = '{}' WHERE Id = 1").run().catch(() => undefined); // mark stale (derived cache only); the version keeps counting up
   }
   await purgeCatalogueEdgeCache();
   return version;

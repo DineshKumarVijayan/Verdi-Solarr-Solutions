@@ -22,7 +22,9 @@
     "db:dev-users": "node scripts/dev-users.mjs",
     "admin:set": "node scripts/admin-user.mjs",
     "deploy:production": "node scripts/deploy-production.mjs",
-    "test:visual": "playwright test -c playwright.visual.config.ts"
+    "test:visual": "playwright test -c playwright.visual.config.ts",
+    "deploy:test": "node scripts/deploy-test.mjs",
+    "db:migrate:test": "node scripts/check-migrations.mjs && wrangler d1 migrations apply verdi-db-test --remote --env test"
   },
   "dependencies": {
     "jspdf": "^4.2.1",

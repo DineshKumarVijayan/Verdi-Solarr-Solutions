@@ -10,6 +10,7 @@ import { Modal, Spinner, useToast } from "../../components/ui";
 import { api } from "../../lib/api";
 import { usePageMeta } from "../../lib/seo";
 import { useAdmin } from "./AdminLayout";
+import { useRefreshOnReturn } from "../../lib/refresh";
 import { canManage, dt, errorText, PageHead, send, ExportButton } from "./kit";
 
 /* Staff bonus: owner/admin set rates, approve, adjust and pay (settling the unpaid balance so nothing is
@@ -140,6 +141,7 @@ export default function Bonus() {
       .catch((e) => setError(errorText(e)));
   }, [staffF, statusF, manager]);
   useEffect(load, [load]);
+  useRefreshOnReturn(load);
 
   const entries = usePaged(list?.entries ?? [], "bonus.entries");
   const payouts = usePaged(list?.payouts ?? [], "bonus.payouts", 5);
@@ -615,11 +617,14 @@ function AdjustPanel({ open, staff, onClose, onSaved }: { open: boolean; staff: 
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const save = async () => {
+    if (busy) return; // a double tap must not add the adjustment twice
     const p = rupeesToPaise(amount);
     if (!who) return setErr("Choose the staff member");
     if (p === null || Number.isNaN(p) || p <= 0) return setErr("Enter the amount, e.g. 500");
     if (reason.trim().length < 3) return setErr("Say why (the staff member sees this)");
+    setBusy(true);
     try {
       await send("/api/admin/bonus/adjustments", "POST", {
         staffId: who,
@@ -634,6 +639,8 @@ function AdjustPanel({ open, staff, onClose, onSaved }: { open: boolean; staff: 
       onClose();
     } catch (e) {
       setErr(errorText(e));
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -643,7 +650,7 @@ function AdjustPanel({ open, staff, onClose, onSaved }: { open: boolean; staff: 
       title="Bonus adjustment"
       testId="adjust-panel"
       footer={
-        <button type="button" className="btn-primary tap w-full" onClick={() => void save()} data-testid="save-adjustment">
+        <button type="button" className="btn-primary tap w-full" onClick={() => void save()} disabled={busy} data-testid="save-adjustment">
           Add adjustment
         </button>
       }
@@ -679,8 +686,11 @@ function CancelPanel({ payout, onClose, onDone }: { payout: BonusPayout | null; 
   const toast = useToast();
   const [reason, setReason] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const go = async () => {
+    if (busy) return;
     if (reason.trim().length < 3) return setErr("Say why this payment is cancelled");
+    setBusy(true);
     try {
       await send(`/api/admin/bonus/payouts/${payout!.id}/cancel`, "POST", {
         reason: reason.trim(),
@@ -691,6 +701,8 @@ function CancelPanel({ payout, onClose, onDone }: { payout: BonusPayout | null; 
       onClose();
     } catch (e) {
       setErr(errorText(e));
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -699,7 +711,7 @@ function CancelPanel({ payout, onClose, onDone }: { payout: BonusPayout | null; 
       onClose={onClose}
       title="Cancel this payment?"
       footer={
-        <button type="button" className="btn-primary tap w-full !bg-danger" onClick={() => void go()}>
+        <button type="button" className="btn-primary tap w-full !bg-danger" onClick={() => void go()} disabled={busy}>
           Cancel payment of {payout ? formatPaise(payout.amountPaise) : ""}
         </button>
       }

@@ -177,7 +177,7 @@ export async function updatePrice(env: Env, admin: AdminIdentity, productId: num
     catalogueVersion = (await publishCatalogue(env)).version;
   } catch (e) {
     console.error("Catalogue publish failed after price save", e);
-    await env.DB.prepare("DELETE FROM PublishedCatalogue").run().catch(() => undefined);
+    await env.DB.prepare("UPDATE PublishedCatalogue SET PayloadJson = '{}' WHERE Id = 1").run().catch(() => undefined); // mark stale; the version keeps counting up
   }
   await purgeCatalogueEdgeCache();
 

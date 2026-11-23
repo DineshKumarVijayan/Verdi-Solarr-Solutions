@@ -5,7 +5,7 @@
 //  * Never overwrites a price: ProductPrices rows are INSERT OR IGNORE with a NULL price.
 //  * By default products/specs/media are INSERT OR IGNORE (admin edits are preserved).
 //    Pass --refresh-content to also update descriptive text/specs from the datasheet source.
-//  * Clears only PublishedCatalogue (a derived cache) so the Worker rebuilds it.
+//  * Marks PublishedCatalogue (a derived cache) stale so the Worker rebuilds it, keeping its version number.
 //
 // Usage: node scripts/generate-seed.mjs [--refresh-content] [--admin=email@example.com]
 
@@ -75,7 +75,7 @@ for (const p of products) {
 lines.push(
   `INSERT OR IGNORE INTO AdminUsers (Email, DisplayName, Role) VALUES (${q(ownerEmail)}, 'Owner', 'owner');`,
   "-- Derived cache only: force the Worker to rebuild the public catalogue snapshot.",
-  "DELETE FROM PublishedCatalogue;",
+  "UPDATE PublishedCatalogue SET PayloadJson = '{}' WHERE Id = 1; -- keeps the version number, so browsers never mistake a new copy for an old one",
 );
 
 mkdirSync("seed", { recursive: true });

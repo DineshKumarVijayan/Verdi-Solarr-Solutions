@@ -37,7 +37,7 @@ async function route(request: Request, env: Env, ctx: ExecutionContext): Promise
   // ------------------------------------------------- SEO (non-API, see seo.ts)
   if (!path.startsWith("/api/")) {
     if (path === "/sitemap.xml") return sitemap(request, env, ctx);
-    if (path === "/robots.txt") return robots(request);
+    if (path === "/robots.txt") return robots(request, env);
     if (path.startsWith("/products/") || path.startsWith("/category/") || LIVE_PATHS.includes(path.replace(/\/+$/, "") || "/")) return livePage(request, env, ctx);
     return env.ASSETS.fetch(request);
   }

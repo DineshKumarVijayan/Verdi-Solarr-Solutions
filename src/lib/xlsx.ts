@@ -176,7 +176,7 @@ export function downloadXlsx(name: string, sheets: Sheet[]): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${name} ${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.download = `${name} ${new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)}.xlsx`; // India date
   document.body.appendChild(a);
   a.click();
   a.remove();

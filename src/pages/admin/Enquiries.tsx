@@ -15,6 +15,7 @@ import { api } from "../../lib/api";
 import { ADMIN_STATUS_LABEL as STATUS_LABEL, STATUS_HINT, STATUS_STYLE } from "../../lib/enquiry-status";
 import { Accordion, ActionBar, ClampText } from "../../components/mobile/kit";
 import { useAdmin } from "./AdminLayout";
+import { useRefreshOnReturn } from "../../lib/refresh";
 import { canManage, dt, errorText, PageHead, send, ExportButton, FilterNote } from "./kit";
 
 export default function Enquiries() {
@@ -74,6 +75,7 @@ export default function Enquiries() {
       .catch((e) => setError(errorText(e)));
   }, [params]);
   useEffect(load, [load]);
+  useRefreshOnReturn(load); // new website enquiries appear without a manual reload
 
   const set = (k: string, v: string) =>
     setParams(
