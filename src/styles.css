@@ -615,3 +615,14 @@ select::-ms-expand { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .tour-ring { animation: none; }
 }
+
+/* iPhone/iPad Safari zooms the whole page in when a text box, dropdown or date field with text under
+   16 px is tapped, and often stays zoomed: the page then looks cut off and needs sideways scrolling.
+   16 px on phones and touch screens prevents that zoom (desktop with a mouse is unchanged). */
+@media (max-width: 1023.98px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

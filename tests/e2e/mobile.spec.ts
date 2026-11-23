@@ -395,3 +395,17 @@ test("staff bonus on phones: tabs, one short row per staff member, details in a 
   await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("heading", { name: /^Bonuses ·/ })).toBeVisible();
 });
+
+test("phones: text boxes and dropdowns use 16 px text, so iPhone Safari never zooms in on tap", async ({ page }) => {
+  for (const path of ["/products", "/admin/products", "/admin/quotations", "/admin/performance", "/enquiry"]) {
+    await page.goto(path);
+    await page.locator("h1").first().waitFor({ timeout: 15_000 });
+    await page.waitForTimeout(800);
+    const small = await page.evaluate(() =>
+      [...document.querySelectorAll("input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]), select, textarea")]
+        .filter((e) => e.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(e).fontSize) < 16)
+        .map((e) => e.outerHTML.slice(0, 80)),
+    );
+    expect(small, `${path}: controls under 16 px make iPhones zoom`).toEqual([]);
+  }
+});
