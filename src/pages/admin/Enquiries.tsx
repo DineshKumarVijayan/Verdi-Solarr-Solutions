@@ -393,8 +393,8 @@ function EnquiryRow({
                       )}
                       <span className="block text-xs text-muted">{[i.brand, i.model].filter(Boolean).join(" · ")}</span>
                     </td>
-                    <td className="num py-1.5 pr-2 text-right">× {i.quantity}</td>
-                    <td className="num py-1.5 text-right">{i.unitPaise != null ? formatPaise(i.unitPaise) : "on request"}</td>
+                    <td className="num py-1.5 pr-2 text-right whitespace-nowrap">× {i.quantity}</td>
+                    <td className="num py-1.5 text-right whitespace-nowrap">{i.unitPaise != null ? formatPaise(i.unitPaise) : "on request"}</td>
                   </tr>
                 ))}
               </tbody>

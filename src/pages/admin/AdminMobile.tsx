@@ -31,7 +31,7 @@ export const adminTitle = (path: string) => TITLES.find(([re]) => re.test(path))
 
 const isPhone = () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023.98px)").matches;
 
-export function AdminTopBar() {
+export function AdminTopBar({ staff = false }: { staff?: boolean }) {
   const { pathname } = useLocation();
   return (
     <div className="m-topbar border-white/10 bg-ink text-paper lg:hidden" data-testid="admin-topbar">
@@ -41,7 +41,7 @@ export function AdminTopBar() {
       <p className="min-w-0 flex-1 truncate text-base font-semibold" aria-live="polite">
         {adminTitle(pathname)}
       </p>
-      <span className="rounded-full bg-sun-400 px-2 py-0.5 font-mono text-[9px] font-semibold tracking-widest text-ink uppercase">Admin</span>
+      <span className="rounded-full bg-sun-400 px-2 py-0.5 font-mono text-[9px] font-semibold tracking-widest text-ink uppercase">{staff ? "Staff" : "Admin"}</span>
       <a href="/" className="tap -mr-2 grid place-items-center rounded-full text-paper/80" aria-label="View website">
         <ExternalLink className="size-5" />
       </a>

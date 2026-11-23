@@ -1,4 +1,4 @@
-import { ArrowRight, Building2, ClipboardList, FileWarning, History, ImageOff, Images, Layers, Package, Plus, Settings, Tags, Users } from "lucide-react";
+import { ArrowRight, Building2, ClipboardList, Database, FileWarning, History, ImageOff, Images, Layers, Package, Plus, Settings, Tags, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { formatPaise } from "../../../shared/money";
@@ -7,6 +7,29 @@ import { MyDayCard } from "./MyDay";
 import { Spinner } from "../../components/ui";
 import { api, ApiError } from "../../lib/api";
 import { useAdmin } from "./AdminLayout";
+
+/** Cloudflare D1 free plan: 500 MB per database (the paid plan allows 10 GB). */
+const DB_LIMIT_BYTES = 500 * 1024 * 1024;
+
+/** Owner only: how full the database is, so growth is noticed long before the limit. */
+function DatabaseSize({ bytes, className = "" }: { bytes: number | null; className?: string }) {
+  if (bytes == null) return null;
+  const pct = Math.min(100, (bytes / DB_LIMIT_BYTES) * 100);
+  const mb = bytes / (1024 * 1024);
+  const tone = pct >= 90 ? "bg-danger" : pct >= 70 ? "bg-sun-500" : "bg-verdi-500";
+  return (
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted ${className}`} data-testid="db-size">
+      <Database className="size-4 shrink-0 text-verdi-600" />
+      <span>
+        Database used: <b className="num text-ink">{mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB</b> of 500 MB <span className="num">({pct < 1 ? "<1" : Math.round(pct)}%)</span>
+      </span>
+      <span className="h-1.5 w-28 overflow-hidden rounded-full bg-paper-3" aria-hidden="true">
+        <span className={`block h-full rounded-full ${tone}`} style={{ width: `${Math.max(pct, 1)}%` }} />
+      </span>
+      {pct >= 70 && <span className="basis-full font-medium text-sun-600">Getting full: old audit records can be archived to free space.</span>}
+    </div>
+  );
+}
 
 const dt = (s: string) => new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
@@ -52,6 +75,7 @@ export default function Dashboard() {
         Public catalogue version <span className="num">{d.catalogueVersion ?? "—"}</span>
         {d.cataloguePublishedAt ? ` · published ${dt(d.cataloguePublishedAt)}` : " · will publish on next visit"}
       </p>
+      <DatabaseSize bytes={d.databaseBytes} className="mt-2" />
 
       {(admin.role === "owner" || admin.role === "admin") && (
         <div className="mt-6 flex flex-wrap gap-2">
@@ -124,14 +148,15 @@ export default function Dashboard() {
                 <li key={r.productId} className="text-sm">
                   <p className="truncate font-medium">{r.name}</p>
                   <p className="text-xs text-muted">
-                    <span className="num text-ink">{formatPaise(r.sellingPaise)}</span> · {r.updatedBy} · {dt(r.updatedAt)}
+                    <span className="num text-ink">{formatPaise(r.sellingPaise)}</span>
+                    {r.updatedBy ? ` · ${r.updatedBy}` : ""} · {dt(r.updatedAt)}
                   </p>
                 </li>
               ))}
             </ul>
           )}
         </section>
-        <section className="card p-5">
+        {(admin.role === "owner" || admin.role === "admin") && <section className="card p-5">
           <h2 className="flex items-center gap-2 font-semibold">
             <History className="size-4" /> Recent activity
           </h2>
@@ -151,7 +176,7 @@ export default function Dashboard() {
               ))}
             </ul>
           )}
-        </section>
+        </section>}
       </div>
     </div>
     </>
@@ -224,7 +249,8 @@ function PhoneDashboard({ d, canAdd, name, day }: { d: AdminDashboard; canAdd: b
           </Link>
         </div>
       )}
-      <section aria-labelledby="act-h" className="mt-4">
+      <DatabaseSize bytes={d.databaseBytes} className="mt-4 rounded-2xl border border-line bg-card p-3" />
+      {canAdd && <section aria-labelledby="act-h" className="mt-4">
         <h2 id="act-h" className="flex items-center gap-2 text-base font-semibold">
           <History className="size-4" /> Recent activity
         </h2>
@@ -244,7 +270,7 @@ function PhoneDashboard({ d, canAdd, name, day }: { d: AdminDashboard; canAdd: b
             ))}
           </ul>
         )}
-      </section>
+      </section>}
     </div>
   );
 }

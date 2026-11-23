@@ -124,7 +124,9 @@ export default function Bonus() {
   const [tab, setTab] = useState("staff");
   const [sheetFor, setSheetFor] = useState<BonusStaffSummary | null>(null);
 
+  const manager = canManage(admin);
   const load = useCallback(() => {
+    if (!manager) return; // staff see "My bonus" below; the owner view is not theirs to load
     const sp = new URLSearchParams();
     if (staffF) sp.set("staff", String(staffF));
     if (statusF === "unpaid") sp.set("unpaid", "1");
@@ -136,7 +138,7 @@ export default function Bonus() {
         setPicked(new Set());
       })
       .catch((e) => setError(errorText(e)));
-  }, [staffF, statusF]);
+  }, [staffF, statusF, manager]);
   useEffect(load, [load]);
 
   const entries = usePaged(list?.entries ?? [], "bonus.entries");

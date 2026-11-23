@@ -184,6 +184,8 @@ export interface AdminDashboard {
   cataloguePublishedAt: string | null;
   newEnquiries: number;
   customers: number;
+  /** size of the D1 database in bytes (owner only; null for everyone else) */
+  databaseBytes: number | null;
 }
 
 // ------------------------------------------------------------- admin content

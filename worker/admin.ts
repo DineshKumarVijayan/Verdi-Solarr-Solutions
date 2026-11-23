@@ -225,9 +225,10 @@ export async function dashboard(env: Env, admin: AdminIdentity): Promise<AdminDa
       name: x.ProductName as string,
       sellingPaise: (x.SellingPricePaise as number) ?? null,
       updatedAt: x.UpdatedAt as string,
-      updatedBy: (x.UpdatedBy as string) ?? null,
+      updatedBy: mgr ? ((x.UpdatedBy as string) ?? null) : null, // who changed it is staff data: owner/admin only
     })),
-    recentActivity: (r[7].results as Record<string, unknown>[]).map((x) => ({
+    // the audit trail names staff and their emails: owner/admin only
+    recentActivity: (mgr ? (r[7].results as Record<string, unknown>[]) : []).map((x) => ({
       auditId: x.AuditId as number,
       adminIdentity: x.AdminIdentity as string,
       action: x.Action as string,
@@ -239,5 +240,7 @@ export async function dashboard(env: Env, admin: AdminIdentity): Promise<AdminDa
     cataloguePublishedAt: pub?.PublishedAt ?? null,
     newEnquiries: (r[9].results[0] as { enq: number } | undefined)?.enq ?? 0,
     customers: (r[9].results[0] as { cust: number } | undefined)?.cust ?? 0,
+    // D1 reports the database size with every query; shown to the owner only
+    databaseBytes: admin.role === "owner" ? (((r[0].meta as { size_after?: number } | undefined)?.size_after ?? null) as number | null) : null,
   };
 }

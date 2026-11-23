@@ -1,7 +1,7 @@
 import { KeyRound, LogOut, ShieldAlert } from "lucide-react";
 import { ADMIN_NAV, navAllowed } from "./nav";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { ROLE_LABEL, type AdminIdentity } from "../../../shared/types";
 import { Modal, Spinner } from "../../components/ui";
 import { markActive } from "../../lib/idle";
@@ -84,10 +84,10 @@ export default function AdminLayout() {
   };
   return (
     <AdminCtx.Provider value={admin}>
-      <AdminTopBar />
+      <AdminTopBar staff={admin.role !== "owner" && admin.role !== "admin"} />
       <div className="border-b border-line bg-ink text-paper max-lg:hidden">
         <div className="container-x flex flex-wrap items-center gap-3 py-3">
-          <span className="rounded-full bg-sun-400 px-2.5 py-0.5 font-mono text-[10px] font-semibold tracking-widest text-ink uppercase">Admin</span>
+          <span className="rounded-full bg-sun-400 px-2.5 py-0.5 font-mono text-[10px] font-semibold tracking-widest text-ink uppercase">{admin.role === "owner" || admin.role === "admin" ? "Admin" : "Staff"}</span>
           <nav aria-label="Admin" className="scrollbar-none -mx-1 order-last flex min-w-0 basis-full gap-1 overflow-x-auto px-1 max-lg:[mask-image:linear-gradient(90deg,black_90%,transparent)] lg:flex-wrap lg:overflow-visible">
             {NAV.filter((n) => navAllowed(n, admin.role)).map((n) => (
               <NavLink key={n.to} end={n.end} to={n.to} className={({ isActive }) => `inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm whitespace-nowrap lg:px-2 ${isActive ? "bg-white/10 text-paper" : "text-paper/70 hover:text-paper"}`}>
@@ -108,7 +108,9 @@ export default function AdminLayout() {
           </div>
         </div>
       </div>
-      <Outlet key={admin.email} />
+      <RoleGate admin={admin}>
+        <Outlet key={admin.email} />
+      </RoleGate>
       <AdminTabBar admin={admin} onPassword={() => setPwOpen(true)} onSignOut={signOut} />
       <HelperLauncher kind="staff" />
       {state.relogin && (
@@ -122,5 +124,28 @@ export default function AdminLayout() {
         </div>
       </Modal>
     </AdminCtx.Provider>
+  );
+}
+
+/**
+ * A page from the admin menu that this role may not open (e.g. a typed or shared link): a clear note
+ * instead of the page and its failed requests. The server still refuses on its own; this is only the screen.
+ */
+function RoleGate({ admin, children }: { admin: AdminIdentity; children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const section = ADMIN_NAV.find((n) => !n.end && n.to !== "/admin/bonus" && n.to !== "/admin/my-bonus" && (pathname === n.to || pathname.startsWith(n.to + "/")));
+  if (!section || navAllowed(section, admin.role)) return <>{children}</>;
+  const who = section.owner ? "the owner" : (section.roles ?? []).map((r) => ROLE_LABEL[r].toLowerCase() + "s").join(" and ");
+  return (
+    <div className="container-x py-16 max-lg:py-10" data-testid="no-access">
+      <div className="card mx-auto max-w-md p-6 text-center">
+        <ShieldAlert className="mx-auto size-9 text-sun-500" />
+        <h1 className="mt-3 text-xl font-semibold">{section.label} is for {who}</h1>
+        <p className="mt-2 text-sm text-muted">Your role ({ROLE_LABEL[admin.role]}) can't open this page. If you need something from it, ask the owner.</p>
+        <Link to="/admin" className="btn-primary tap mt-5 inline-flex">
+          Back to dashboard
+        </Link>
+      </div>
+    </div>
   );
 }
